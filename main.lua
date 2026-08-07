@@ -179,11 +179,11 @@ createToggle("🚀 Auto Tutorial", true, function(state)
 end)
 
 local updateFarmModeBtn
-updateFarmModeBtn = createToggle("🚜 Farm Mode (Screen Off)", false, function(state)
+updateFarmModeBtn = createToggle("🚜 Farm Mode (Screen Off)", true, function(state)
     if GraphicsModule then GraphicsModule.SetFarmMode(state) end
 end)
 
-createToggle("❄️ Anti-Lag (FPS Cap 5)", true, function(state)
+createToggle("❄️ Anti-Lag (FPS Cap 5)", false, function(state)
     if GraphicsModule then GraphicsModule.SetAntiLag(state) end
 end)
 
