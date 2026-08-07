@@ -183,11 +183,11 @@ updateFarmModeBtn = createToggle("🚜 Farm Mode (Screen Off)", false, function(
     if GraphicsModule then GraphicsModule.SetFarmMode(state) end
 end)
 
-createToggle("❄️ Anti-Lag (FPS Cap 5)", false, function(state)
+createToggle("❄️ Anti-Lag (FPS Cap 5)", true, function(state)
     if GraphicsModule then GraphicsModule.SetAntiLag(state) end
 end)
 
-createToggle("🥔 Potato Graphics", false, function(state)
+createToggle("🥔 Potato Graphics", true, function(state)
     if GraphicsModule then GraphicsModule.EnablePotato(state) end
 end)
 
