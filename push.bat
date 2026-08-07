@@ -6,28 +6,32 @@ echo ========================================================
 echo          🚀 RITOD HUB - GITHUB AUTO PUSH 🚀
 echo ========================================================
 echo.
-echo Menyiapkan file untuk diunggah ke GitHub...
+
+:: Pastikan remote origin sudah terpasang
+git remote remove origin >nul 2>&1
+git remote add origin https://github.com/RyuZeed/capybara.git
+
+echo [1/3] Menyiapkan semua file script...
 git add .
 
-set /p msg="Masukkan pesan update (tekan Enter untuk default): "
-if "%msg%"=="" set msg=Update Ritod Hub Modular %date% %time%
-
 echo.
-echo Melakukan commit: "%msg%"...
+set msg=Update Ritod Hub Modular %date% %time%
+echo [2/3] Membuat commit: "%msg%"...
 git commit -m "%msg%"
 
 echo.
-echo Mengunggah ke https://github.com/RyuZeed/capybara...
-git push origin main
+echo [3/3] Menyelaraskan branch dan mengunggah ke GitHub...
+git branch -M main
+git push -u origin main
 
 echo.
 if %errorlevel% equ 0 (
     echo ========================================================
-    echo      🎉 SUKSES! Script terbaru aktif di GitHub!
+    echo      SUKSES! Script terbaru aktif di GitHub!
     echo ========================================================
 ) else (
     echo ========================================================
-    echo   ❌ Gagal mengunggah. Pastikan internet & login aktif.
+    echo   Gagal mengunggah. Pastikan internet dan login aktif.
     echo ========================================================
 )
 echo.
