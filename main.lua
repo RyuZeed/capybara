@@ -5,7 +5,6 @@
 -- =================================================================
 
 task.wait(1)
-    ["FPS Cap"] = 5,
 -- 🧹 HAPUS PAKSA UI LAMA BILA ADA
 pcall(function()
     local pg = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
