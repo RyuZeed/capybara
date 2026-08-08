@@ -4,7 +4,7 @@ local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
 local SETTINGS = {
     AFK_FPS_Cap         = 5,
@@ -22,6 +22,17 @@ local States = {
 local potatoConnection = nil
 local screenOffGui = nil
 local blackBtn = nil
+local syncCallback = nil
+
+local function applyFpsCap(fps)
+    if typeof(setfpscap) == "function" then
+        pcall(setfpscap, fps)
+    elseif typeof(set_fps_cap) == "function" then
+        pcall(set_fps_cap, fps)
+    elseif typeof(setfps) == "function" then
+        pcall(setfps, fps)
+    end
+end
 
 local function isLocalCharacterItem(obj)
     local model = obj:FindFirstAncestorOfClass("Model")
@@ -130,19 +141,19 @@ function GraphicsModule.EnablePotato(enable)
                 if States.PotatoGraphics then task.defer(function() purgeObject(v) end) end
             end)
         end
-        print("🥔 [Ritod Hub] Potato Graphics Enabled!")
+        print("🥔 [Ritod Hub] Potato Graphics: ON")
     else
         if potatoConnection then
             potatoConnection:Disconnect()
             potatoConnection = nil
         end
-        print("🛑 [Ritod Hub] Potato Graphics Disabled.")
+        print("🛑 [Ritod Hub] Potato Graphics: OFF")
     end
 end
 
 local function initScreenOffGui()
     if screenOffGui then return end
-    local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10) or LocalPlayer.PlayerGui
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 10) or LocalPlayer.PlayerGui
 
     screenOffGui = Instance.new("ScreenGui")
     screenOffGui.Name = "AFKScreenOff"
@@ -165,31 +176,33 @@ local function initScreenOffGui()
 
     blackBtn.MouseButton1Click:Connect(function()
         GraphicsModule.SetFarmMode(false)
+        if syncCallback then
+            pcall(function() syncCallback(false) end)
+        end
     end)
 end
 
-function GraphicsModule.SetFarmMode(enable)
+function GraphicsModule.SetFarmMode(enable, onSync)
     States.FarmMode = enable
+    if onSync then syncCallback = onSync end
+
     initScreenOffGui()
     if screenOffGui then screenOffGui.Enabled = enable end
 
-    if typeof(setfpscap) == "function" then
-        pcall(function()
-            setfpscap(enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap))
-        end)
-    end
+    local targetFps = enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap)
+    applyFpsCap(targetFps)
+
     print("🚜 [Ritod Hub] Farm Mode: " .. (enable and "ON" or "OFF"))
 end
 
 function GraphicsModule.SetAntiLag(enable)
     States.AntiLag = enable
-    if typeof(setfpscap) == "function" then
-        pcall(function()
-            setfpscap((enable or States.FarmMode) and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap)
-        end)
-    end
+    local targetFps = (enable or States.FarmMode) and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap
+    applyFpsCap(targetFps)
+
     pcall(function() Lighting.GlobalShadows = not enable end)
     print("❄️ [Ritod Hub] Anti-Lag (FPS Cap 5): " .. (enable and "ON" or "OFF"))
 end
 
 return GraphicsModule
+

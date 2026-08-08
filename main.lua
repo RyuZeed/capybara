@@ -4,7 +4,19 @@
 -- GitHub: https://github.com/RyuZeed/capybara
 -- =================================================================
 
-task.wait(1)
+-- =================================================================
+-- ⚙️ PENGATURAN AWAL (AUTO-START CONFIG)
+-- Ubah ke true jika ingin fitur langsung berjalan otomatis saat script di-load
+-- =================================================================
+local CONFIG = {
+    AutoTutorial   = true,   -- 🚀 Otomatis jalankan Auto Tutorial (Step 1-12)
+    FarmMode       = true,   -- 🚜 Redupkan Layar (Screen Off) saat AFK
+    AntiLag        = true,   -- ❄️ Batasi FPS ke 5 & Nonaktifkan Shadow
+    PotatoGraphics = true,   -- 🥔 Hapus Tekstur, Partikel, & Efek Berat
+    AutoClaim      = true,   -- 🎁 Otomatis klaim Hadiah Playtime & Daily
+}
+
+task.wait(0.5)
 
 -- 🧹 HAPUS PAKSA UI LAMA BILA ADA
 pcall(function()
@@ -52,7 +64,7 @@ if PinkRemover then PinkRemover.Start() end
 -- 🎨 GUI CREATION (RITOD HUB LITE)
 -- =================================================================
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "RitodHubLite"
@@ -132,7 +144,7 @@ UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 end)
 
 local function createToggle(text, initialState, callback)
-    local state = initialState or false
+    local state = (initialState == true)
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 40)
@@ -145,7 +157,7 @@ local function createToggle(text, initialState, callback)
     corner.Parent = btn
 
     local function updateVisual(val)
-        state = (val ~= nil) and val or state
+        if val ~= nil then state = val end
         if state then
             btn.BackgroundColor3 = Color3.fromRGB(0, 180, 100)
             btn.Text = text .. " [ ON ]"
@@ -157,12 +169,19 @@ local function createToggle(text, initialState, callback)
         end
     end
 
-    updateVisual(initialState)
+    updateVisual(state)
+
+    -- Eksekusi otomatis saat load jika defaultnya true
+    if state then
+        task.spawn(function()
+            pcall(function() callback(true) end)
+        end)
+    end
 
     btn.MouseButton1Click:Connect(function()
         state = not state
         updateVisual(state)
-        callback(state)
+        pcall(function() callback(state) end)
     end)
 
     return updateVisual
@@ -172,33 +191,40 @@ end
 -- 🔘 DAFTAR TOMBOL FITUR DI GUI
 -- =================================================================
 
-createToggle("🚀 Auto Tutorial", true, function(state)
+createToggle("🚀 Auto Tutorial", CONFIG.AutoTutorial, function(state)
     if state and AutoTutorial then
         AutoTutorial.Start()
+    elseif not state and AutoTutorial then
+        AutoTutorial.Stop()
     end
 end)
 
 local updateFarmModeBtn
-updateFarmModeBtn = createToggle("🚜 Farm Mode (Screen Off)", false, function(state)
-    if GraphicsModule then GraphicsModule.SetFarmMode(state) end
+updateFarmModeBtn = createToggle("🚜 Farm Mode (Screen Off)", CONFIG.FarmMode, function(state)
+    if GraphicsModule then
+        GraphicsModule.SetFarmMode(state, function(newState)
+            if updateFarmModeBtn then updateFarmModeBtn(newState) end
+        end)
+    end
 end)
 
-createToggle("❄️ Anti-Lag (FPS Cap 5)", false, function(state)
-    if GraphicsModule then GraphicsModule.SetAntiLag(state) end
+createToggle("❄️ Anti-Lag (FPS Cap 5)", CONFIG.AntiLag, function(state)
+    if GraphicsModule then
+        GraphicsModule.SetAntiLag(state)
+    end
 end)
 
-createToggle("🥔 Potato Graphics", false, function(state)
-    if GraphicsModule then GraphicsModule.EnablePotato(state) end
+createToggle("🥔 Potato Graphics", CONFIG.PotatoGraphics, function(state)
+    if GraphicsModule then
+        GraphicsModule.EnablePotato(state)
+    end
 end)
 
-createToggle("🎁 Auto Claim Rewards", true, function(state)
+createToggle("🎁 Auto Claim Rewards", CONFIG.AutoClaim, function(state)
     if AutoClaim then
         if state then AutoClaim.Start() else AutoClaim.Stop() end
     end
 end)
 
--- Auto start initial toggles
-if AutoClaim then task.spawn(AutoClaim.Start) end
-if AutoTutorial then task.spawn(AutoTutorial.Start) end
-
 print("👑 [RITOD HUB LITE] Modular Cloud Edition Loaded Successfully!")
+
