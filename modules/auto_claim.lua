@@ -1,20 +1,82 @@
 local AutoClaim = {}
 
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
-local MainGui = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local VirtualUser = game:GetService("VirtualUser")
+
+local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
 local running = false
+
+local function getMainGui()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 10)
+    if not pg then return nil end
+    return pg:FindFirstChild("MainGui") or pg:WaitForChild("MainGui", 5) or pg:FindFirstChildWhichIsA("ScreenGui")
+end
+
+local function clickButton(btn)
+    if not btn then return end
+
+    if typeof(firesignal) == "function" then
+        pcall(function() firesignal(btn.MouseButton1Click) end)
+        pcall(function() firesignal(btn.MouseButton1Down) end)
+        pcall(function() firesignal(btn.Activated) end)
+    end
+
+    if typeof(getconnections) == "function" then
+        for _, eventName in ipairs({"Activated", "MouseButton1Click", "MouseButton1Down", "TouchTap"}) do
+            pcall(function()
+                if btn[eventName] then
+                    for _, conn in ipairs(getconnections(btn[eventName])) do
+                        if conn.Function then
+                            conn.Function()
+                        elseif conn.Fire then
+                            conn:Fire()
+                        end
+                    end
+                end
+            end)
+        end
+    end
+
+    pcall(function()
+        local pos = btn.AbsolutePosition
+        local size = btn.AbsoluteSize
+        local cx = math.floor(pos.X + size.X / 2)
+        local cy = math.floor(pos.Y + size.Y / 2)
+
+        if typeof(VirtualInputManager) == "userdata" or typeof(VirtualInputManager) == "table" then
+            VirtualInputManager:SendTouchEvent(1, 0, cx, cy)
+            task.wait(0.02)
+            VirtualInputManager:SendTouchEvent(1, 2, cx, cy)
+            VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+            task.wait(0.02)
+            VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+        end
+    end)
+
+    pcall(function()
+        VirtualUser:CaptureController()
+        local pos = btn.AbsolutePosition
+        local size = btn.AbsoluteSize
+        VirtualUser:ClickButton1(Vector2.new(pos.X + size.X / 2, pos.Y + size.Y / 2))
+    end)
+end
 
 function AutoClaim.Start()
     if running then return end
     running = true
-    print("🎁 [Ritod Hub] Smart Auto Claim Active...")
+    print("🎁 [Ritod Hub] Smart Auto Claim Active (Mobile & PC)...")
 
     task.spawn(function()
         while running do
             pcall(function()
-                local ptFrame = MainGui.Root.Frames:FindFirstChild("PlaytimeRewards")
+                local mainGui = getMainGui()
+                if not mainGui or not mainGui:FindFirstChild("Root") or not mainGui.Root:FindFirstChild("Frames") then
+                    return
+                end
+
+                local ptFrame = mainGui.Root.Frames:FindFirstChild("PlaytimeRewards")
 
                 -- 1. KLAIM PLAYTIME REWARDS
                 if ptFrame and ptFrame:FindFirstChild("RewardsFrame") then
@@ -28,11 +90,8 @@ function AutoClaim.Start()
 
                             if claimFrame and claimFrame.Visible and not isClaimed then
                                 local btn = claimFrame:FindFirstChild("Button")
-                                if btn and typeof(firesignal) == "function" then
-                                    firesignal(btn.MouseButton1Click)
-                                    firesignal(btn.Activated)
-                                end
-                                task.wait(0.1)
+                                clickButton(btn)
+                                task.wait(0.15)
                             end
                         end
                     end
@@ -50,11 +109,8 @@ function AutoClaim.Start()
                                 local claimFrame = rewardBox:FindFirstChild("Claim")
                                 if claimFrame and claimFrame.Visible and not isClaimed then
                                     local btn = claimFrame:FindFirstChild("Button")
-                                    if btn and typeof(firesignal) == "function" then
-                                        firesignal(btn.MouseButton1Click)
-                                        firesignal(btn.Activated)
-                                    end
-                                    task.wait(0.1)
+                                    clickButton(btn)
+                                    task.wait(0.15)
                                 end
                             end
                         end
@@ -66,10 +122,7 @@ function AutoClaim.Start()
                         local claimFrame = finalBox:FindFirstChild("Claim")
                         if claimFrame and claimFrame.Visible and not isClaimed then
                             local btn = claimFrame:FindFirstChild("Button")
-                            if btn and typeof(firesignal) == "function" then
-                                firesignal(btn.MouseButton1Click)
-                                firesignal(btn.Activated)
-                            end
+                            clickButton(btn)
                         end
                     end
                 end
@@ -86,3 +139,4 @@ function AutoClaim.Stop()
 end
 
 return AutoClaim
+
