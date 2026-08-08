@@ -5,6 +5,7 @@
 -- =================================================================
 
 task.wait(1)
+
 -- 🧹 HAPUS PAKSA UI LAMA BILA ADA
 pcall(function()
     local pg = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
