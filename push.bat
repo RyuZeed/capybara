@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0"
 title Auto Push Ritod Hub to GitHub
 color 0A
 
