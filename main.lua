@@ -11,7 +11,7 @@
 local CONFIG = {
     AutoTutorial   = true,   -- 🚀 Otomatis jalankan Auto Tutorial (Step 1-12)
     FarmMode       = false,   -- 🚜 Redupkan Layar (Screen Off) saat AFK
-    AntiLag        = false,   -- ❄️ Batasi FPS ke 5 & Nonaktifkan Shadow
+    AntiLag        = true,   -- ❄️ Batasi FPS ke 5 & Nonaktifkan Shadow
     PotatoGraphics = true,   -- 🥔 Hapus Tekstur, Partikel, & Efek Berat
     AutoClaim      = true,   -- 🎁 Otomatis klaim Hadiah Playtime & Daily
 }
