@@ -151,6 +151,29 @@ function GraphicsModule.EnablePotato(enable)
     end
 end
 
+local fpsEnforcerThread = nil
+
+local function startFpsEnforcer()
+    if fpsEnforcerThread then return end
+    fpsEnforcerThread = task.spawn(function()
+        while States.AntiLag or States.FarmMode do
+            local targetFps = (States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap
+            applyFpsCap(targetFps)
+            task.wait(1.5)
+        end
+        fpsEnforcerThread = nil
+    end)
+end
+
+function GraphicsModule.ApplyFpsCap(fps)
+    applyFpsCap(fps or SETTINGS.AFK_FPS_Cap)
+end
+
+function GraphicsModule.EnforceNow()
+    local targetFps = (States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap
+    applyFpsCap(targetFps)
+end
+
 local function initScreenOffGui()
     if screenOffGui then return end
     local playerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 10) or LocalPlayer.PlayerGui
@@ -191,6 +214,9 @@ function GraphicsModule.SetFarmMode(enable, onSync)
 
     local targetFps = enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap)
     applyFpsCap(targetFps)
+    if enable or States.AntiLag then
+        startFpsEnforcer()
+    end
 
     print("🚜 [Ritod Hub] Farm Mode: " .. (enable and "ON" or "OFF"))
 end
@@ -199,6 +225,9 @@ function GraphicsModule.SetAntiLag(enable)
     States.AntiLag = enable
     local targetFps = (enable or States.FarmMode) and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap
     applyFpsCap(targetFps)
+    if enable or States.FarmMode then
+        startFpsEnforcer()
+    end
 
     pcall(function() Lighting.GlobalShadows = not enable end)
     print("❄️ [Ritod Hub] Anti-Lag (FPS Cap 5): " .. (enable and "ON" or "OFF"))
