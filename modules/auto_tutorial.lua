@@ -57,21 +57,20 @@ local function clickButton(btn)
 
     -- 1. firesignal (Mobile/PC Executor)
     if typeof(firesignal) == "function" then
-        pcall(function() firesignal(btn.MouseButton1Click) end)
-        pcall(function() firesignal(btn.MouseButton1Down) end)
-        pcall(function() firesignal(btn.Activated) end)
+        if btn.Activated then pcall(function() firesignal(btn.Activated) end) end
+        if btn.MouseButton1Click then pcall(function() firesignal(btn.MouseButton1Click) end) end
     end
 
     -- 2. getconnections (Delta, Codex, Arceus X, Solara, etc.)
     if typeof(getconnections) == "function" then
-        for _, eventName in ipairs({"Activated", "MouseButton1Click", "MouseButton1Down", "TouchTap"}) do
+        for _, eventName in ipairs({"Activated", "MouseButton1Click"}) do
             pcall(function()
                 if btn[eventName] then
                     for _, conn in ipairs(getconnections(btn[eventName])) do
-                        if conn.Function then
-                            conn.Function()
-                        elseif conn.Fire then
-                            conn:Fire()
+                        if conn.Fire then
+                            pcall(function() conn:Fire() end)
+                        elseif conn.Function then
+                            pcall(function() conn.Function() end)
                         end
                     end
                 end
@@ -111,16 +110,100 @@ local function clickButton(btn)
     end)
 end
 
--- Universal ProximityPrompt Trigger (Mobile & PC)
-local function triggerPrompt(keyword)
+-- Helper untuk mendeteksi tombol Negatif (No, Cancel, Close, Batal, Tutup) -> JANGAN DIKLIK
+local function isNegativeButton(btn)
+    if not btn then return true end
+    local name = (btn.Name or ""):lower()
+    local pName = (btn.Parent and btn.Parent.Name or ""):lower()
+    local text = (btn:IsA("TextButton") and btn.Text or ""):lower()
+
+    if name == "no" or name:find("cancel") or name:find("close") or name:find("decline") or name:find("back") or name == "x" or name == "exit" then
+        return true
+    end
+    if pName == "no" or pName:find("cancel") or pName:find("close") or pName:find("decline") or pName:find("back") or pName == "exit" then
+        return true
+    end
+    if text == "no" or text:find("cancel") or text:find("batal") or text:find("tidak") or text:find("close") or text:find("tutup") or text == "x" or text == "keluar" then
+        return true
+    end
+    return false
+end
+
+-- Helper untuk mendeteksi tombol Positif (Yes, Confirm, Accept, Rebirth, Grow, Upgrade, Beli, OK)
+local function isPositiveButton(btn)
+    if not btn or not (btn:IsA("TextButton") or btn:IsA("ImageButton")) then return false end
+    if not btn.Visible then return false end
+    if isNegativeButton(btn) then return false end
+
+    local name = (btn.Name or ""):lower()
+    local pName = (btn.Parent and btn.Parent.Name or ""):lower()
+    local text = (btn:IsA("TextButton") and btn.Text or ""):lower()
+
+    -- 1. Berdasarkan nama tombol atau parent
+    if name == "yes" or name:find("confirm") or name:find("accept") or name:find("agree") or name:find("rebirth") or name:find("grow") or name:find("upgrade") or name:find("buy") or name:find("beli") then
+        return true
+    end
+    if pName == "yes" or pName:find("confirm") or pName:find("accept") or pName:find("agree") or pName:find("rebirth") or pName:find("grow") or pName:find("upgrade") then
+        return true
+    end
+
+    -- 2. Berdasarkan teks pada tombol
+    if text == "yes" or text == "ya" or text:find("confirm") or text:find("accept") or text:find("setuju") or text:find("rebirth") or text:find("grow") or text:find("upgrade") or text:find("beli") or text:find("buy") or text == "ok" or text == "oke" then
+        return true
+    end
+
+    return false
+end
+
+-- Mencari Plot Milik Player Secara Dinamis
+local function getMyPlot()
+    local plots = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map") and workspace.World.Map:FindFirstChild("Plots")
+    if not plots then
+        plots = workspace:FindFirstChild("Plots", true)
+    end
+    if plots then
+        for _, plot in ipairs(plots:GetChildren()) do
+            local owner = plot:FindFirstChild("Owner") or plot:FindFirstChild("Player") or plot:FindFirstChild("OwnerValue")
+            if owner then
+                if (owner:IsA("ValueBase") and (owner.Value == LocalPlayer or owner.Value == LocalPlayer.Name or owner.Value == tostring(LocalPlayer.UserId))) then
+                    return plot
+                end
+            end
+            if plot:GetAttribute("Owner") == LocalPlayer.Name or plot:GetAttribute("Owner") == LocalPlayer.UserId or plot:GetAttribute("OwnerId") == LocalPlayer.UserId then
+                return plot
+            end
+            if plot.Name == LocalPlayer.Name or plot.Name == tostring(LocalPlayer.UserId) then
+                return plot
+            end
+        end
+        return plots:FindFirstChild("1") or plots:GetChildren()[1]
+    end
+    return nil
+end
+
+-- Universal ProximityPrompt Trigger (Aman, terisolasi ke target container agar tidak teleport sembarangan)
+local function triggerPrompt(keyword, targetContainer)
     local hrp = getHRP()
-    for _, prompt in ipairs(workspace:GetDescendants()) do
+    local container = targetContainer or (getMyPlot()) or workspace
+    local key = (keyword or "all"):lower()
+
+    for _, prompt in ipairs(container:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") and prompt.Enabled then
             local actText = (prompt.ActionText or ""):lower()
             local objText = (prompt.ObjectText or ""):lower()
             local nameText = (prompt.Name or ""):lower()
 
-            if actText:find(keyword) or objText:find(keyword) or nameText:find(keyword) or keyword == "all" then
+            local match = false
+            if key == "all" then
+                -- Hanya izinkan "all" jika container spesifik diberikan (bukan seluruh workspace)
+                if targetContainer ~= nil then
+                    match = true
+                end
+            elseif actText:find(key) or objText:find(key) or nameText:find(key) then
+                match = true
+            end
+
+            if match then
                 local parentPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
                 if hrp and parentPart and parentPart:IsA("BasePart") then
                     pcall(function()
@@ -151,7 +234,7 @@ local function triggerPrompt(keyword)
     return false
 end
 
--- Universal Confirmation Popup Clicker (Otomatis klik Yes/Confirm pada popup konfirmasi)
+-- Universal Confirmation Popup Clicker (Akurat mengklik tombol Yes/Confirm dan mengabaikan No/Cancel/Close)
 local function handleConfirmPopup(maxWait)
     local waitTime = maxWait or 5
     local startTime = tick()
@@ -168,72 +251,43 @@ local function handleConfirmPopup(maxWait)
                         if obj:IsA("GuiObject") and obj.Visible then
                             local objName = obj.Name:lower()
 
-                            -- 1. Cek frame konfirmasi (Confirm, Prompt, Modal, Popup, Dialog)
-                            if objName:find("confirm") or objName:find("prompt") or objName:find("modal") or objName:find("popup") or objName:find("dialog") then
+                            -- 1. Cek frame konfirmasi (Confirm, Prompt, Modal, Popup, Dialog, Rebirth, Alert)
+                            if objName:find("confirm") or objName:find("prompt") or objName:find("modal") or objName:find("popup") or objName:find("dialog") or objName:find("alert") or objName:find("rebirth") then
                                 for _, child in ipairs(obj:GetDescendants()) do
-                                    if child:IsA("TextButton") or child:IsA("ImageButton") then
-                                        local childName = child.Name:lower()
-                                        local btnText = (child:IsA("TextButton") and child.Text:lower()) or ""
-
-                                        if childName == "yes" or childName:find("confirm") or childName:find("accept") or childName == "button" or
-                                           btnText:find("yes") or btnText:find("ya") or btnText:find("confirm") or btnText:find("beli") or btnText:find("buy") or btnText:find("ok") then
-                                            clickButton(child)
-                                            clicked = true
-                                            task.wait(0.2)
-                                        end
+                                    if isPositiveButton(child) then
+                                        print("👉 [Auto Tutorial] Mengonfirmasi popup via tombol: " .. child.Name .. " (Text: " .. tostring(child:IsA("TextButton") and child.Text or "") .. ")")
+                                        clickButton(child)
+                                        clicked = true
+                                        task.wait(0.2)
+                                        break
                                     end
                                 end
                             end
 
-                            -- 2. Cek langsung tombol bernama Yes / Confirm yang visible di layar
-                            if (obj:IsA("TextButton") or obj:IsA("ImageButton")) then
-                                local btnText = (obj:IsA("TextButton") and obj.Text:lower()) or ""
-                                if objName == "yes" or objName:find("confirm") or objName:find("accept") or
-                                   btnText == "yes" or btnText == "ya" or btnText:find("confirm") or btnText:find("beli") or btnText:find("buy") then
-                                    clickButton(obj)
-                                    clicked = true
-                                    task.wait(0.2)
-                                end
+                            if clicked then break end
+
+                            -- 2. Cek tombol mandiri yang berstatus positif dan terlihat di layar
+                            if isPositiveButton(obj) then
+                                print("👉 [Auto Tutorial] Mengonfirmasi standalone tombol: " .. obj.Name)
+                                clickButton(obj)
+                                clicked = true
+                                task.wait(0.2)
+                                break
                             end
                         end
                     end
                 end
+                if clicked then break end
             end
         end)
 
         if clicked then
-            task.wait(0.3)
+            task.wait(0.4)
             return true
         end
         task.wait(0.25)
     end
     return false
-end
-
--- Mencari Plot Milik Player Secara Dinamis
-local function getMyPlot()
-    local plots = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map") and workspace.World.Map:FindFirstChild("Plots")
-    if not plots then
-        plots = workspace:FindFirstChild("Plots", true)
-    end
-    if plots then
-        for _, plot in ipairs(plots:GetChildren()) do
-            local owner = plot:FindFirstChild("Owner") or plot:FindFirstChild("Player") or plot:FindFirstChild("OwnerValue")
-            if owner then
-                if (owner:IsA("ValueBase") and (owner.Value == LocalPlayer or owner.Value == LocalPlayer.Name or owner.Value == tostring(LocalPlayer.UserId))) then
-                    return plot
-                end
-            end
-            if plot:GetAttribute("Owner") == LocalPlayer.Name or plot:GetAttribute("Owner") == LocalPlayer.UserId or plot:GetAttribute("OwnerId") == LocalPlayer.UserId then
-                return plot
-            end
-            if plot.Name == LocalPlayer.Name or plot.Name == tostring(LocalPlayer.UserId) then
-                return plot
-            end
-        end
-        return plots:FindFirstChild("1") or plots:GetChildren()[1]
-    end
-    return nil
 end
 
 local function getEggShop()
@@ -397,7 +451,7 @@ function AutoTutorial.Start()
 
             -- STEP 3: HATCH EGG PERTAMA
             print("🐣 [Step 3/12] Hatching Egg Pertama...")
-            triggerPrompt("hatch")
+            triggerPrompt("hatch", myPlot)
             callRemote("Hatch")
             task.wait(12)
 
@@ -406,97 +460,153 @@ function AutoTutorial.Start()
             callRemote("EquipBestPlants")
             task.wait(5)
 
-            -- STEP 5: GROW TREE (REBIRTH)
-            print("🌳 [Step 5/12] Upgrade Tree (Rebirth)...")
+            -- STEP 5: GROW TREE (REBIRTH / LEVEL UP)
+            print("🌳 [Step 5/12] Upgrade Tree (Rebirth / Level Up)...")
+            myPlot = myPlot or getMyPlot()
             mainGui = mainGui or getMainGui()
+
+            -- 1. Cari Tree di plot player jika ada dan dekati
+            local treeModel = myPlot and (myPlot:FindFirstChild("Tree") or myPlot:FindFirstChild("WorldTree") or myPlot:FindFirstChild("TreeModel", true))
+            if treeModel and treeModel:IsA("Model") then
+                pcall(function()
+                    hrp.CFrame = treeModel:GetPivot() * CFrame.new(0, 2, 5)
+                end)
+                task.wait(0.3)
+                triggerPrompt("upgrade", treeModel)
+                triggerPrompt("grow", treeModel)
+                triggerPrompt("tree", treeModel)
+                triggerPrompt("rebirth", treeModel)
+            end
+
+            -- 2. Buka menu Tree di GUI & Klik Tombol Grow/Upgrade
             if mainGui and mainGui:FindFirstChild("Root") then
                 local root = mainGui.Root
                 local mainBtns = root:FindFirstChild("MainButtonsFrame")
-                local treeMenuBtn = mainBtns and mainBtns:FindFirstChild("TreeButton")
-                clickButton(treeMenuBtn)
-                task.wait(1.5)
+                local treeMenuBtn = mainBtns and (mainBtns:FindFirstChild("TreeButton") or mainBtns:FindFirstChild("Tree") or mainBtns:FindFirstChild("RebirthButton"))
+                if treeMenuBtn then
+                    clickButton(treeMenuBtn)
+                    task.wait(1.5)
+                end
 
                 local frames = root:FindFirstChild("Frames")
-                local treeFrame = frames and frames:FindFirstChild("Tree")
-                local growBtn = treeFrame and treeFrame:FindFirstChild("Grow") and treeFrame.Grow:FindFirstChild("Button")
-                clickButton(growBtn)
-                task.wait(1)
+                local treeFrame = frames and (frames:FindFirstChild("Tree") or frames:FindFirstChild("TreeUpgrade") or frames:FindFirstChild("Rebirth"))
+                if treeFrame then
+                    local growBtn = (treeFrame:FindFirstChild("Grow") and treeFrame.Grow:FindFirstChild("Button"))
+                        or treeFrame:FindFirstChild("Grow")
+                        or treeFrame:FindFirstChild("Upgrade")
+                        or (treeFrame:FindFirstChild("Upgrade") and treeFrame.Upgrade:FindFirstChild("Button"))
+                        or treeFrame:FindFirstChildWhichIsA("GuiButton", true)
+                    if growBtn then
+                        clickButton(growBtn)
+                        task.wait(1)
+                    end
+                end
 
-                -- Otomatis konfirmasi Yes Rebirth Popup
-                handleConfirmPopup(4)
+                -- Otomatis konfirmasi Yes Rebirth / Tree Popup
+                print("👉 [Step 5/12] Mengonfirmasi Popup Level Up Tree (Klik Yes)...")
+                handleConfirmPopup(5)
             end
-            task.wait(1)
+
+            task.wait(0.5)
+            -- 3. Panggil Remotes Upgrade Tree / Rebirth sebagai Backup
             callRemote("BuyTreeUpgrade")
+            callRemote("UpgradeTree")
+            callRemote("TreeUpgrade")
+            callRemote("Rebirth")
+            callRemote("GrowTree")
+            callRemote("ConfirmRebirth")
+            callRemote("LevelUpTree")
             task.wait(6)
 
             -- STEP 6: BELI POT KEDUA
             print("🪴 [Step 6/12] Membeli Pot Kedua...")
-            local map = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map")
-            local pottedPlants = (map and map:FindFirstChild("PottedPlants")) or workspace:FindFirstChild("PottedPlants", true)
+            myPlot = myPlot or getMyPlot()
             local pot2Model = nil
 
-            if pottedPlants then
-                local serverFolder = pottedPlants:FindFirstChild("Server") or pottedPlants
-                local pots = serverFolder:GetChildren()
-                for _, p in ipairs(pots) do
-                    local pName = p.Name:lower()
-                    if pName == "2" or pName:find("pot2") or pName:find("second") or pName:find("2") then
-                        pot2Model = p
-                        break
+            -- 1. Cari Pot 2 di plot milik player terlebih dahulu
+            if myPlot then
+                local pottedPlantsInPlot = myPlot:FindFirstChild("PottedPlants") or myPlot:FindFirstChild("Pots") or myPlot:FindFirstChild("TowerArea")
+                if pottedPlantsInPlot then
+                    for _, p in ipairs(pottedPlantsInPlot:GetChildren()) do
+                        local pName = p.Name:lower()
+                        if pName == "2" or pName:find("pot2") or pName:find("second") or pName == "purchased2" or pName == "locked2" then
+                            pot2Model = p
+                            break
+                        end
                     end
-                end
-                if not pot2Model then
-                    pot2Model = pots[2] or pots[1]
-                end
-            end
-
-            if not pot2Model then
-                pot2Model = workspace:FindFirstChild("PottedPlants", true)
-            end
-
-            if pot2Model then
-                local potPos = pot2Model:GetPivot().Position
-                hrp.CFrame = CFrame.new(potPos + Vector3.new(0, 2, 2))
-                task.wait(0.5)
-
-                -- 1. Sentuh semua part pot kedua
-                local targetParts = pot2Model:GetDescendants()
-                for _, part in ipairs(targetParts) do
-                    if part:IsA("BasePart") then
-                        if typeof(firetouchinterest) == "function" then
-                            pcall(function()
-                                firetouchinterest(hrp, part, 0)
-                                task.wait(0.05)
-                                firetouchinterest(hrp, part, 1)
-                            end)
-                        else
-                            -- Mobile Fallback: Sentuh part secara fisik
-                            pcall(function()
-                                local oldCF = hrp.CFrame
-                                hrp.CFrame = part.CFrame
-                                task.wait(0.05)
-                                hrp.CFrame = oldCF
-                            end)
+                    if not pot2Model then
+                        local kids = pottedPlantsInPlot:GetChildren()
+                        if #kids >= 2 then
+                            pot2Model = kids[2]
                         end
                     end
                 end
+            end
 
-                -- 2. Picu ProximityPrompt pada pot kedua jika ada
-                triggerPrompt("pot")
-                triggerPrompt("buy")
-                triggerPrompt("plant")
-                triggerPrompt("all")
+            -- 2. Jika tidak ada di plot, cari di World/Map
+            if not pot2Model then
+                local map = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map")
+                local pottedPlants = (map and map:FindFirstChild("PottedPlants")) or workspace:FindFirstChild("PottedPlants", true)
+                if pottedPlants then
+                    local serverFolder = pottedPlants:FindFirstChild("Server") or pottedPlants
+                    for _, p in ipairs(serverFolder:GetChildren()) do
+                        local pName = p.Name:lower()
+                        if pName == "2" or pName:find("pot2") or pName:find("second") then
+                            pot2Model = p
+                            break
+                        end
+                    end
+                    if not pot2Model then
+                        local pots = serverFolder:GetChildren()
+                        pot2Model = pots[2] or pots[1]
+                    end
+                end
+            end
+
+            -- 3. Teleport 1 KALI secara presisi ke Pot Kedua (TANPA spam teleport)
+            if pot2Model then
+                local potPos = nil
+                if pot2Model:IsA("Model") then
+                    potPos = pot2Model:GetPivot().Position
+                elseif pot2Model:IsA("BasePart") then
+                    potPos = pot2Model.Position
+                else
+                    local bp = pot2Model:FindFirstChildWhichIsA("BasePart", true)
+                    if bp then potPos = bp.Position end
+                end
+
+                if potPos then
+                    hrp.CFrame = CFrame.new(potPos + Vector3.new(0, 2, 2.5))
+                    task.wait(0.5)
+                end
+
+                -- Sentuh Part Utama Pot 2 (hanya 1 part utama, aman)
+                local mainPart = (pot2Model:IsA("BasePart") and pot2Model) or pot2Model:FindFirstChildWhichIsA("BasePart") or pot2Model.PrimaryPart
+                if mainPart and typeof(firetouchinterest) == "function" then
+                    pcall(function()
+                        firetouchinterest(hrp, mainPart, 0)
+                        task.wait(0.05)
+                        firetouchinterest(hrp, mainPart, 1)
+                    end)
+                end
+
+                -- Picu ProximityPrompt HANYA di dalam pot2Model
+                triggerPrompt("pot", pot2Model)
+                triggerPrompt("buy", pot2Model)
+                triggerPrompt("all", pot2Model)
             end
             task.wait(0.5)
 
-            -- 3. Otomatis Klik YES pada Popup Konfirmasi Pembelian Pot Kedua
+            -- 4. Otomatis Klik YES pada Popup Konfirmasi Pembelian Pot Kedua
             print("👉 Mengonfirmasi Pembelian Pot Kedua (Klik Yes Popup)...")
             handleConfirmPopup(5)
 
-            -- 4. Panggil Remote Pembelian Pot Sebagai Backup
+            -- 5. Panggil Remote Pembelian Pot Sebagai Backup
             callRemote("BuyItem", "Pot2")
             callRemote("BuyPot", 2)
             callRemote("BuyPottedPlant", 2)
+            callRemote("BuyItem", "Pot 2")
+            callRemote("BuyItem", "Potted Plant 2")
             task.wait(8)
 
             -- STEP 7: KLAIM SEMUA UANG
@@ -510,9 +620,10 @@ function AutoTutorial.Start()
             if colMachine then
                 hrp.CFrame = CFrame.new(colMachine:GetPivot().Position + Vector3.new(0, 2, 3))
                 task.wait(1)
-                triggerPrompt("collect")
+                triggerPrompt("collect", colMachine)
             end
             callRemote("CollectMoneyFromPlant")
+            callRemote("CollectMoney")
             task.wait(6)
 
             -- STEP 8: BELI EGG KEDUA
@@ -545,7 +656,7 @@ function AutoTutorial.Start()
 
             -- STEP 10: HATCH EGG KEDUA
             print("🐣 [Step 10/12] Hatching Egg Kedua...")
-            triggerPrompt("hatch")
+            triggerPrompt("hatch", myPlot)
             callRemote("Hatch")
             task.wait(6)
 
