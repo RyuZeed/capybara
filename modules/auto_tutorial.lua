@@ -405,7 +405,7 @@ function AutoTutorial.Start()
                     end
                 end
             end
-            task.wait(1)
+            task.wait(5)
 
             mainGui = mainGui or getMainGui()
             if mainGui and mainGui:FindFirstChild("Root") and mainGui.Root:FindFirstChild("Frames") then
@@ -414,7 +414,7 @@ function AutoTutorial.Start()
                 clickButton(confirmYes)
             end
             callRemote("BuyItem", "Pot2")
-            task.wait(10)
+            task.wait(8)
 
             -- STEP 7: KLAIM SEMUA UANG
             print("💰 [Step 7/12] Mengambil Uang dari Collection Machine...")
@@ -426,7 +426,7 @@ function AutoTutorial.Start()
 
             if colMachine then
                 hrp.CFrame = CFrame.new(colMachine:GetPivot().Position + Vector3.new(0, 2, 3))
-                task.wait(1)
+                task.wait(2)
                 triggerPrompt("collect")
             end
             callRemote("CollectMoneyFromPlant")
