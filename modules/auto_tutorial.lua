@@ -4,16 +4,14 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local VirtualUser = game:GetService("VirtualUser")
-local ProximityPromptService = game:GetService("ProximityPromptService")
 local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
 local isRunning = false
-local promptHookActive = false
 
 -- =================================================================
--- 🛠️ HELPER FUNCTIONS (MOBILE & PC COMPATIBLE + 5 FPS OPTIMIZED)
+-- 🛠️ HELPER FUNCTIONS (MOBILE & PC COMPATIBLE + STABLE STEP-BY-STEP)
 -- =================================================================
 
 local function getChar()
@@ -51,86 +49,39 @@ local function callRemote(name, ...)
 end
 
 -- =================================================================
--- ⚡ PROXIMITY PROMPT INSTANT BYPASS SYSTEM (HOLD E = 0s)
+-- ⚡ TARGETED PROXIMITY PROMPT TRIGGER (INSTANT BYPASS HOLD E = 0s)
 -- =================================================================
 
--- Memodifikasi prompt agar langsung instan (HoldDuration = 0, No LineOfSight, Jangkauan Jauh)
-local function bypassPromptSettings(prompt)
-    if not prompt or not prompt:IsA("ProximityPrompt") then return end
+-- Memicu ProximityPrompt tertentu secara instan tanpa perlu tahan E lama
+local function triggerSinglePromptInstant(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then return false end
+
+    -- 1. Bypass Hold Duration menjadi 0 detik & jangkauan optimal
     pcall(function()
         prompt.HoldDuration = 0
         prompt.RequiresLineOfSight = false
-        prompt.MaxActivationDistance = 500
-        prompt.ClickablePrompt = true
+        prompt.MaxActivationDistance = 100
         prompt.Enabled = true
     end)
-end
 
--- Hook global agar SEMUA ProximityPrompt di game langsung selesai instan tanpa tahan E
-local function enableInstantPromptHook()
-    if promptHookActive then return end
-    promptHookActive = true
-
-    -- 1. Hook semua prompt yang sudah ada di workspace
-    pcall(function()
-        for _, prompt in ipairs(Workspace:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
-                bypassPromptSettings(prompt)
-            end
-        end
-    end)
-
-    -- 2. Hook prompt baru yang muncul realtime
-    pcall(function()
-        Workspace.DescendantAdded:Connect(function(descendant)
-            if descendant:IsA("ProximityPrompt") then
-                bypassPromptSettings(descendant)
-            end
-        end)
-    end)
-
-    -- 3. Hook ProximityPromptService (Saat tombol ditekan langsung instan trigger)
-    pcall(function()
-        ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
-            bypassPromptSettings(prompt)
-            if typeof(fireproximityprompt) == "function" then
-                pcall(function() fireproximityprompt(prompt, 0) end)
-            end
-            pcall(function()
-                prompt:InputHoldBegin()
-                task.wait()
-                prompt:InputHoldEnd()
-            end)
-        end)
-        ProximityPromptService.PromptShown:Connect(function(prompt)
-            bypassPromptSettings(prompt)
-        end)
-    end)
-end
-
--- Eksekusi instan pada satu prompt tertentu
-local function triggerSinglePromptInstant(prompt)
-    if not prompt or not prompt:IsA("ProximityPrompt") then return false end
-    bypassPromptSettings(prompt)
-
-    -- Method 1: Executor Native fireproximityprompt (Delta, Codex, Arceus, Solara, Wave, dll.)
+    -- 2. Trigger via fireproximityprompt (Executor API)
     if typeof(fireproximityprompt) == "function" then
         pcall(function() fireproximityprompt(prompt, 0) end)
         pcall(function() fireproximityprompt(prompt, 1) end)
         pcall(function() fireproximityprompt(prompt) end)
     end
 
-    -- Method 2: InputHoldBegin / End Instant Bypass
+    -- 3. Trigger via InputHoldBegin & End
     pcall(function()
         prompt:InputHoldBegin()
-        task.wait(0.02)
+        task.wait(0.04)
         prompt:InputHoldEnd()
     end)
 
-    -- Method 3: VirtualInputManager KeyCode E Tap
+    -- 4. VirtualInputManager KeyCode E Tap
     pcall(function()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-        task.wait(0.02)
+        task.wait(0.04)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
     end)
 
@@ -239,7 +190,7 @@ local function isPositiveButton(btn)
     return false
 end
 
--- Mencari Plot Milik Player Secara Dinamis
+-- Mencari Plot Milik Player Secara Dinamis & Akurat
 local function getMyPlot()
     local plots = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map") and workspace.World.Map:FindFirstChild("Plots")
     if not plots then
@@ -265,10 +216,11 @@ local function getMyPlot()
     return nil
 end
 
--- Universal ProximityPrompt Trigger (Instan bypass & cepat pada 5 FPS)
+-- Universal ProximityPrompt Trigger (HANYA mencari di container target, TANPA teleport sembarangan)
 local function triggerPrompt(keyword, targetContainer)
-    local hrp = getHRP()
-    local container = targetContainer or (getMyPlot()) or workspace
+    local container = targetContainer or getMyPlot()
+    if not container then return false end
+
     local key = (keyword or "all"):lower()
     local triggered = false
 
@@ -280,20 +232,12 @@ local function triggerPrompt(keyword, targetContainer)
 
             local match = false
             if key == "all" then
-                if targetContainer ~= nil then match = true end
+                match = true
             elseif actText:find(key) or objText:find(key) or nameText:find(key) then
                 match = true
             end
 
             if match then
-                local parentPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
-                if hrp and parentPart and parentPart:IsA("BasePart") then
-                    pcall(function()
-                        hrp.CFrame = parentPart.CFrame * CFrame.new(0, 2, 2)
-                    end)
-                    task.wait(0.1)
-                end
-
                 triggerSinglePromptInstant(prompt)
                 triggered = true
             end
@@ -390,7 +334,7 @@ local function findEggTool()
     return nil
 end
 
--- Universal Place Egg On Lane (Mendukung Mobile & PC + Fast Execution)
+-- Universal Place Egg On Lane (Mendukung Mobile & PC)
 local function placeEggOnLane(targetPosition)
     local char = getChar()
     local hrp = getHRP()
@@ -399,7 +343,7 @@ local function placeEggOnLane(targetPosition)
 
     if targetPosition then
         hrp.CFrame = CFrame.new(targetPosition + Vector3.new(0, 3, 0))
-        task.wait(0.2)
+        task.wait(0.4)
     end
 
     local eggTool = findEggTool()
@@ -409,7 +353,7 @@ local function placeEggOnLane(targetPosition)
         else
             eggTool.Parent = char
         end
-        task.wait(0.3)
+        task.wait(0.5)
     end
 
     local camera = workspace.CurrentCamera
@@ -417,7 +361,7 @@ local function placeEggOnLane(targetPosition)
         local targetLook = hrp.Position + (hrp.CFrame.LookVector * 4) - Vector3.new(0, 2, 0)
         camera.CFrame = CFrame.new(hrp.Position + Vector3.new(0, 4, 0), targetLook)
     end
-    task.wait(0.1)
+    task.wait(0.2)
 
     local viewSize = camera and camera.ViewportSize or Vector2.new(800, 600)
     local centerX = math.floor(viewSize.X / 2)
@@ -432,14 +376,14 @@ local function placeEggOnLane(targetPosition)
         -- Mobile Touch
         pcall(function()
             VirtualInputManager:SendTouchEvent(1, 0, centerX, centerY)
-            task.wait(0.03)
+            task.wait(0.04)
             VirtualInputManager:SendTouchEvent(1, 2, centerX, centerY)
         end)
 
         -- PC Click
         pcall(function()
             VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, true, game, 0)
-            task.wait(0.03)
+            task.wait(0.04)
             VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, false, game, 0)
         end)
 
@@ -452,71 +396,58 @@ local function placeEggOnLane(targetPosition)
         if typeof(mousemoveabs) == "function" then pcall(function() mousemoveabs(centerX, centerY) end) end
         if typeof(mouse1click) == "function" then pcall(mouse1click) end
 
-        task.wait(0.1)
+        task.wait(0.2)
     end
 end
 
 -- =================================================================
--- 🐣 INSTANT EGG HATCH SYSTEM (BYPASS TEKAN E & FAST POLLING)
+-- 🐣 INSTANT EGG HATCH SYSTEM (KHUSUS PLOT SENDIRI & BYPASS HOLD E)
 -- =================================================================
 
-local function instantHatchEgg(myPlot, maxWaitSeconds)
-    local maxWait = maxWaitSeconds or 4
+local function instantHatchEgg(myPlot, waitSec)
+    local maxWait = waitSec or 4
     local startTime = tick()
-    local hatched = false
+    local plot = myPlot or getMyPlot()
+    local hrp = getHRP()
 
-    print("🐣 [Ritod Hub] Memulai Instant Hatching Egg (Bypass Tekan E)...")
+    print("🐣 [Ritod Hub] Instant Hatching Egg (Bypass Tekan E)...")
 
-    while (tick() - startTime) < maxWait and not hatched do
-        -- 1. Panggil Remote Hatching Secara Bersamaan
+    while (tick() - startTime) < maxWait do
+        -- 1. Panggil Remote Hatching
         callRemote("Hatch")
         callRemote("HatchEgg")
-        callRemote("OpenEgg")
-        callRemote("ClaimEgg")
-        callRemote("HatchPlant")
 
-        -- 2. Cari dan picu instan SEMUA prompt yang berhubungan dengan hatch di Plot, TowerArea, atau Map
-        local targets = { myPlot, workspace:FindFirstChild("World"), workspace }
-        for _, container in ipairs(targets) do
-            if container then
-                for _, prompt in ipairs(container:GetDescendants()) do
-                    if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                        local text = ((prompt.ActionText or "") .. " " .. (prompt.ObjectText or "") .. " " .. (prompt.Name or "")):lower()
-                        if text:find("hatch") or text:find("egg") or text:find("crack") or text:find("open") or text:find("claim") then
-                            local parentPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
-                            local hrp = getHRP()
-                            if hrp and parentPart and parentPart:IsA("BasePart") then
-                                pcall(function()
-                                    hrp.CFrame = parentPart.CFrame * CFrame.new(0, 2, 2)
-                                end)
-                            end
-                            triggerSinglePromptInstant(prompt)
-                            hatched = true
+        -- 2. Cari prompt Hatch HANYA di dalam plot milik player (TIDAK di workspace lain)
+        if plot then
+            local towerArea = plot:FindFirstChild("TowerArea") or plot
+            for _, prompt in ipairs(towerArea:GetDescendants()) do
+                if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                    local text = ((prompt.ActionText or "") .. " " .. (prompt.ObjectText or "") .. " " .. (prompt.Name or "")):lower()
+                    if text:find("hatch") or text:find("egg") or text:find("crack") or text:find("open") or text:find("claim") or text == "" then
+                        local parentPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
+                        if hrp and parentPart and parentPart:IsA("BasePart") then
+                            pcall(function()
+                                hrp.CFrame = parentPart.CFrame * CFrame.new(0, 2, 2)
+                            end)
                         end
+
+                        triggerSinglePromptInstant(prompt)
+                        task.wait(0.4)
+                        return true
                     end
                 end
             end
         end
 
-        -- Cek popup konfirmasi hatch bila ada
-        handleConfirmPopup(0.3)
-
-        if hatched then
-            print("✨ [Ritod Hub] Egg Berhasil Di-Hatch Secara Instan!")
-            task.wait(0.3)
-            return true
-        end
-
-        task.wait(0.2)
+        task.wait(0.3)
     end
 
-    -- Backup final remote call
     callRemote("Hatch")
     return true
 end
 
 -- =================================================================
--- 🚀 AUTO TUTORIAL MAIN SEQUENCE (12 STEPS - 5 FPS ULTRA OPTIMIZED)
+-- 🚀 AUTO TUTORIAL MAIN SEQUENCE (12 STEPS - TERTIB & STEP-BY-STEP)
 -- =================================================================
 
 function AutoTutorial.Start()
@@ -525,10 +456,7 @@ function AutoTutorial.Start()
         return
     end
     isRunning = true
-    print("🚀 [Ritod Hub] Auto Tutorial Dimulai (Instant Hatch & 5 FPS Optimized)...")
-
-    -- Aktifkan bypass ProximityPrompt global
-    enableInstantPromptHook()
+    print("🚀 [Ritod Hub] Auto Tutorial Dimulai (Step-by-Step Stabil)...")
 
     task.spawn(function()
         pcall(function()
@@ -548,17 +476,17 @@ function AutoTutorial.Start()
             if eggShop then
                 hrp.CFrame = eggShop:GetPivot() * CFrame.new(0, 2, 5)
             end
-            task.wait(0.4)
+            task.wait(0.8)
             callRemote("BuyItem", "Capybara Egg")
 
-            -- Fast polling: tunggu tool masuk tas (maks 2.5s)
+            -- Tunggu egg tool masuk ke tas
             local pollStart = tick()
-            while (tick() - pollStart) < 2.5 do
+            while (tick() - pollStart) < 3 do
                 if findEggTool() then break end
                 callRemote("BuyItem", "Capybara Egg")
-                task.wait(0.3)
+                task.wait(0.4)
             end
-            task.wait(0.3)
+            task.wait(0.6)
 
             -- STEP 2: TARUH EGG PERTAMA DI LANE
             print("🥚 [Step 2/12] Menaruh Egg Pertama di Lane...")
@@ -575,17 +503,17 @@ function AutoTutorial.Start()
                 end
             end
             placeEggOnLane(lanePos)
-            task.wait(0.5)
+            task.wait(1.5)
 
             -- STEP 3: INSTANT HATCH EGG PERTAMA (BYPASS TEKAN E)
-            print("🐣 [Step 3/12] Instant Hatch Egg Pertama (Tanpa Tekan E Lama)...")
-            instantHatchEgg(myPlot, 3.5)
-            task.wait(0.5)
+            print("🐣 [Step 3/12] Instant Hatch Egg Pertama (Tanpa Tahan E)...")
+            instantHatchEgg(myPlot, 4)
+            task.wait(1.5)
 
             -- STEP 4: PASANG CARROT VIA EQUIP BEST PLANTS
             print("🥕 [Step 4/12] Memasang Tanaman Terbaik...")
             callRemote("EquipBestPlants")
-            task.wait(0.8)
+            task.wait(1.5)
 
             -- STEP 5: GROW TREE (REBIRTH / LEVEL UP)
             print("🌳 [Step 5/12] Upgrade Tree (Rebirth / Level Up)...")
@@ -598,7 +526,7 @@ function AutoTutorial.Start()
                 pcall(function()
                     hrp.CFrame = treeModel:GetPivot() * CFrame.new(0, 2, 5)
                 end)
-                task.wait(0.2)
+                task.wait(0.4)
                 triggerPrompt("upgrade", treeModel)
                 triggerPrompt("grow", treeModel)
                 triggerPrompt("tree", treeModel)
@@ -612,7 +540,7 @@ function AutoTutorial.Start()
                 local treeMenuBtn = mainBtns and (mainBtns:FindFirstChild("TreeButton") or mainBtns:FindFirstChild("Tree") or mainBtns:FindFirstChild("RebirthButton"))
                 if treeMenuBtn then
                     clickButton(treeMenuBtn)
-                    task.wait(0.4)
+                    task.wait(0.5)
                 end
 
                 local frames = root:FindFirstChild("Frames")
@@ -625,12 +553,12 @@ function AutoTutorial.Start()
                         or treeFrame:FindFirstChildWhichIsA("GuiButton", true)
                     if growBtn then
                         clickButton(growBtn)
-                        task.wait(0.3)
+                        task.wait(0.4)
                     end
                 end
 
                 -- Otomatis konfirmasi Yes Rebirth / Tree Popup
-                handleConfirmPopup(1.5)
+                handleConfirmPopup(2)
             end
 
             -- 3. Panggil Remotes Upgrade Tree / Rebirth sebagai Backup
@@ -641,7 +569,7 @@ function AutoTutorial.Start()
             callRemote("GrowTree")
             callRemote("ConfirmRebirth")
             callRemote("LevelUpTree")
-            task.wait(1)
+            task.wait(2)
 
             -- STEP 6: BELI POT KEDUA
             print("🪴 [Step 6/12] Membeli Pot Kedua...")
@@ -687,7 +615,7 @@ function AutoTutorial.Start()
                 end
             end
 
-            -- Teleport 1 KALI secara presisi ke Pot Kedua
+            -- Teleport 1 KALI ke Pot Kedua
             if pot2Model then
                 local potPos = nil
                 if pot2Model:IsA("Model") then
@@ -701,7 +629,7 @@ function AutoTutorial.Start()
 
                 if potPos then
                     hrp.CFrame = CFrame.new(potPos + Vector3.new(0, 2, 2.5))
-                    task.wait(0.3)
+                    task.wait(0.4)
                 end
 
                 local mainPart = (pot2Model:IsA("BasePart") and pot2Model) or pot2Model:FindFirstChildWhichIsA("BasePart") or pot2Model.PrimaryPart
@@ -719,7 +647,7 @@ function AutoTutorial.Start()
             end
 
             -- Otomatis Klik YES pada Popup Konfirmasi Pembelian Pot Kedua
-            handleConfirmPopup(1.5)
+            handleConfirmPopup(2)
 
             -- Panggil Remote Pembelian Pot Sebagai Backup
             callRemote("BuyItem", "Pot2")
@@ -727,7 +655,7 @@ function AutoTutorial.Start()
             callRemote("BuyPottedPlant", 2)
             callRemote("BuyItem", "Pot 2")
             callRemote("BuyItem", "Potted Plant 2")
-            task.wait(1)
+            task.wait(2)
 
             -- STEP 7: KLAIM SEMUA UANG
             print("💰 [Step 7/12] Mengambil Uang dari Collection Machine...")
@@ -739,12 +667,12 @@ function AutoTutorial.Start()
 
             if colMachine then
                 hrp.CFrame = CFrame.new(colMachine:GetPivot().Position + Vector3.new(0, 2, 3))
-                task.wait(0.3)
+                task.wait(0.4)
                 triggerPrompt("collect", colMachine)
             end
             callRemote("CollectMoneyFromPlant")
             callRemote("CollectMoney")
-            task.wait(0.8)
+            task.wait(1.5)
 
             -- STEP 8: BELI EGG KEDUA
             print("📦 [Step 8/12] Membeli Capybara Egg Kedua...")
@@ -752,16 +680,16 @@ function AutoTutorial.Start()
             if eggShop then
                 hrp.CFrame = eggShop:GetPivot() * CFrame.new(0, 2, 5)
             end
-            task.wait(0.3)
+            task.wait(0.6)
             callRemote("BuyItem", "Capybara Egg")
 
             local pollStart2 = tick()
-            while (tick() - pollStart2) < 2.5 do
+            while (tick() - pollStart2) < 3 do
                 if findEggTool() then break end
                 callRemote("BuyItem", "Capybara Egg")
-                task.wait(0.3)
+                task.wait(0.4)
             end
-            task.wait(0.3)
+            task.wait(0.6)
 
             -- STEP 9: TARUH EGG KEDUA DI LANE
             print("🥚 [Step 9/12] Menaruh Egg Kedua di Lane...")
@@ -779,12 +707,12 @@ function AutoTutorial.Start()
                 end
             end
             placeEggOnLane(lanePos2)
-            task.wait(0.5)
+            task.wait(1.5)
 
             -- STEP 10: INSTANT HATCH EGG KEDUA
-            print("🐣 [Step 10/12] Instant Hatch Egg Kedua (Bypass Tekan E)...")
-            instantHatchEgg(myPlot, 3.5)
-            task.wait(0.5)
+            print("🐣 [Step 10/12] Instant Hatch Egg Kedua (Tanpa Tahan E)...")
+            instantHatchEgg(myPlot, 4)
+            task.wait(1.5)
 
             -- STEP 11: SUMMON BOSS "Scarlet Carrot"
             print("⚔️ [Step 11/12] Memanggil Boss Scarlet Carrot...")
@@ -799,15 +727,15 @@ function AutoTutorial.Start()
                 end
             end
             callRemote("SummonBoss", "Scarlet Carrot")
-            task.wait(3)
+            task.wait(4)
 
             -- STEP 12: EQUIP BEST PLANTS & SELESAI
             print("🏆 [Step 12/12] Menyelesaikan Tutorial Game...")
             callRemote("EquipBestPlants")
-            task.wait(0.5)
+            task.wait(1)
             callRemote("SaveTutorialStage", 99)
             callRemote("RequestTutorialCompleted")
-            print("🎉 [Ritod Hub] AUTO TUTORIAL SELESAI DENGAN SUKSES & INSTAN!")
+            print("🎉 [Ritod Hub] AUTO TUTORIAL SELESAI DENGAN TERTIB & SUKSES!")
         end)
 
         isRunning = false
