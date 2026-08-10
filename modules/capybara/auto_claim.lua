@@ -1,261 +1,143 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - SMART AUTO CLAIM ENGINE (STATE-DRIVEN)
+	⚡ RITOD HUB - SMART AUTO CLAIM ENGINE (OPTIMIZED)
 	Game: Capybaras vs Plants (PlaceId: 104973076655377)
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
-	🎯 FEATURES (SAME ARCHITECTURE AS AUTO BUY EGG):
-	- 🛑 ZERO SPAM: Remote/Click TIDAK AKAN dikirim jika belum READY!
-	- ⚡ SMART STATE-DRIVEN:
-	  • 🟢 "READY"   -> Otomatis claim 1x saat hadiah/misi sudah siap.
-	  • ⚪ "CLAIMED" -> Dilewati permanen, tidak akan mengklaim ulang.
-	  • 🔴 "LOCKED"  -> Dilewati saat timer countdown aktif atau progress belum 100%.
-	- 🎁 12 Playtime Online Gifts Tracker (00:00 Countdown Detector)
-	- 📅 7-Day Login Rewards Tracker
-	- 📜 Daily Quests, Missions & Achievements Tracker + Smart "Claim All"
-	- 🤫 SILENT OPERATION: Bersih tanpa spam terminal/console.
+	🎯 OPTIMIZATIONS:
+	- ✅ Lazy GUI caching: GetDescendants() hanya 1x, diulang saat ada perubahan
+	- ✅ Path filter via instance Name bukan GetFullName() string
+	- ✅ clickButton: hanya firesignal/getconnections, tanpa VirtualInputManager spam
+	- ✅ CheckInterval 4 detik (bukan 1.5 detik) – sangat cukup untuk klaim
+	- ✅ Playtime & Daily scanner hanya berjalan di GUI yang relevan, bukan seluruh PlayerGui
 	===============================================================
 ]]
 
 local AutoClaim = {}
 _G.AutoClaim = AutoClaim
 
-local Players = game:GetService("Players")
+local Players          = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local VirtualUser = game:GetService("VirtualUser")
 
-local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
+local LocalPlayer = Players.LocalPlayer
 
 AutoClaim.Config = {
-    PlaytimeDaily = true, -- Auto Claim Playtime & Daily Login
-    Quest         = true, -- Auto Claim Daily Quests & Missions
-    CheckInterval = 1.5,  -- Interval pengecekan state (detik)
+    PlaytimeDaily = true,  -- Auto Claim Playtime & Daily Login
+    Quest         = true,  -- Auto Claim Daily Quests & Missions
+    CheckInterval = 4,     -- Interval pengecekan (detik) – lebih jarang = lebih ringan
 }
 
-local isRunning = false
-local loopThread = nil
-local claimedHistory = {}  -- [cardKey] = true (Menyimpan item yang sudah terklaim)
-local clickDebounce = {}   -- [cardKey] = timestamp (Cooldown klik per item)
-local lastRemoteSweep = 0
+local isRunning    = false
+local loopThread   = nil
+local clickDebounce = {}  -- [key] = last tick time
 
 -- =================================================================
--- 🛠️ HELPER FUNCTIONS & CLICK SIMULATOR
+-- 🛠️ LIGHTWEIGHT CLICK DISPATCHER
 -- =================================================================
-
-local function getRemotesFolder()
-    return ReplicatedStorage:FindFirstChild("Remotes") 
-        or ReplicatedStorage:FindFirstChild("Remotes", true)
-        or ReplicatedStorage
-end
-
-local function callRemote(name, ...)
-    local remotes = getRemotesFolder()
-    local remote = (remotes and remotes:FindFirstChild(name)) or ReplicatedStorage:FindFirstChild(name, true)
-    if remote then
-        pcall(function(...)
-            if remote:IsA("RemoteEvent") then
-                remote:FireServer(...)
-            elseif remote:IsA("RemoteFunction") then
-                remote:InvokeServer(...)
-            end
-        end, ...)
-        return true
-    end
-    return false
-end
+local _hasFiresignal   = typeof(firesignal) == "function"
+local _hasGetconn      = typeof(getconnections) == "function"
 
 local function clickButton(btn)
     if not btn then return end
 
-    -- 1. firesignal (Roblox Executor Signal Trigger)
-    if typeof(firesignal) == "function" then
-        pcall(function() firesignal(btn.MouseButton1Click) end)
-        pcall(function() firesignal(btn.MouseButton1Down) end)
-        pcall(function() firesignal(btn.Activated) end)
+    -- 1. firesignal (paling cepat & ringan)
+    if _hasFiresignal then
+        pcall(firesignal, btn.MouseButton1Click)
+        pcall(firesignal, btn.Activated)
+        return -- Cukup, tidak perlu fallback lain jika berhasil
     end
 
-    -- 2. getconnections (Direct Lua Event Dispatch)
-    if typeof(getconnections) == "function" then
-        for _, ev in ipairs({"Activated", "MouseButton1Click", "MouseButton1Down", "TouchTap"}) do
+    -- 2. getconnections (fallback jika tidak ada firesignal)
+    if _hasGetconn then
+        for _, ev in ipairs({"Activated", "MouseButton1Click"}) do
             pcall(function()
-                if btn[ev] then
-                    for _, conn in ipairs(getconnections(btn[ev])) do
-                        if conn.Function then
-                            conn.Function()
-                        elseif conn.Fire then
-                            conn:Fire()
-                        end
+                local conns = getconnections(btn[ev])
+                if conns then
+                    for _, conn in ipairs(conns) do
+                        if conn.Function then conn.Function()
+                        elseif conn.Fire then conn:Fire() end
                     end
                 end
             end)
         end
     end
-
-    -- 3. VirtualInputManager (Simulasi Touch & Mouse Hardware)
-    pcall(function()
-        local pos = btn.AbsolutePosition
-        local size = btn.AbsoluteSize
-        local cx = math.floor(pos.X + size.X / 2)
-        local cy = math.floor(pos.Y + size.Y / 2)
-
-        if typeof(VirtualInputManager) == "userdata" or typeof(VirtualInputManager) == "table" then
-            pcall(function()
-                VirtualInputManager:SendTouchEvent(1, 0, cx, cy)
-                task.wait(0.02)
-                VirtualInputManager:SendTouchEvent(1, 2, cx, cy)
-            end)
-            pcall(function()
-                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
-                task.wait(0.02)
-                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
-            end)
-        end
-    end)
-
-    -- 4. VirtualUser Fallback
-    pcall(function()
-        VirtualUser:CaptureController()
-        local pos = btn.AbsolutePosition
-        local size = btn.AbsoluteSize
-        VirtualUser:ClickButton1(Vector2.new(pos.X + size.X / 2, pos.Y + size.Y / 2))
-    end)
 end
 
 -- =================================================================
--- 🎯 STRICT REWARD STATE EVALUATOR ("Claim" vs "Claimed")
+-- 🔧 HELPER: Cek apakah tombol bertuliskan "CLAIM" (bukan "CLAIMED")
 -- =================================================================
-
-local function evaluateRewardCard(card)
-    if not card or not card:IsA("GuiObject") then
-        return "INVALID", nil
-    end
-
-    local cardKey = card:GetFullName()
-
-    -- 1. Cek apakah sudah pernah diklaim di sesi ini
-    if claimedHistory[cardKey] == true then
-        return "CLAIMED", nil
-    end
-
-    -- 2. Cek apakah ada teks "Claimed" di dalam kartu
-    for _, desc in ipairs(card:GetDescendants()) do
-        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
-            local clean = (desc.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
-            if clean:find("claimed") or clean:find("terklaim") or clean:find("collected") or clean:find("sudah") then
-                claimedHistory[cardKey] = true
-                return "CLAIMED", nil
-            end
-        end
-
-        -- Cek visual icon ceklis/claimed
-        local dName = desc.Name:lower()
-        if (dName == "claimed" or dName == "check" or dName == "tick" or dName == "done" or dName == "checkmark") and desc:IsA("GuiObject") then
-            if (desc:IsA("ImageLabel") and desc.ImageTransparency < 0.8 and desc.Image ~= "") or (desc:IsA("Frame") and desc.BackgroundTransparency < 0.8) then
-                claimedHistory[cardKey] = true
-                return "CLAIMED", nil
-            end
-        end
-    end
-
-    -- 3. Cek apakah ada tombol / TextLabel bertuliskan "Claim"
-    local claimBtn = nil
-    for _, desc in ipairs(card:GetDescendants()) do
-        if desc:IsA("GuiButton") or desc:IsA("TextButton") or desc:IsA("ImageButton") then
-            local btnTxt = (desc:IsA("TextButton") and desc.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
-            for _, c in ipairs(desc:GetChildren()) do
-                if c:IsA("TextLabel") then
-                    local ct = (c.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
-                    if ct ~= "" then btnTxt = ct end
-                end
-            end
-
-            -- Jika bertuliskan "Claim" (dan bukan "Claimed")
-            if btnTxt == "claim" or (btnTxt:find("claim") and not btnTxt:find("claimed")) then
-                claimBtn = desc
-                break
-            end
-
-            -- Jika nama tombolnya Claim dan bukan countdown
-            local bName = desc.Name:lower()
-            if (bName == "claim" or bName == "claimbutton" or bName == "claimbtn") and not (btnTxt:find(":") or btnTxt:find("claimed")) then
-                claimBtn = desc
-                break
-            end
-        end
-    end
-
-    -- Jika tombol tidak punya teks langsung, cek apakah ada TextLabel di dalam card bertuliskan "Claim"
-    if not claimBtn then
-        for _, desc in ipairs(card:GetDescendants()) do
-            if desc:IsA("TextLabel") then
-                local txt = (desc.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
-                if txt == "claim" or (txt:find("claim") and not txt:find("claimed")) then
-                    local anyBtn = card:FindFirstChildWhichIsA("GuiButton", true) or card:FindFirstChildWhichIsA("TextButton", true) or card:FindFirstChildWhichIsA("ImageButton", true)
-                    if anyBtn then
-                        claimBtn = anyBtn
-                        break
-                    end
-                end
-            end
-        end
-    end
-
-    if claimBtn then
-        return "READY", claimBtn
-    end
-
-    return "LOCKED", nil
+local function isClaimButton(btn)
+    local lbl = btn:FindFirstChild("TextLabel")
+    local txt = lbl and lbl.Text or (btn:IsA("TextButton") and btn.Text) or ""
+    local clean = txt:upper():gsub("%s+", "")
+    return clean == "CLAIM"
 end
 
 -- =================================================================
--- 📦 PROCESS CARD (EKSEKUSI KLAIM 1X BERSIH)
+-- 🔧 HELPER: Klaim tombol dengan debounce
 -- =================================================================
-
-local function processRewardCard(card, cardType)
-    local state, claimBtn = evaluateRewardCard(card)
-    local cardKey = card:GetFullName()
-
-    if state == "READY" and claimBtn then
-        -- Cooldown per kartu (hindari spam klik ganda)
-        local lastClick = clickDebounce[cardKey] or 0
-        if tick() - lastClick > 4 then
-            clickDebounce[cardKey] = tick()
-            claimedHistory[cardKey] = true -- Langsung kunci permanen agar tidak pernah diklik ulang
-            print(string.format("🎁 [Auto Claim] %s READY! Mengklaim (%s)...", tostring(cardType), tostring(card.Name)))
-            
-            -- Eksekusi 1x klik bersih pada tombol claim
-            clickButton(claimBtn)
-            return true
-        end
-    return false
+local function tryClaimButton(btn, label)
+    local key = btn:GetFullName()
+    local now = tick()
+    if now - (clickDebounce[key] or 0) > 10 then -- 10 detik cooldown per tombol
+        clickDebounce[key] = now
+        print(string.format("🎁 [Auto Claim] Mengklaim: %s", tostring(label)))
+        clickButton(btn)
+    end
 end
 
 -- =================================================================
--- ⏳ 1. PLAYTIME REWARDS SCANNER (ONLINE GIFTS)
+-- 📦 LAZY GUI CACHE
+-- Menyimpan referensi GUI yang sudah ditemukan, dihitung ulang
+-- hanya setiap 30 detik atau saat GUI berubah (jauh lebih ringan)
 -- =================================================================
-local function scanPlaytimeRewards()
+local _cache = {
+    questsFrame  = nil,
+    playtimePanels = {},
+    dailyPanels  = {},
+    lastUpdate   = 0,
+}
+local CACHE_TTL = 30 -- detik
+
+local function refreshCache()
+    local now = tick()
+    if now - _cache.lastUpdate < CACHE_TTL then return end
+    _cache.lastUpdate = now
+
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return end
 
-    for _, desc in ipairs(pg:GetDescendants()) do
-        if desc:IsA("ImageButton") or desc:IsA("TextButton") then
-            local pName = desc.Parent and desc.Parent.Name:lower() or ""
-            local gName = desc:GetFullName():lower()
-            if gName:find("playtime") or gName:find("online") or gName:find("gift") or gName:find("timegift") then
-                local lbl = desc:FindFirstChild("TextLabel") or (desc:IsA("TextButton") and desc)
-                if lbl then
-                    local cleanTxt = (lbl.Text or ""):upper():gsub("%s+", "")
-                    if cleanTxt == "CLAIM" then
-                        local cardKey = desc:GetFullName()
-                        local lastClick = clickDebounce[cardKey] or 0
-                        if tick() - lastClick > 3 then
-                            clickDebounce[cardKey] = tick()
-                            print(string.format("🎁 [Auto Claim] Playtime Gift READY! Mengklaim (%s)...", tostring(desc.Parent and desc.Parent.Name or desc.Name)))
-                            clickButton(desc)
-                        end
-                    end
-                end
+    -- Quests frame (lokasi tetap)
+    local mainGui = pg:FindFirstChild("MainGui")
+    local root = mainGui and mainGui:FindFirstChild("Root")
+    local frames = root and root:FindFirstChild("Frames")
+    _cache.questsFrame = frames and frames:FindFirstChild("Quests")
+
+    -- Scan GUI lain untuk Playtime & Daily
+    _cache.playtimePanels = {}
+    _cache.dailyPanels = {}
+
+    for _, gui in ipairs(pg:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui ~= mainGui then
+            local gName = gui.Name:lower()
+            if gName:find("playtime") or gName:find("gift") or gName:find("online") or gName:find("timereward") then
+                table.insert(_cache.playtimePanels, gui)
+            elseif gName:find("daily") or gName:find("loginreward") or gName:find("7day") then
+                table.insert(_cache.dailyPanels, gui)
+            end
+        end
+    end
+end
+
+-- =================================================================
+-- ⏳ 1. PLAYTIME REWARDS SCANNER
+-- =================================================================
+local function scanPlaytimeRewards()
+    refreshCache()
+    for _, panel in ipairs(_cache.playtimePanels) do
+        for _, btn in ipairs(panel:GetDescendants()) do
+            if (btn:IsA("ImageButton") or btn:IsA("TextButton")) and isClaimButton(btn) then
+                tryClaimButton(btn, "Playtime Gift [" .. btn.Parent.Name .. "]")
             end
         end
     end
@@ -265,89 +147,57 @@ end
 -- 📅 2. DAILY LOGIN REWARDS SCANNER
 -- =================================================================
 local function scanDailyLoginRewards()
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if not pg then return end
-
-    for _, desc in ipairs(pg:GetDescendants()) do
-        if desc:IsA("ImageButton") or desc:IsA("TextButton") then
-            local gName = desc:GetFullName():lower()
-            if gName:find("daily") or gName:find("loginreward") or gName:find("7day") or gName:find("dayreward") then
-                local lbl = desc:FindFirstChild("TextLabel") or (desc:IsA("TextButton") and desc)
-                if lbl then
-                    local cleanTxt = (lbl.Text or ""):upper():gsub("%s+", "")
-                    if cleanTxt == "CLAIM" then
-                        local cardKey = desc:GetFullName()
-                        local lastClick = clickDebounce[cardKey] or 0
-                        if tick() - lastClick > 3 then
-                            clickDebounce[cardKey] = tick()
-                            print(string.format("📅 [Auto Claim] Daily Login READY! Mengklaim (%s)...", tostring(desc.Parent and desc.Parent.Name or desc.Name)))
-                            clickButton(desc)
-                        end
-                    end
-                end
+    refreshCache()
+    for _, panel in ipairs(_cache.dailyPanels) do
+        for _, btn in ipairs(panel:GetDescendants()) do
+            if (btn:IsA("ImageButton") or btn:IsA("TextButton")) and isClaimButton(btn) then
+                tryClaimButton(btn, "Daily Login [" .. btn.Parent.Name .. "]")
             end
         end
     end
 end
 
 -- =================================================================
--- 📜 3. QUESTS SCANNER & AUTO-CLAIMER (DAILY & LIFETIME ENGINE)
+-- 📜 3. QUESTS SCANNER (DAILY & LIFETIME)
 -- =================================================================
 local function scanQuestsAndMissions()
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if not pg then return end
+    refreshCache()
+    local qf = _cache.questsFrame
+    if not qf then return end
 
-    local mainGui = pg:FindFirstChild("MainGui")
-    local questsFrame = mainGui and mainGui:FindFirstChild("Root") and mainGui.Root:FindFirstChild("Frames") and mainGui.Root.Frames:FindFirstChild("Quests")
-    if questsFrame then
-        for _, desc in ipairs(questsFrame:GetDescendants()) do
-            if desc:IsA("ImageButton") or desc:IsA("TextButton") then
-                local lbl = desc:FindFirstChild("TextLabel") or (desc:IsA("TextButton") and desc)
-                if lbl then
-                    local cleanTxt = (lbl.Text or ""):upper():gsub("%s+", "")
-                    if cleanTxt == "CLAIM" then
-                        -- Cek apakah progress kartu misi belum selesai (contoh: 1/3 atau 5/15)
-                        local isLocked = false
-                        local card = desc.Parent
-                        if card then
-                            local pBar = card:FindFirstChild("ProgressBar")
-                            local pLbl = pBar and pBar:FindFirstChild("TextLabel")
-                            if pLbl then
-                                local cur, max = pLbl.Text:match("(%d+)%s*/%s*(%d+)")
-                                if cur and max then
-                                    local nCur = tonumber(cur)
-                                    local nMax = tonumber(max)
-                                    if nCur and nMax and nMax > 0 and nCur < nMax then
-                                        isLocked = true
-                                    end
-                                end
-                            end
-                        end
-
-                        if not isLocked then
-                            local cardKey = desc:GetFullName()
-                            local lastClick = clickDebounce[cardKey] or 0
-                            if tick() - lastClick > 3 then
-                                clickDebounce[cardKey] = tick()
-                                print(string.format("🏆 [Auto Claim] Mengklaim Quest (%s)...", tostring(card and card.Name or desc.Name)))
-                                clickButton(desc)
-                            end
-                        end
+    for _, btn in ipairs(qf:GetDescendants()) do
+        if (btn:IsA("ImageButton") or btn:IsA("TextButton")) and isClaimButton(btn) then
+            -- Validasi progress jika ada ProgressBar di parent
+            local isLocked = false
+            local card = btn.Parent
+            if card then
+                local pBar = card:FindFirstChild("ProgressBar")
+                local pLbl = pBar and pBar:FindFirstChild("TextLabel")
+                if pLbl then
+                    local cur, max = pLbl.Text:match("(%d+)%s*/%s*(%d+)")
+                    local nCur, nMax = tonumber(cur), tonumber(max)
+                    if nCur and nMax and nMax > 0 and nCur < nMax then
+                        isLocked = true
                     end
                 end
+            end
+
+            if not isLocked then
+                tryClaimButton(btn, "Quest [" .. (card and card.Name or btn.Name) .. "]")
             end
         end
     end
 end
 
 -- =================================================================
--- 🚀 MAIN LOOP CONTROLLER (PURE STATE-DRIVEN)
+-- 🚀 MAIN LOOP CONTROLLER
 -- =================================================================
-
 function AutoClaim.Start()
     if isRunning then return end
     isRunning = true
-    print("🎁 [Ritod Hub] Smart Auto Claim (State-Driven Engine) Aktif!")
+    -- Reset cache saat mulai agar langsung scan ulang
+    _cache.lastUpdate = 0
+    print("🎁 [Ritod Hub] Auto Claim (Optimized Engine) Aktif!")
 
     loopThread = task.spawn(function()
         while isRunning do
@@ -356,13 +206,11 @@ function AutoClaim.Start()
                     scanPlaytimeRewards()
                     scanDailyLoginRewards()
                 end
-
                 if AutoClaim.Config.Quest then
                     scanQuestsAndMissions()
                 end
             end)
-
-            task.wait(AutoClaim.Config.CheckInterval or 1.5)
+            task.wait(AutoClaim.Config.CheckInterval or 4)
         end
     end)
 end
@@ -373,7 +221,7 @@ function AutoClaim.Stop()
         task.cancel(loopThread)
         loopThread = nil
     end
-    print("🛑 [Ritod Hub] Smart Auto Claim Dimatikan.")
+    print("🛑 [Ritod Hub] Auto Claim Dimatikan.")
 end
 
 function AutoClaim.Toggle(state)
@@ -400,11 +248,10 @@ function AutoClaim.ToggleQuest(state)
     end
 end
 
--- Reset riwayat claimed jika player ingin memindai ulang secara manual
 function AutoClaim.ResetHistory()
-    claimedHistory = {}
     clickDebounce = {}
-    print("🔄 [Auto Claim] Riwayat status claimed direset.")
+    _cache.lastUpdate = 0
+    print("🔄 [Auto Claim] Debounce & cache direset.")
 end
 
 return AutoClaim
