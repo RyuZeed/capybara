@@ -63,9 +63,10 @@ local function loadModule(name)
         end
     end
 
-    -- 2. Fallback load from GitHub Cloud
+    -- 2. Fallback load from GitHub Cloud (with Cache Buster)
     local success, result = pcall(function()
-        return loadstring(game:HttpGet(BASE_URL .. name .. ".lua"))()
+        local url = BASE_URL .. name .. ".lua?t=" .. tostring(os.time())
+        return loadstring(game:HttpGet(url))()
     end)
     if success and result then
         print("🌐 [Ritod Hub] Loaded cloud module: " .. name)

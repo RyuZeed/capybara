@@ -32,9 +32,10 @@ local function executeScript(filename)
         end
     end
 
-    -- 2. Fallback load langsung dari GitHub Cloud (Raw)
+    -- 2. Fallback load langsung dari GitHub Cloud (Raw dengan Cache Buster)
     local success, result = pcall(function()
-        return loadstring(game:HttpGet(BASE_URL .. filename))()
+        local url = BASE_URL .. filename .. "?t=" .. tostring(os.time())
+        return loadstring(game:HttpGet(url))()
     end)
     if success then
         print("🌐 [Ritod Launcher] Sukses memuat script cloud: " .. filename)
