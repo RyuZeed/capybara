@@ -782,14 +782,61 @@ floatStroke.Color = Color3.fromRGB(190, 90, 255)
 floatStroke.Transparency = 0.2
 floatStroke.Parent = floatWidget
 
+local strokeGrad = Instance.new("UIGradient")
+strokeGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 160)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(170, 90, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(90, 210, 255)),
+})
+strokeGrad.Rotation = 45
+strokeGrad.Parent = floatStroke
+
+local floatBgGrad = Instance.new("UIGradient")
+floatBgGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 20, 48)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(16, 10, 24)),
+})
+floatBgGrad.Rotation = 90
+floatBgGrad.Parent = floatWidget
+
 local floatIcon = Instance.new("TextLabel")
 floatIcon.Size = UDim2.new(1, 0, 1, 0)
 floatIcon.BackgroundTransparency = 1
-floatIcon.Text = "👑"
-floatIcon.TextSize = 24
+floatIcon.Text = "⚡"
+floatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+floatIcon.TextSize = 26
 floatIcon.Font = Enum.Font.GothamBlack
 floatIcon.ZIndex = 101
 floatIcon.Parent = floatWidget
+
+local statusDot = Instance.new("Frame")
+statusDot.AnchorPoint = Vector2.new(1, 0)
+statusDot.Position = UDim2.new(1, -5, 0, 5)
+statusDot.Size = UDim2.new(0, 10, 0, 10)
+statusDot.BackgroundColor3 = Color3.fromRGB(70, 255, 140)
+statusDot.BorderSizePixel = 0
+statusDot.ZIndex = 102
+statusDot.Parent = floatWidget
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(1, 0)
+statusCorner.Parent = statusDot
+
+local statusStroke = Instance.new("UIStroke")
+statusStroke.Thickness = 2
+statusStroke.Color = Color3.fromRGB(20, 14, 28)
+statusStroke.Parent = statusDot
+
+task.spawn(function()
+    while floatWidget and floatWidget.Parent do
+        TweenService:Create(floatStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness = 3.5, Transparency = 0}):Play()
+        TweenService:Create(statusDot, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundColor3 = Color3.fromRGB(120, 255, 180)}):Play()
+        task.wait(1.2)
+        TweenService:Create(floatStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness = 2.0, Transparency = 0.4}):Play()
+        TweenService:Create(statusDot, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundColor3 = Color3.fromRGB(40, 200, 100)}):Play()
+        task.wait(1.2)
+    end
+end)
 
 local isHubVisible = true
 local lastSavedPosition = mainFrame.Position
