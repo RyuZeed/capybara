@@ -187,6 +187,22 @@ local function runAutoTutorial()
 
     tutorialThread = task.spawn(function()
         pcall(function()
+            -- 🔍 SMART CHECK: Periksa apakah akun ini sudah pernah menyelesaikan tutorial
+            local isAlreadyDone = false
+            pcall(function()
+                if LocalPlayer:GetAttribute("TutorialCompleted") == true then
+                    isAlreadyDone = true
+                elseif LocalPlayer:GetAttribute("TutorialStage") and tonumber(LocalPlayer:GetAttribute("TutorialStage")) >= 12 then
+                    isAlreadyDone = true
+                end
+            end)
+
+            if isAlreadyDone then
+                print("ℹ️ [Ritod Hub] Tutorial sudah selesai di akun ini. Auto Tutorial dilewati!")
+                _G.AutoTutorialRunning = false
+                return
+            end
+
             local HATCH_WAIT = 8
             local hrp = getHRP()
             if not hrp then return end
