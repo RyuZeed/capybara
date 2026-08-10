@@ -21,29 +21,29 @@ local PLACE_IDS = {
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/"
 
 local function executeScript(filename)
-    -- 1. Coba load dari file lokal di folder workspace executor
+    -- 1. Load langsung dari GitHub Cloud (Raw dengan Cache Buster)
+    local success, result = pcall(function()
+        local url = BASE_URL .. filename .. "?t=" .. tostring(os.time())
+        return loadstring(game:HttpGet(url))()
+    end)
+    if success and result ~= false then
+        print("🌐 [Ritod Launcher] Sukses memuat script cloud: " .. filename)
+        return true
+    end
+
+    -- 2. Fallback jika offline: coba load dari file lokal di folder workspace executor
     if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(filename) then
-        local success, result = pcall(function()
+        local lSuccess, lResult = pcall(function()
             return loadstring(readfile(filename))()
         end)
-        if success then
+        if lSuccess then
             print("📁 [Ritod Launcher] Sukses memuat script lokal: " .. filename)
             return true
         end
     end
 
-    -- 2. Fallback load langsung dari GitHub Cloud (Raw dengan Cache Buster)
-    local success, result = pcall(function()
-        local url = BASE_URL .. filename .. "?t=" .. tostring(os.time())
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success then
-        print("🌐 [Ritod Launcher] Sukses memuat script cloud: " .. filename)
-        return true
-    else
-        warn("⚠️ [Ritod Launcher] Gagal memuat " .. filename .. " -> " .. tostring(result))
-        return false
-    end
+    warn("⚠️ [Ritod Launcher] Gagal memuat " .. filename .. " -> " .. tostring(result))
+    return false
 end
 
 -- =================================================================

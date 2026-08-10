@@ -28,12 +28,22 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
--- 🧹 HAPUS PAKSA UI LAMA BILA ADA
+-- 🧹 HAPUS PAKSA UI LAMA BILA ADA (gethui, CoreGui & PlayerGui)
 pcall(function()
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    for _, name in ipairs({"CPU_RAM_Saver_GUI", "AFKScreenOff", "RitodHubLite", "RitodHubUltra", "RitodHubAutoDelete", "PerfectAutoClaimTester"}) do
-        if pg and pg:FindFirstChild(name) then pg[name]:Destroy() end
-        if CoreGui and CoreGui:FindFirstChild(name) then CoreGui[name]:Destroy() end
+    if _G.RitodHubGui and typeof(_G.RitodHubGui) == "Instance" then
+        pcall(function() _G.RitodHubGui:Destroy() end)
+    end
+    local targets = {}
+    if typeof(gethui) == "function" then pcall(function() table.insert(targets, gethui()) end) end
+    if CoreGui then table.insert(targets, CoreGui) end
+    if LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") then table.insert(targets, LocalPlayer.PlayerGui) end
+    
+    for _, parent in ipairs(targets) do
+        for _, name in ipairs({"CPU_RAM_Saver_GUI", "AFKScreenOff", "RitodHubLite", "RitodHubUltra", "RitodHubAutoDelete", "PerfectAutoClaimTester", "MainHub"}) do
+            if parent:FindFirstChild(name) then
+                pcall(function() parent[name]:Destroy() end)
+            end
+        end
     end
 end)
 
@@ -43,7 +53,17 @@ end)
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/capybara/"
 
 local function loadModule(name)
-    -- 1. Local path check
+    -- 1. Load dari GitHub Cloud (Raw dengan Cache Buster)
+    local success, result = pcall(function()
+        local url = BASE_URL .. name .. ".lua?t=" .. tostring(os.time())
+        return loadstring(game:HttpGet(url))()
+    end)
+    if success and result then
+        print("🌐 [Ritod Hub] Loaded cloud module: " .. name)
+        return result
+    end
+
+    -- 2. Fallback jika offline: Cek file lokal di workspace executor
     local localPaths = {
         "modules/capybara/" .. name .. ".lua",
         name .. ".lua",
@@ -52,29 +72,19 @@ local function loadModule(name)
     if typeof(readfile) == "function" and typeof(isfile) == "function" then
         for _, path in ipairs(localPaths) do
             if isfile(path) then
-                local success, result = pcall(function()
+                local lSuccess, lResult = pcall(function()
                     return loadstring(readfile(path))()
                 end)
-                if success and result then
+                if lSuccess and lResult then
                     print("📁 [Ritod Hub] Loaded local module: " .. path)
-                    return result
+                    return lResult
                 end
             end
         end
     end
 
-    -- 2. Fallback load from GitHub Cloud (with Cache Buster)
-    local success, result = pcall(function()
-        local url = BASE_URL .. name .. ".lua?t=" .. tostring(os.time())
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result then
-        print("🌐 [Ritod Hub] Loaded cloud module: " .. name)
-        return result
-    else
-        warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name .. " -> " .. tostring(result))
-        return nil
-    end
+    warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name .. " -> " .. tostring(result))
+    return nil
 end
 
 local AFKModule      = loadModule("anti_afk")
