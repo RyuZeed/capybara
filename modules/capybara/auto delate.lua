@@ -1,9 +1,11 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - AUTO DELETE PLANT (ULTRA HD EDITION)
+	⚡ RITOD HUB - AUTO DELETE PLANT & IN-GAME SCANNER (ULTRA HD)
 	Game: Capybaras vs Plants
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
+	- 🔍 REAL-TIME IN-GAME PLANT SCANNER:
+	  Mendeteksi seluruh tanaman in-game dari ReplicatedStorage, UI Almanac/Inventory, & Workspace
 	- 🖥️ ULTRA HD GUI (680x440) with Neon Floating Widget & Minimize
 	- 🗑️ TRIPLE-ENGINE AUTO CLEANER:
 	  1. Remote Discovery Engine (Fast remote execution)
@@ -29,6 +31,87 @@ local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
+
+-- =================================================================
+-- 🎨 RARITY DEFINITIONS & COLOR PALETTE
+-- =================================================================
+local RARITY_COLORS = {
+    ["Common"]    = Color3.fromRGB(180, 180, 180),
+    ["Uncommon"]  = Color3.fromRGB(85, 230, 120),
+    ["Rare"]      = Color3.fromRGB(75, 170, 255),
+    ["Epic"]      = Color3.fromRGB(195, 85, 255),
+    ["Legendary"] = Color3.fromRGB(255, 200, 50),
+    ["Mythic"]    = Color3.fromRGB(255, 65, 95),
+    ["Secret"]    = Color3.fromRGB(0, 255, 230),
+    ["Godly"]     = Color3.fromRGB(255, 110, 240),
+}
+
+-- Comprehensive Base In-Game Plant Database
+local INGAME_PLANT_DATABASE = {
+    -- Common
+    { name = "Carrot", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Basic Carrot", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Potato", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Tomato", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Corn", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Wheat", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Cabbage", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Onion", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Beetroot", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Lettuce", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Radish", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Pea", rarity = "Common", color = RARITY_COLORS["Common"] },
+    { name = "Cucumber", rarity = "Common", color = RARITY_COLORS["Common"] },
+
+    -- Uncommon
+    { name = "Blueberry", rarity = "Uncommon", color = RARITY_COLORS["Uncommon"] },
+    { name = "Strawberry", rarity = "Uncommon", color = RARITY_COLORS["Uncommon"] },
+    { name = "Garlic", rarity = "Uncommon", color = RARITY_COLORS["Uncommon"] },
+    { name = "Chili Pepper", rarity = "Uncommon", color = RARITY_COLORS["Uncommon"] },
+    { name = "Broccoli", rarity = "Uncommon", color = RARITY_COLORS["Uncommon"] },
+    { name = "Mushroom", rarity = "Uncommon", color = RARITY_COLORS["Uncommon"] },
+    { name = "Grape", rarity = "Uncommon", color = RARITY_COLORS["Uncommon"] },
+    { name = "Pineapple", rarity = "Uncommon", color = RARITY_COLORS["Uncommon"] },
+
+    -- Rare
+    { name = "Sunflower", rarity = "Rare", color = RARITY_COLORS["Rare"] },
+    { name = "Watermelon", rarity = "Rare", color = RARITY_COLORS["Rare"] },
+    { name = "Pumpkin", rarity = "Rare", color = RARITY_COLORS["Rare"] },
+    { name = "Golden Carrot", rarity = "Rare", color = RARITY_COLORS["Rare"] },
+    { name = "Fire Chili", rarity = "Rare", color = RARITY_COLORS["Rare"] },
+    { name = "Crystal Wheat", rarity = "Rare", color = RARITY_COLORS["Rare"] },
+    { name = "Golden Apple", rarity = "Rare", color = RARITY_COLORS["Rare"] },
+
+    -- Epic
+    { name = "Sakura", rarity = "Epic", color = RARITY_COLORS["Epic"] },
+    { name = "Lotus", rarity = "Epic", color = RARITY_COLORS["Epic"] },
+    { name = "Cactus", rarity = "Epic", color = RARITY_COLORS["Epic"] },
+    { name = "Poison Ivy", rarity = "Epic", color = RARITY_COLORS["Epic"] },
+    { name = "Moon Flower", rarity = "Epic", color = RARITY_COLORS["Epic"] },
+    { name = "Starfruit", rarity = "Epic", color = RARITY_COLORS["Epic"] },
+    { name = "Frost Berry", rarity = "Epic", color = RARITY_COLORS["Epic"] },
+
+    -- Legendary
+    { name = "Dragonfruit", rarity = "Legendary", color = RARITY_COLORS["Legendary"] },
+    { name = "Thunder Tree", rarity = "Legendary", color = RARITY_COLORS["Legendary"] },
+    { name = "Electric Cactus", rarity = "Legendary", color = RARITY_COLORS["Legendary"] },
+    { name = "Sun God Flower", rarity = "Legendary", color = RARITY_COLORS["Legendary"] },
+    { name = "Void Root", rarity = "Legendary", color = RARITY_COLORS["Legendary"] },
+    { name = "Infernal Pepper", rarity = "Legendary", color = RARITY_COLORS["Legendary"] },
+
+    -- Mythic
+    { name = "Phoenix Flower", rarity = "Mythic", color = RARITY_COLORS["Mythic"] },
+    { name = "Astral Blossom", rarity = "Mythic", color = RARITY_COLORS["Mythic"] },
+    { name = "Celestial Tree", rarity = "Mythic", color = RARITY_COLORS["Mythic"] },
+    { name = "Chrono Vine", rarity = "Mythic", color = RARITY_COLORS["Mythic"] },
+    { name = "Galaxy Melon", rarity = "Mythic", color = RARITY_COLORS["Mythic"] },
+
+    -- Secret / Godly
+    { name = "Divine Lotus", rarity = "Secret", color = RARITY_COLORS["Secret"] },
+    { name = "Godly Capybara Root", rarity = "Secret", color = RARITY_COLORS["Secret"] },
+    { name = "Nebula Orchid", rarity = "Godly", color = RARITY_COLORS["Godly"] },
+    { name = "Eternal World Tree", rarity = "Godly", color = RARITY_COLORS["Godly"] },
+}
 
 -- =================================================================
 -- ⚙️ CONFIGURATION & STATE
@@ -82,7 +165,7 @@ local isRunning = false
 local deleteThread = nil
 local totalDeletedCount = 0
 local totalScannedCount = 0
-local lastActionText = "Idle"
+local liveScannedPlantsMap = {}
 
 -- =================================================================
 -- 🛠️ HELPER FUNCTIONS
@@ -307,6 +390,113 @@ local function getMyPlot()
 end
 
 -- =================================================================
+-- 🔍 IN-GAME FULL PLANT SCANNER (LIVE REPLICATED STORAGE & UI SCAN)
+-- =================================================================
+
+function AutoDeletePlant.ScanAllInGamePlants()
+    local foundPlants = {}
+    local addedMap = {}
+
+    local function addPlant(name, rarity)
+        if not name or type(name) ~= "string" then return end
+        local cleanName = name:gsub("^%s*(.-)%s*$", "%1")
+        if cleanName == "" or #cleanName < 2 then return end
+        local key = cleanName:lower()
+
+        -- Filter nama non-tanaman
+        if key:find("button") or key:find("frame") or key:find("layout") or key:find("corner") or key:find("stroke") or key:find("gradient") or key:find("template") or key:find("server") or key == "client" then
+            return
+        end
+
+        if not addedMap[key] then
+            addedMap[key] = true
+            local cleanRarity = rarity or "Common"
+            if cleanRarity == "" then cleanRarity = "Common" end
+            local rColor = RARITY_COLORS[cleanRarity] or RARITY_COLORS["Common"]
+
+            table.insert(foundPlants, {
+                name = cleanName,
+                rarity = cleanRarity,
+                color = rColor
+            })
+            liveScannedPlantsMap[key] = {
+                name = cleanName,
+                rarity = cleanRarity
+            }
+        end
+    end
+
+    -- 1. Scan Database Bawaan
+    for _, p in ipairs(INGAME_PLANT_DATABASE) do
+        addPlant(p.name, p.rarity)
+    end
+
+    -- 2. Scan ReplicatedStorage (Folders, Models, Configs)
+    pcall(function()
+        for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+            local oName = obj.Name:lower()
+            if oName:find("plant") or oName:find("crop") or oName:find("seed") then
+                for _, child in ipairs(obj:GetChildren()) do
+                    if child:IsA("Model") or child:IsA("Folder") or child:IsA("Configuration") or child:IsA("ValueBase") then
+                        local r = child:GetAttribute("Rarity") or child:GetAttribute("Tier") or (child:FindFirstChild("Rarity") and child.Rarity.Value) or "Common"
+                        addPlant(child.Name, tostring(r))
+                    end
+                end
+            end
+        end
+    end)
+
+    -- 3. Scan Workspace (Map PottedPlants & Plots)
+    pcall(function()
+        local map = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map") or workspace:FindFirstChild("Map") or workspace
+        local pottedPlants = map:FindFirstChild("PottedPlants", true)
+        if pottedPlants then
+            for _, p in ipairs(pottedPlants:GetDescendants()) do
+                if p:IsA("Model") and not p.Name:lower():find("server") and not p.Name:lower():find("pot") then
+                    local r = p:GetAttribute("Rarity") or "Common"
+                    addPlant(p.Name, tostring(r))
+                end
+            end
+        end
+    end)
+
+    -- 4. Scan PlayerGui MainGui (Inventory / Plants / Index Frame)
+    pcall(function()
+        local mainGui = getMainGui()
+        if mainGui then
+            for _, desc in ipairs(mainGui:GetDescendants()) do
+                if desc:IsA("Frame") or desc:IsA("ScrollingFrame") then
+                    local dName = desc.Name:lower()
+                    if dName:find("plant") or dName:find("inventory") or dName:find("index") or dName:find("codex") or dName:find("almanac") then
+                        for _, item in ipairs(desc:GetChildren()) do
+                            if item:IsA("GuiObject") and not item.Name:lower():find("template") and not item.Name:lower():find("layout") then
+                                local pName = item.Name
+                                local pRarity = "Common"
+                                for _, child in ipairs(item:GetDescendants()) do
+                                    if child:IsA("TextLabel") then
+                                        local txt = child.Text or ""
+                                        local cName = child.Name:lower()
+                                        if cName:find("name") or cName == "title" then
+                                            if txt ~= "" then pName = txt end
+                                        elseif cName:find("rarity") or cName:find("tier") then
+                                            if txt ~= "" then pRarity = txt end
+                                        end
+                                    end
+                                end
+                                addPlant(pName, pRarity)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    print(string.format("🔍 [Ritod Hub] Sukses Scan %d Tanaman In-Game!", #foundPlants))
+    return foundPlants
+end
+
+-- =================================================================
 -- 🔍 PLANT EVALUATION ENGINE
 -- =================================================================
 
@@ -333,7 +523,7 @@ function AutoDeletePlant.ShouldDelete(plantName, plantRarity, isEquipped)
         return true
     end
     for pName, state in pairs(AutoDeletePlant.Config.SelectedPlants) do
-        if state and name:find(pName:lower()) then
+        if state and (name == pName:lower() or name:find(pName:lower())) then
             return true
         end
     end
@@ -348,7 +538,7 @@ function AutoDeletePlant.ShouldDelete(plantName, plantRarity, isEquipped)
     -- 5. Rarity Toggles
     if AutoDeletePlant.Config.DeleteCommon then
         if rarity == "common" or rarity:find("common") or rarity == "biasa" or rarity == "1" then return true end
-        if name:find("carrot") or name:find("tomato") or name:find("potato") or name:find("corn") or name:find("cabbage") or name:find("wheat") or name:find("onion") or name:find("lettuce") or name:find("beetroot") then
+        if name:find("carrot") or name:find("tomato") or name:find("potato") or name:find("corn") or name:find("cabbage") or name:find("wheat") or name:find("onion") or name:find("lettuce") or name:find("beetroot") or name:find("radish") or name:find("pea") or name:find("cucumber") then
             return true
         end
     end
@@ -456,7 +646,6 @@ local function scanInventoryUI()
                             handleConfirmPopup(0.6)
                             deletedThisRound += 1
                             totalDeletedCount += 1
-                            lastActionText = "Deleted UI: " .. tostring(itemName)
                         else
                             clickButton(itemCard)
                             task.wait(0.05)
@@ -471,7 +660,6 @@ local function scanInventoryUI()
                                         handleConfirmPopup(0.6)
                                         deletedThisRound += 1
                                         totalDeletedCount += 1
-                                        lastActionText = "Deleted Card: " .. tostring(itemName)
                                         break
                                     end
                                 end
@@ -524,7 +712,6 @@ local function scanPlotPots()
                             handleConfirmPopup(0.6)
                             cleanedCount += 1
                             totalDeletedCount += 1
-                            lastActionText = "Shoveled: " .. tostring(potPlantName)
                         end
                     end
                 end
@@ -1046,7 +1233,7 @@ local function buildUltraHDGui()
 
         if not activeTab then selectTab() end
 
-        local elements = {}
+        local elements = { Page = page }
 
         function elements:AddSection(title)
             local sec = Instance.new("Frame")
@@ -1065,6 +1252,7 @@ local function buildUltraHDGui()
             sLabel.TextXAlignment = Enum.TextXAlignment.Left
             sLabel.ZIndex = 13
             sLabel.Parent = sec
+            return sec
         end
 
         function elements:AddButton(text, callback)
@@ -1249,9 +1437,10 @@ local function buildUltraHDGui()
             }
         end
 
-        function elements:AddPlantCard(plantName, plantRarity, plantColor)
+        function elements:AddPlantCard(plantName, plantRarity, plantColor, onStateChanged)
             local pKey = plantName:lower()
             local card = Instance.new("Frame")
+            card.Name = "PlantCard_" .. pKey
             card.Size = UDim2.new(1, 0, 0, 36)
             card.BackgroundColor3 = Color3.fromRGB(26, 20, 34)
             card.BorderSizePixel = 0
@@ -1280,7 +1469,7 @@ local function buildUltraHDGui()
             chkCorner.Parent = checkBtn
 
             local badge = Instance.new("TextLabel")
-            badge.Size = UDim2.new(0, 70, 0, 18)
+            badge.Size = UDim2.new(0, 75, 0, 18)
             badge.Position = UDim2.new(0, 34, 0.5, -9)
             badge.BackgroundColor3 = plantColor or Color3.fromRGB(160, 160, 160)
             badge.BackgroundTransparency = 0.8
@@ -1296,8 +1485,8 @@ local function buildUltraHDGui()
             bCorner.Parent = badge
 
             local nameLabel = Instance.new("TextLabel")
-            nameLabel.Size = UDim2.new(1, -120, 1, 0)
-            nameLabel.Position = UDim2.new(0, 112, 0, 0)
+            nameLabel.Size = UDim2.new(1, -125, 1, 0)
+            nameLabel.Position = UDim2.new(0, 115, 0, 0)
             nameLabel.BackgroundTransparency = 1
             nameLabel.Text = plantName
             nameLabel.TextColor3 = Color3.fromRGB(240, 235, 250)
@@ -1312,6 +1501,7 @@ local function buildUltraHDGui()
                 AutoDeletePlant.Config.SelectedPlants[pKey] = newState and true or nil
                 checkBtn.BackgroundColor3 = newState and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
                 checkBtn.Text = newState and "✓" or ""
+                if onStateChanged then onStateChanged(newState) end
             end
 
             checkBtn.MouseButton1Click:Connect(toggle)
@@ -1323,6 +1513,15 @@ local function buildUltraHDGui()
             fullClick.ZIndex = 14
             fullClick.Parent = card
             fullClick.MouseButton1Click:Connect(toggle)
+
+            return {
+                SetChecked = function(self, val)
+                    AutoDeletePlant.Config.SelectedPlants[pKey] = val and true or nil
+                    checkBtn.BackgroundColor3 = val and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
+                    checkBtn.Text = val and "✓" or ""
+                end,
+                Card = card
+            }
         end
 
         function elements:AddInput(placeholder, callback)
@@ -1406,7 +1605,57 @@ local function buildUltraHDGui()
         Notify("Equip Best", "Tanaman terbaik berhasil dipasang!", 2)
     end)
 
-    -- TAB 2: 🌿 FILTER RARITY & TANAMAN
+    -- TAB 2: 🔍 IN-GAME CATALOG & SCANNER (SCAN SELURUH PLANT)
+    local CatalogTab = CreateTab("In-Game Plants", "🔍")
+    CatalogTab:AddSection("Live In-Game Scanner")
+
+    local plantCardRefs = {}
+    local plantContainerFrame = nil
+
+    local function populatePlantsList(plantsList)
+        for _, ref in pairs(plantCardRefs) do
+            if ref.Card and ref.Card.Parent then ref.Card:Destroy() end
+        end
+        table.clear(plantCardRefs)
+
+        for _, plant in ipairs(plantsList) do
+            local ref = CatalogTab:AddPlantCard(plant.name, plant.rarity, plant.color)
+            plantCardRefs[plant.name:lower()] = ref
+        end
+    end
+
+    CatalogTab:AddButton("🔄 Scan Seluruh Tanaman In-Game (Live Scan)", function()
+        Notify("Scanning...", "Mencari seluruh tanaman in-game dari ReplicatedStorage & UI...", 2)
+        local scanned = AutoDeletePlant.ScanAllInGamePlants()
+        populatePlantsList(scanned)
+        Notify("Scan Selesai!", string.format("Berhasil memuat %d jenis tanaman in-game!", #scanned), 3)
+    end)
+
+    CatalogTab:AddSection("Quick Select By Rarity")
+    CatalogTab:AddButton("☑️ Pilih Semua Common (Target Delete)", function()
+        for pKey, ref in pairs(plantCardRefs) do
+            local data = liveScannedPlantsMap[pKey]
+            if data and (data.rarity:lower() == "common" or data.name:lower():find("carrot") or data.name:lower():find("potato") or data.name:lower():find("tomato") or data.name:lower():find("wheat")) then
+                ref:SetChecked(true)
+            end
+        end
+        Notify("Quick Select", "Semua tanaman Common dipilih untuk dihapus!", 2)
+    end)
+
+    CatalogTab:AddButton("⬜ Hapus Semua Pilihan (Uncheck All)", function()
+        for pKey, ref in pairs(plantCardRefs) do
+            ref:SetChecked(false)
+        end
+        table.clear(AutoDeletePlant.Config.SelectedPlants)
+        Notify("Deselect All", "Semua pilihan tanaman dikosongkan.", 2)
+    end)
+
+    CatalogTab:AddSection("Daftar Tanaman In-Game")
+    -- Inisialisasi awal list tanaman
+    local initialPlants = AutoDeletePlant.ScanAllInGamePlants()
+    populatePlantsList(initialPlants)
+
+    -- TAB 3: 🌿 FILTER RARITY
     local FilterTab = CreateTab("Filter Rarity", "🌿")
     FilterTab:AddSection("Pilih Tier / Rarity untuk Dihapus")
 
@@ -1429,24 +1678,7 @@ local function buildUltraHDGui()
         AutoDeletePlant.Config.DeleteMythic = val
     end)
 
-    FilterTab:AddSection("Daftar Tanaman Spesifik (Checklist)")
-    local samplePlants = {
-        { name = "Carrot", rarity = "Common", color = Color3.fromRGB(200, 200, 200) },
-        { name = "Basic Carrot", rarity = "Common", color = Color3.fromRGB(200, 200, 200) },
-        { name = "Potato", rarity = "Common", color = Color3.fromRGB(200, 200, 200) },
-        { name = "Tomato", rarity = "Common", color = Color3.fromRGB(200, 200, 200) },
-        { name = "Corn", rarity = "Common", color = Color3.fromRGB(200, 200, 200) },
-        { name = "Wheat", rarity = "Common", color = Color3.fromRGB(200, 200, 200) },
-        { name = "Cabbage", rarity = "Common", color = Color3.fromRGB(200, 200, 200) },
-        { name = "Onion", rarity = "Common", color = Color3.fromRGB(200, 200, 200) },
-        { name = "Beetroot", rarity = "Common", color = Color3.fromRGB(200, 200, 200) },
-        { name = "Lettuce", rarity = "Common", color = Color3.fromRGB(200, 200, 200) },
-    }
-    for _, plant in ipairs(samplePlants) do
-        FilterTab:AddPlantCard(plant.name, plant.rarity, plant.color)
-    end
-
-    -- TAB 3: 📋 WHITELIST & BLACKLIST
+    -- TAB 4: 📋 WHITELIST & BLACKLIST
     local ListTab = CreateTab("Lists", "📋")
     ListTab:AddSection("Custom Blacklist (Selalu Dihapus)")
     ListTab:AddInput("Tambah nama tanaman ke Blacklist...", function(text)
@@ -1466,7 +1698,7 @@ local function buildUltraHDGui()
         end
     end)
 
-    -- TAB 4: ⚙️ SETTINGS
+    -- TAB 5: ⚙️ SETTINGS
     local SettingsTab = CreateTab("Settings", "⚙️")
     SettingsTab:AddSection("Informasi Sesi")
     local myPlot = getMyPlot()
