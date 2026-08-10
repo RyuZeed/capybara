@@ -1120,13 +1120,46 @@ local tutStatus = Instance.new("TextLabel")
 tutStatus.Position = UDim2.new(0, 12, 0, 0)
 tutStatus.Size = UDim2.new(1, -24, 1, 0)
 tutStatus.BackgroundTransparency = 1
-tutStatus.Text = "🚀 Tutorial Status: Siap / Standby"
-tutStatus.TextColor3 = Color3.fromRGB(0, 230, 140)
+tutStatus.Text = "🚀 Tutorial Status: Memeriksa akun..."
+tutStatus.TextColor3 = Color3.fromRGB(255, 200, 50)
 tutStatus.TextSize = 12
 tutStatus.Font = Enum.Font.GothamBold
 tutStatus.TextXAlignment = Enum.TextXAlignment.Left
 tutStatus.ZIndex = 15
 tutStatus.Parent = tutCard
+
+task.spawn(function()
+    while tutCard and tutCard.Parent do
+        local isDone = false
+        if LocalPlayer:GetAttribute("TutorialCompleted") == true or LocalPlayer:GetAttribute("TutorialDone") == true then
+            isDone = true
+        end
+        local tStage = LocalPlayer:GetAttribute("TutorialStage") or LocalPlayer:GetAttribute("TutorialStep")
+        if tStage and typeof(tStage) == "number" and (tStage >= 12 or tStage == 99) then
+            isDone = true
+        end
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        local mg = pg and pg:FindFirstChild("MainGui")
+        if mg then
+            local tutFrame = mg:FindFirstChild("Tutorial", true) or (mg:FindFirstChild("Root") and mg.Root:FindFirstChild("Tutorial", true))
+            if tutFrame and tutFrame:IsA("GuiObject") and tutFrame.Visible == false then
+                isDone = true
+            end
+        end
+
+        if _G.AutoTutorialRunning then
+            tutStatus.Text = "🚀 Tutorial Status: Sedang Berjalan (Step 1 - 12)..."
+            tutStatus.TextColor3 = Color3.fromRGB(0, 230, 140)
+        elseif isDone then
+            tutStatus.Text = "✅ Tutorial Status: Sudah Selesai (Completed)"
+            tutStatus.TextColor3 = Color3.fromRGB(0, 230, 140)
+        else
+            tutStatus.Text = "⚠️ Tutorial Status: Belum Selesai (Ready)"
+            tutStatus.TextColor3 = Color3.fromRGB(255, 200, 50)
+        end
+        task.wait(1.5)
+    end
+end)
 
 TutorialTab:AddSection("Kontrol Auto Tutorial")
 local tutToggle = TutorialTab:AddToggle("Jalankan Auto Tutorial (Step 1 - 12)", CurrentConfig.AutoTutorial, function(state)

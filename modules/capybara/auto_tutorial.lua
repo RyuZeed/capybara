@@ -280,6 +280,46 @@ local function runAutoTutorial()
                 or workspace:FindFirstChild("Shop", true)
             print("🏪 [Ritod Hub] EggShop: " .. tostring(eggShop and eggShop.Name or "NOT FOUND!"))
 
+            -- =================================================================
+            -- 🔍 CEK STATUS TUTORIAL: Deteksi akun apakah sudah selesai tutorial
+            -- =================================================================
+            local isCompleted = false
+
+            if LocalPlayer:GetAttribute("TutorialCompleted") == true or LocalPlayer:GetAttribute("TutorialDone") == true then
+                isCompleted = true
+            end
+            local tStage = LocalPlayer:GetAttribute("TutorialStage") or LocalPlayer:GetAttribute("TutorialStep")
+            if tStage and typeof(tStage) == "number" and (tStage >= 12 or tStage == 99) then
+                isCompleted = true
+            end
+
+            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+            local mainGui = playerGui and playerGui:FindFirstChild("MainGui")
+            if mainGui then
+                local tutFrame = mainGui:FindFirstChild("Tutorial", true) or (mainGui:FindFirstChild("Root") and mainGui.Root:FindFirstChild("Tutorial", true))
+                if tutFrame and tutFrame:IsA("GuiObject") and tutFrame.Visible == false then
+                    isCompleted = true
+                end
+            end
+
+            if myPlot then
+                local potted = myPlot:FindFirstChild("PottedPlants") or myPlot:FindFirstChild("Pots")
+                if potted and (potted:FindFirstChild("2") or potted:FindFirstChild("Pot2")) then
+                    local pot2 = potted:FindFirstChild("2") or potted:FindFirstChild("Pot2")
+                    if pot2 and (pot2:FindFirstChild("Plant") or pot2:FindFirstChild("Soil") or pot2:GetAttribute("Unlocked") == true) then
+                        isCompleted = true
+                    end
+                end
+            end
+
+            if isCompleted then
+                print("✅ [Ritod Hub] Akun owner SUDAH SELESAI tutorial! Auto Tutorial dilewati (SKIP).")
+                _G.AutoTutorialRunning = false
+                return
+            end
+
+            print("🚀 [Ritod Hub] Akun owner BELUM selesai tutorial. Melanjutkan Step 1 - 12...")
+
             -- STEP 1: BELI CAPYBARA EGG PERTAMA
             print("📍 [Step 1] Pergi ke EggShop & Beli Egg 1...")
             if eggShop then hrp.CFrame = eggShop:GetPivot() * CFrame.new(0, 2, 5) end
