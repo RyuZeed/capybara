@@ -357,140 +357,131 @@ local function scanDailyLoginRewards()
 end
 
 -- =================================================================
--- 📜 3. QUESTS SCANNER & AUTO-CLAIMER (DAILY & LIFETIME ENGINE)
+-- 📜 3. QUESTS SCANNER & AUTO-CLAIMER (DIRECT QUESTDATA ENGINE)
 -- =================================================================
 
-local function evaluateQuestCard(questCard)
-    if not questCard or not questCard:IsA("GuiObject") then return "INVALID", nil end
-
-    local cardKey = questCard:GetFullName()
-    if claimedHistory[cardKey] then return "CLAIMED", nil end
-
-    -- Cari Button dan TextLabel di dalamnya
-    local btn = questCard:FindFirstChild("Button") or questCard:FindFirstChildWhichIsA("ImageButton", true) or questCard:FindFirstChildWhichIsA("TextButton", true)
-    local btnText = ""
-    if btn then
-        if btn:IsA("TextButton") then btnText = btn.Text end
-        local btnLbl = btn:FindFirstChild("TextLabel") or btn:FindFirstChildWhichIsA("TextLabel")
-        if btnLbl then btnText = btnLbl.Text end
-    end
-
-    local cleanBtn = btnText:upper():gsub("%s+", "")
-    if cleanBtn == "CLAIMED" or cleanBtn:find("CLAIMED") then
-        claimedHistory[cardKey] = true
-        return "CLAIMED", nil
-    end
-
-    -- Cek progress fraksi dari ProgressBar (contoh '25/25 Plants Defeated', '5/5 Eggs Hatched')
-    local isCompleted = false
-    local hasFraction = false
-
-    for _, desc in ipairs(questCard:GetDescendants()) do
-        if desc:IsA("TextLabel") and desc.Parent ~= btn then
-            local txt = desc.Text or ""
-            local cur, max = txt:match("(%d+)%s*/%s*(%d+)")
-            if cur and max then
-                hasFraction = true
-                local nCur = tonumber(cur)
-                local nMax = tonumber(max)
-                if nCur and nMax and nMax > 0 then
-                    if nCur >= nMax then
-                        isCompleted = true
-                    else
-                        return "LOCKED", nil -- cur < max, misi belum selesai
-                    end
-                end
-            end
-        end
-    end
-
-    -- Jika progress selesai dan tombol berstatus CLAIM (belum CLAIMED)
-    if isCompleted and btn and cleanBtn == "CLAIM" then
-        return "READY", btn
-    end
-
-    -- Jika tidak ada progress bar tapi tombol bertuliskan CLAIM dan tidak ada fraksi yang gagal
-    if not hasFraction and btn and cleanBtn == "CLAIM" then
-        return "READY", btn
-    end
-
-    return "LOCKED", nil
-end
-
 local function scanQuestsAndMissions()
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if not pg then return end
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if not remotes then return end
 
-    -- 1. Scan Target Utama: MainGui.Root.Frames.Quests (Daily & Lifetime)
-    local mainGui = pg:FindFirstChild("MainGui")
-    if mainGui then
-        local root = mainGui:FindFirstChild("Root")
-        local frames = root and root:FindFirstChild("Frames")
-        local questsFrame = frames and frames:FindFirstChild("Quests")
+    local claimQuest = remotes:FindFirstChild("ClaimQuest")
+    local reqQuests = remotes:FindFirstChild("RequestQuests")
+    if not claimQuest or not reqQuests then return end
 
-        if questsFrame then
-            -- A. Scan LifetimeQuests
-            local lifetime = questsFrame:FindFirstChild("LifetimeQuests")
-            if lifetime then
-                for _, item in ipairs(lifetime:GetChildren()) do
-                    if item:IsA("GuiObject") and not item:IsA("UIListLayout") and not item:IsA("UIGridLayout") then
-                        local state, btn = evaluateQuestCard(item)
-                        local cardKey = item:GetFullName()
-                        if state == "READY" and btn then
-                            local lastClick = clickDebounce[cardKey] or 0
-                            if tick() - lastClick > 4 then
-                                clickDebounce[cardKey] = tick()
-                                claimedHistory[cardKey] = true
-                                print(string.format("🏆 [Auto Claim] Lifetime Quest READY (%s)! Mengklaim...", tostring(item.Name)))
-                                clickButton(btn)
-                            end
-                        end
-                    end
-                end
-            end
+    pcall(function()
+        local serverData = reqQuests:InvokeServer()
+        if typeof(serverData) ~= "table" then return end
 
-            -- B. Scan DailyQuests
-            local dailyFrame = questsFrame:FindFirstChild("DailyQuestFrame")
-            local dailyQuests = dailyFrame and dailyFrame:FindFirstChild("DailyQuests")
-            if dailyQuests then
-                for _, item in ipairs(dailyQuests:GetChildren()) do
-                    if item:IsA("GuiObject") and not item:IsA("UIListLayout") and not item:IsA("UIGridLayout") then
-                        local state, btn = evaluateQuestCard(item)
-                        local cardKey = item:GetFullName()
-                        if state == "READY" and btn then
-                            local lastClick = clickDebounce[cardKey] or 0
-                            if tick() - lastClick > 4 then
-                                clickDebounce[cardKey] = tick()
-                                claimedHistory[cardKey] = true
-                                print(string.format("📜 [Auto Claim] Daily Quest READY (%s)! Mengklaim...", tostring(item.Name)))
-                                clickButton(btn)
+        local lifetimeStats = serverData.LifetimeStats or {}
+        local lifetimeClaimed = serverData.LifetimeClaimed or {}
+        local daily = serverData.Daily or {}
+        local dailyClaimed = daily.Claimed or {}
+        local dailyProgress = daily.Progress or {}
+        local dailyActive = daily.Active or {}
+
+        -- Muat database resmi QuestData dari game
+        local QuestData = nil
+        pcall(function()
+            local qdMod = ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("QuestData")
+            if qdMod then QuestData = require(qdMod) end
+        end)
+
+        -- 1. PROSES LIFETIME QUESTS
+        if QuestData and typeof(QuestData.Lifetime) == "table" then
+            for _, levelObj in ipairs(QuestData.Lifetime) do
+                if typeof(levelObj.Quests) == "table" then
+                    for _, q in ipairs(levelObj.Quests) do
+                        local qId = q.Id
+                        local statName = q.Stat
+                        local target = q.Target or 1
+                        local currentStat = lifetimeStats[statName] or 0
+
+                        -- Jika belum diklaim dan progress sudah mencapai target
+                        if qId and not lifetimeClaimed[qId] and not claimedHistory[qId] then
+                            if currentStat >= target then
+                                local lastClick = clickDebounce[qId] or 0
+                                if tick() - lastClick > 4 then
+                                    clickDebounce[qId] = tick()
+                                    claimedHistory[qId] = true
+                                    print(string.format("🏆 [Auto Claim] Lifetime Quest READY: %s (%s) [%d/%d]! Mengklaim...", tostring(q.Label), tostring(qId), currentStat, target))
+                                    
+                                    task.spawn(function()
+                                        pcall(function() claimQuest:InvokeServer(qId) end)
+                                        pcall(function() claimQuest:InvokeServer("Lifetime", qId) end)
+                                        pcall(function() claimQuest:InvokeServer(levelObj.Level or 1, qId) end)
+                                    end)
+                                end
                             end
                         end
                     end
                 end
             end
         end
-    end
 
-    -- 2. Fallback Generic Scanner untuk semua container quest lainnya
-    local processed = {}
-    for _, gui in ipairs(pg:GetChildren()) do
-        if gui:IsA("ScreenGui") and not gui.Name:lower():find("hub") then
-            for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("GuiObject") and not processed[desc] then
-                    local dName = desc.Name:lower()
-                    if (dName:find("quest") or dName:find("lifetime")) and not desc:IsA("ScrollingFrame") then
-                        local state, btn = evaluateQuestCard(desc)
-                        if state == "READY" and btn then
-                            processed[desc] = true
-                            local cardKey = desc:GetFullName()
-                            local lastClick = clickDebounce[cardKey] or 0
-                            if tick() - lastClick > 4 then
-                                clickDebounce[cardKey] = tick()
-                                claimedHistory[cardKey] = true
-                                print(string.format("🎁 [Auto Claim] Quest READY (%s)! Mengklaim...", tostring(desc.Name)))
-                                clickButton(btn)
-                            end
+        -- 2. PROSES DAILY QUESTS
+        if QuestData and typeof(QuestData.Daily) == "table" then
+            -- Buat map target harian dari QuestData
+            local dailyMap = {}
+            for _, dq in ipairs(QuestData.Daily) do
+                if dq.Id then dailyMap[dq.Id] = dq end
+            end
+
+            for _, qId in ipairs(dailyActive) do
+                if not dailyClaimed[qId] and not claimedHistory[qId] then
+                    local dqInfo = dailyMap[qId]
+                    local target = (dqInfo and dqInfo.Target) or 1
+                    local curProg = dailyProgress[qId] or 0
+
+                    if curProg >= target then
+                        local lastClick = clickDebounce[qId] or 0
+                        if tick() - lastClick > 4 then
+                            clickDebounce[qId] = tick()
+                            claimedHistory[qId] = true
+                            print(string.format("📜 [Auto Claim] Daily Quest READY: %s (%s) [%d/%d]! Mengklaim...", tostring(dqInfo and dqInfo.Label or qId), tostring(qId), curProg, target))
+                            
+                            task.spawn(function()
+                                pcall(function() claimQuest:InvokeServer(qId) end)
+                                pcall(function() claimQuest:InvokeServer("Daily", qId) end)
+                            end)
+                        end
+                    end
+                end
+            end
+
+            -- Klaim Bonus Harian jika semua 3 misi selesai
+            if (serverData.DailyClaimedCount or 0) >= 3 and daily.BonusClaimed == false and not claimedHistory["DailyBonus"] then
+                local lastClick = clickDebounce["DailyBonus"] or 0
+                if tick() - lastClick > 5 then
+                    clickDebounce["DailyBonus"] = tick()
+                    claimedHistory["DailyBonus"] = true
+                    print("🎁 [Auto Claim] Daily Bonus READY! Mengklaim...")
+                    task.spawn(function()
+                        pcall(function() claimQuest:InvokeServer("Bonus") end)
+                        pcall(function() claimQuest:InvokeServer("DailyBonus") end)
+                        pcall(function() claimQuest:InvokeServer("Daily", "Bonus") end)
+                    end)
+                end
+            end
+        end
+    end)
+
+    -- 3. UI Backup Simulator (Menekan tombol UI jika masih ada yang tersisa)
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then
+        local mainGui = pg:FindFirstChild("MainGui")
+        local questsFrame = mainGui and mainGui:FindFirstChild("Root") and mainGui.Root:FindFirstChild("Frames") and mainGui.Root.Frames:FindFirstChild("Quests")
+        if questsFrame then
+            for _, desc in ipairs(questsFrame:GetDescendants()) do
+                if desc:IsA("GuiObject") and not desc:IsA("ScrollingFrame") then
+                    local state, btn = evaluateQuestCard(desc)
+                    if state == "READY" and btn then
+                        local cardKey = desc:GetFullName()
+                        local lastClick = clickDebounce[cardKey] or 0
+                        if tick() - lastClick > 4 then
+                            clickDebounce[cardKey] = tick()
+                            claimedHistory[cardKey] = true
+                            print(string.format("🖱️ [Auto Claim] UI Quest READY (%s)! Menekan tombol...", tostring(desc.Name)))
+                            clickButton(btn)
                         end
                     end
                 end
