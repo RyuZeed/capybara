@@ -636,7 +636,19 @@ end
 -- Langsung jalankan saat di-execute
 task.spawn(runAutoTutorial)
 
+local function toggleTutorial(state)
+    if state == nil then state = not _G.AutoTutorialRunning end
+    if state then
+        task.spawn(runAutoTutorial)
+    else
+        _G.AutoTutorialRunning = false
+    end
+    return _G.AutoTutorialRunning
+end
+
 return {
-    Start = runAutoTutorial,
-    Stop = function() _G.AutoTutorialRunning = false end
+    Start = function() task.spawn(runAutoTutorial) end,
+    Stop = function() _G.AutoTutorialRunning = false end,
+    Toggle = toggleTutorial,
+    runAutoTutorial = runAutoTutorial,
 }

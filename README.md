@@ -43,7 +43,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/RyuZeed/capybara/main
     └── 📁 capybara/                <-- 🐾 Modul Mesin Capybara
         ├── 📄 anti_afk.lua         (Anti-AFK Capybara)
         ├── 📄 auto_claim.lua       (Klaim Playtime & Daily Rewards)
-        ├── 📄 auto delate.lua      (Smart Auto Delete & Filter Tanaman Sampah/Common)
+        ├── 📄 auto_delete.lua      (Smart Auto Delete & Filter Tanaman Sampah/Common)
         ├── 📄 auto_tutorial.lua    (12 Steps Full Auto Tutorial)
         ├── 📄 graphics.lua         (Potato Graphics, Farm Mode, Anti-Lag)
         └── 📄 pink_remover.lua     (Destroyer Notifikasi Pink)

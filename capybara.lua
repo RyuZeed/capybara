@@ -78,7 +78,7 @@ local PinkRemover    = loadModule("pink_remover")
 local GraphicsModule = loadModule("graphics")
 local AutoClaim      = loadModule("auto_claim")
 local AutoTutorial   = loadModule("auto_tutorial")
-local AutoDelete     = loadModule("auto delate") or loadModule("auto_delete")
+local AutoDelete     = loadModule("auto_delete")
 
 -- Auto Start background utilities
 if AFKModule then AFKModule.Enable() end

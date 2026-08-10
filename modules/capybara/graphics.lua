@@ -233,4 +233,8 @@ function GraphicsModule.SetAntiLag(enable)
     print("❄️ [Ritod Hub] Anti-Lag (FPS Cap 5): " .. (enable and "ON" or "OFF"))
 end
 
+function GraphicsModule.SetPotatoGraphics(enable)
+    GraphicsModule.EnablePotato(enable)
+end
+
 return GraphicsModule

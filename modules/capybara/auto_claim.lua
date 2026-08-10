@@ -285,4 +285,10 @@ function AutoClaim.Stop()
     print("🛑 [Ritod Hub] Smart Auto Claim Dimatikan.")
 end
 
+function AutoClaim.Toggle(state)
+    if state == nil then state = not running end
+    if state then AutoClaim.Start() else AutoClaim.Stop() end
+    return running
+end
+
 return AutoClaim
