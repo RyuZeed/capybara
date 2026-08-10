@@ -82,7 +82,7 @@ local GraphicsModule = loadModule("graphics")
 local AutoClaim      = loadModule("auto_claim")
 local AutoTutorial   = loadModule("auto_tutorial")
 local AutoDelete     = loadModule("auto_delete")
-local AutoBuyEgg     = loadModule("Auto buy Egg") or loadModule("auto_buy_egg")
+local AutoBuyEgg    = loadModule("auto_buy_egg") or loadModule("Auto buy Egg")
 
 -- =================================================================
 -- 💾 CONFIG MANAGER (PER-USER JSON FILE PERSISTENCE)
@@ -99,9 +99,12 @@ local DEFAULT_CONFIG = {
     AutoDelete         = false,
     AutoClaim          = true,
     AutoBuyEgg         = false,
+    BuyAllStock        = true,
     AutoPlaceEgg       = false,
     AutoHatchEgg       = false,
-    SelectedEgg        = "Capybara Egg",
+    SelectedEggs       = {
+        ["capybara egg"] = true,
+    },
     HatchWait          = 8,
     FarmMode           = false,
     AntiLag            = false,
@@ -1247,6 +1250,17 @@ end)
 -- =========================================================================
 local EggTab = CreateTab("Auto Egg", "🥚")
 
+local OFFICIAL_EGGS_CATALOG = {
+    { name = "Capybara Egg",        rarity = "Common" },
+    { name = "Alpha Capybara Egg",  rarity = "Rare" },
+    { name = "Archer Capybara Egg", rarity = "Epic" },
+    { name = "Magic Capybara Egg",  rarity = "Legendary" },
+    { name = "Ghost Capybara Egg",  rarity = "Mythic" },
+    { name = "Golem Capybara Egg",  rarity = "Divine" },
+    { name = "Disco Capybara Egg",  rarity = "Secret" },
+    { name = "Angel Capybara Egg",  rarity = "Secret" },
+}
+
 local eggCard = Instance.new("Frame")
 eggCard.Size = UDim2.new(1, 0, 0, 52)
 eggCard.BackgroundColor3 = Color3.fromRGB(24, 18, 32)
@@ -1258,11 +1272,21 @@ local egCorner = Instance.new("UICorner")
 egCorner.CornerRadius = UDim.new(0, 10)
 egCorner.Parent = eggCard
 
+local function countSelectedEggs()
+    local c = 0
+    if CurrentConfig.SelectedEggs then
+        for _, v in pairs(CurrentConfig.SelectedEggs) do
+            if v == true then c = c + 1 end
+        end
+    end
+    return c
+end
+
 local eggStatus = Instance.new("TextLabel")
 eggStatus.Position = UDim2.new(0, 12, 0, 6)
 eggStatus.Size = UDim2.new(1, -24, 0, 20)
 eggStatus.BackgroundTransparency = 1
-eggStatus.Text = "🥚 Telur Aktif: " .. tostring(CurrentConfig.SelectedEgg or "Capybara Egg")
+eggStatus.Text = "🥚 Telur Dicentang: " .. tostring(countSelectedEggs()) .. " jenis"
 eggStatus.TextColor3 = Color3.fromRGB(255, 200, 50)
 eggStatus.TextSize = 12
 eggStatus.Font = Enum.Font.GothamBold
@@ -1274,7 +1298,7 @@ local eggStatsDetail = Instance.new("TextLabel")
 eggStatsDetail.Position = UDim2.new(0, 12, 0, 26)
 eggStatsDetail.Size = UDim2.new(1, -24, 0, 18)
 eggStatsDetail.BackgroundTransparency = 1
-eggStatsDetail.Text = "🛒 Total Beli: 0 telur"
+eggStatsDetail.Text = "🛒 Total Beli: 0 | 🥚 Taruh: 0 | 🐣 Hatch: 0"
 eggStatsDetail.TextColor3 = Color3.fromRGB(180, 165, 195)
 eggStatsDetail.TextSize = 11
 eggStatsDetail.Font = Enum.Font.GothamMedium
@@ -1286,11 +1310,12 @@ task.spawn(function()
     while eggCard and eggCard.Parent do
         if AutoBuyEgg and AutoBuyEgg.GetStats then
             local stats = AutoBuyEgg.GetStats()
+            local cCount = countSelectedEggs()
             if stats.IsRunning then
-                eggStatus.Text = "🚀 Auto Buy: " .. tostring(CurrentConfig.SelectedEgg or "Capybara Egg") .. " (Berjalan)"
+                eggStatus.Text = string.format("🚀 Auto Buy Berjalan (%d jenis telur)", cCount)
                 eggStatus.TextColor3 = Color3.fromRGB(0, 230, 140)
             else
-                eggStatus.Text = "🥚 Telur Aktif: " .. tostring(CurrentConfig.SelectedEgg or "Capybara Egg") .. " (Idle)"
+                eggStatus.Text = string.format("🥚 Telur Dicentang: %d jenis (Idle)", cCount)
                 eggStatus.TextColor3 = Color3.fromRGB(255, 200, 50)
             end
             eggStatsDetail.Text = string.format("🛒 Total Beli: %d | 🥚 Taruh: %d | 🐣 Hatch: %d", stats.Bought, stats.Placed, stats.Hatched)
@@ -1299,116 +1324,22 @@ task.spawn(function()
     end
 end)
 
-EggTab:AddSection("🔍 Scanner Egg In-Game")
-local eggButtonsHolder = Instance.new("Frame")
-eggButtonsHolder.Size = UDim2.new(1, 0, 0, 0)
-eggButtonsHolder.AutomaticSize = Enum.AutomaticSize.Y
-eggButtonsHolder.BackgroundTransparency = 1
-eggButtonsHolder.ZIndex = 14
-eggButtonsHolder.Parent = EggTab.Page
-
-local ebLayout = Instance.new("UIListLayout")
-ebLayout.Padding = UDim.new(0, 6)
-ebLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ebLayout.Parent = eggButtonsHolder
-
-local eggCardButtons = {}
-
-local function renderEggList(eggList)
-    eggList = eggList or (AutoBuyEgg and AutoBuyEgg.DiscoveredEggs) or {{name = "Capybara Egg", price = "Default"}}
-    for _, btn in pairs(eggCardButtons) do
-        if btn and btn.Parent then btn:Destroy() end
-    end
-    table.clear(eggCardButtons)
-
-    for _, eggData in ipairs(eggList) do
-        local eName = eggData.name or "Egg"
-        local ePrice = eggData.price or "Unknown"
-        local eSource = eggData.source or "Shop"
-        local isSelected = (CurrentConfig.SelectedEgg == eName)
-
-        local eBtn = Instance.new("TextButton")
-        eBtn.Size = UDim2.new(1, 0, 0, 36)
-        eBtn.BackgroundColor3 = isSelected and Color3.fromRGB(150, 65, 240) or Color3.fromRGB(26, 20, 34)
-        eBtn.AutoButtonColor = false
-        eBtn.Text = ""
-        eBtn.ZIndex = 15
-        eBtn.Parent = eggButtonsHolder
-
-        local ebCorner = Instance.new("UICorner")
-        ebCorner.CornerRadius = UDim.new(0, 8)
-        ebCorner.Parent = eBtn
-
-        local ebStroke = Instance.new("UIStroke")
-        ebStroke.Thickness = 1
-        ebStroke.Color = isSelected and Color3.fromRGB(210, 140, 255) or Color3.fromRGB(60, 45, 75)
-        ebStroke.Parent = eBtn
-
-        local nameLbl = Instance.new("TextLabel")
-        nameLbl.Position = UDim2.new(0, 12, 0, 0)
-        nameLbl.Size = UDim2.new(0.6, 0, 1, 0)
-        nameLbl.BackgroundTransparency = 1
-        nameLbl.Text = "🥚 " .. eName
-        nameLbl.TextColor3 = isSelected and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(235, 225, 245)
-        nameLbl.Font = Enum.Font.GothamBold
-        nameLbl.TextSize = 12
-        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-        nameLbl.ZIndex = 16
-        nameLbl.Parent = eBtn
-
-        local priceLbl = Instance.new("TextLabel")
-        priceLbl.Position = UDim2.new(0.6, 0, 0, 0)
-        priceLbl.Size = UDim2.new(0.4, -12, 1, 0)
-        priceLbl.BackgroundTransparency = 1
-        priceLbl.Text = tostring(ePrice)
-        priceLbl.TextColor3 = isSelected and Color3.fromRGB(240, 220, 255) or Color3.fromRGB(170, 150, 190)
-        priceLbl.Font = Enum.Font.GothamMedium
-        priceLbl.TextSize = 11
-        priceLbl.TextXAlignment = Enum.TextXAlignment.Right
-        priceLbl.ZIndex = 16
-        priceLbl.Parent = eBtn
-
-        eBtn.MouseButton1Click:Connect(function()
-            CurrentConfig.SelectedEgg = eName
-            if AutoBuyEgg and AutoBuyEgg.Config then
-                AutoBuyEgg.Config.SelectedEgg = eName
-            end
-            eggStatus.Text = "🥚 Telur Aktif: " .. eName
-            Notify("Pilih Telur", "Telur aktif diubah ke: " .. eName, 2.0)
-            renderEggList(eggList)
-        end)
-
-        table.insert(eggCardButtons, eBtn)
-    end
-end
-
-if AutoBuyEgg then
-    AutoBuyEgg.OnCatalogUpdated = function(newList)
-        renderEggList(newList)
-    end
-end
-
-EggTab:AddButton("🔍 SCAN SEMUA EGG IN-GAME SEKARANG", function()
-    Notify("Egg Scanner", "Memindai seluruh telur yang ada di dalam game...", 2.5)
-    if AutoBuyEgg and AutoBuyEgg.ScanEggs then
-        task.spawn(function()
-            local list = AutoBuyEgg.ScanEggs()
-            renderEggList(list)
-            Notify("Scan Selesai", string.format("Berhasil menemukan %d jenis egg!", #list), 3.0)
-        end)
-    end
-end)
-
--- Render awal
-renderEggList()
-
 EggTab:AddSection("Kontrol Auto Buy Egg")
-local eggToggle = EggTab:AddToggle("Jalankan Auto Buy Egg (Loop Pembelian)", CurrentConfig.AutoBuyEgg, function(state)
+local eggToggle = EggTab:AddToggle("Jalankan Auto Buy Egg (Loop Telur Dicentang)", CurrentConfig.AutoBuyEgg, function(state)
     CurrentConfig.AutoBuyEgg = state
     if AutoBuyEgg then
+        if AutoBuyEgg.Config then
+            AutoBuyEgg.Config.SelectedEggs = CurrentConfig.SelectedEggs
+            AutoBuyEgg.Config.BuyAllStock = CurrentConfig.BuyAllStock
+        end
         AutoBuyEgg.Toggle(state)
     end
-    Notify("Auto Buy Egg", state and ("Auto Buy aktif untuk: " .. tostring(CurrentConfig.SelectedEgg or "Capybara Egg")) or "Auto Buy Egg dimatikan.", 2.5)
+    Notify("Auto Buy Egg", state and ("Auto Buy aktif untuk " .. tostring(countSelectedEggs()) .. " jenis telur!") or "Auto Buy Egg dimatikan.", 2.5)
+end)
+
+local buyAllStockToggle = EggTab:AddToggle("⚡ Borong Semua Stok Sekaligus (Buy All Stock)", CurrentConfig.BuyAllStock, function(val)
+    CurrentConfig.BuyAllStock = val
+    if AutoBuyEgg and AutoBuyEgg.Config then AutoBuyEgg.Config.BuyAllStock = val end
 end)
 
 local placeEggToggle = EggTab:AddToggle("🥚 Auto Taruh di Lane Plot Sendiri (Opsional)", CurrentConfig.AutoPlaceEgg, function(val)
@@ -1421,14 +1352,140 @@ local hatchEggToggle = EggTab:AddToggle("🐣 Auto Hatch Telur Saat Siap (Opsion
     if AutoBuyEgg and AutoBuyEgg.Config then AutoBuyEgg.Config.AutoHatch = val end
 end)
 
+EggTab:AddSection("Checklist Telur In-Game (Centang untuk Auto Buy)")
+
+local eggCardRefs = {}
+
+EggTab:AddButton("✅ Centang Semua Telur", function()
+    if not CurrentConfig.SelectedEggs then CurrentConfig.SelectedEggs = {} end
+    for _, egg in ipairs(OFFICIAL_EGGS_CATALOG) do
+        local eKey = egg.name:lower()
+        CurrentConfig.SelectedEggs[eKey] = true
+        if eggCardRefs[eKey] then eggCardRefs[eKey]:SetChecked(true) end
+    end
+    if AutoBuyEgg and AutoBuyEgg.Config then AutoBuyEgg.Config.SelectedEggs = CurrentConfig.SelectedEggs end
+    eggStatus.Text = "🥚 Telur Dicentang: " .. tostring(countSelectedEggs()) .. " jenis"
+    Notify("Checklist Telur", "Semua 8 telur dicentang untuk dibeli.", 2.0)
+end)
+
+EggTab:AddButton("🔒 Kosongkan Pilihan Telur", function()
+    if CurrentConfig.SelectedEggs then table.clear(CurrentConfig.SelectedEggs) end
+    for _, ref in pairs(eggCardRefs) do ref:SetChecked(false) end
+    if AutoBuyEgg and AutoBuyEgg.Config then AutoBuyEgg.Config.SelectedEggs = CurrentConfig.SelectedEggs end
+    eggStatus.Text = "🥚 Telur Dicentang: 0 jenis"
+    Notify("Checklist Telur", "Semua pilihan telur dikosongkan.", 2.0)
+end)
+
+local function addEggChecklistCard(eggName, eggRarity)
+    local eKey = eggName:lower()
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 38)
+    card.BackgroundColor3 = Color3.fromRGB(24, 18, 30)
+    card.BorderSizePixel = 0
+    card.ZIndex = 14
+    card.Parent = EggTab.Page
+
+    local cCorner = Instance.new("UICorner")
+    cCorner.CornerRadius = UDim.new(0, 8)
+    cCorner.Parent = card
+
+    local cStroke = Instance.new("UIStroke")
+    cStroke.Thickness = 1
+    cStroke.Color = Color3.fromRGB(55, 42, 68)
+    cStroke.Parent = card
+
+    local isChecked = (CurrentConfig.SelectedEggs and CurrentConfig.SelectedEggs[eKey] == true)
+
+    local checkBtn = Instance.new("TextButton")
+    checkBtn.Size = UDim2.new(0, 20, 0, 20)
+    checkBtn.Position = UDim2.new(0, 8, 0.5, -10)
+    checkBtn.BackgroundColor3 = isChecked and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
+    checkBtn.Text = isChecked and "✓" or ""
+    checkBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    checkBtn.Font = Enum.Font.GothamBold
+    checkBtn.TextSize = 12
+    checkBtn.ZIndex = 15
+    checkBtn.Parent = card
+
+    local chkCorner = Instance.new("UICorner")
+    chkCorner.CornerRadius = UDim.new(0, 4)
+    chkCorner.Parent = checkBtn
+
+    local rBadge = Instance.new("TextLabel")
+    rBadge.Position = UDim2.new(0, 34, 0.5, -9)
+    rBadge.Size = UDim2.new(0, 75, 0, 18)
+    rBadge.BackgroundColor3 = Color3.fromRGB(40, 30, 52)
+    rBadge.BackgroundTransparency = 0.4
+    rBadge.Text = tostring(eggRarity)
+    rBadge.TextColor3 = Color3.fromRGB(210, 190, 235)
+    rBadge.Font = Enum.Font.GothamBold
+    rBadge.TextSize = 10
+    rBadge.ZIndex = 15
+    rBadge.Parent = card
+
+    local rbCorner = Instance.new("UICorner")
+    rbCorner.CornerRadius = UDim.new(0, 4)
+    rbCorner.Parent = rBadge
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, -125, 1, 0)
+    nameLabel.Position = UDim2.new(0, 115, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = string.format("%s (%s)", eggName, eggRarity)
+    nameLabel.TextColor3 = Color3.fromRGB(240, 235, 250)
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 12
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.ZIndex = 15
+    nameLabel.Parent = card
+
+    local function toggle()
+        local newState = not (CurrentConfig.SelectedEggs and CurrentConfig.SelectedEggs[eKey] == true)
+        if not CurrentConfig.SelectedEggs then CurrentConfig.SelectedEggs = {} end
+        CurrentConfig.SelectedEggs[eKey] = newState and true or nil
+        checkBtn.BackgroundColor3 = newState and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
+        checkBtn.Text = newState and "✓" or ""
+        cStroke.Color = newState and Color3.fromRGB(180, 90, 255) or Color3.fromRGB(55, 42, 68)
+        if AutoBuyEgg and AutoBuyEgg.Config then
+            AutoBuyEgg.Config.SelectedEggs = CurrentConfig.SelectedEggs
+        end
+        eggStatus.Text = "🥚 Telur Dicentang: " .. tostring(countSelectedEggs()) .. " jenis"
+    end
+
+    checkBtn.MouseButton1Click:Connect(toggle)
+
+    local fullClick = Instance.new("TextButton")
+    fullClick.Size = UDim2.new(1, 0, 1, 0)
+    fullClick.BackgroundTransparency = 1
+    fullClick.Text = ""
+    fullClick.ZIndex = 14
+    fullClick.Parent = card
+    fullClick.MouseButton1Click:Connect(toggle)
+
+    return {
+        SetChecked = function(self, val)
+            if not CurrentConfig.SelectedEggs then CurrentConfig.SelectedEggs = {} end
+            CurrentConfig.SelectedEggs[eKey] = val and true or nil
+            checkBtn.BackgroundColor3 = val and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
+            checkBtn.Text = val and "✓" or ""
+            cStroke.Color = val and Color3.fromRGB(180, 90, 255) or Color3.fromRGB(55, 42, 68)
+        end,
+        Card = card
+    }
+end
+
+for _, egg in ipairs(OFFICIAL_EGGS_CATALOG) do
+    local ref = addEggChecklistCard(egg.name, egg.rarity)
+    eggCardRefs[egg.name:lower()] = ref
+end
+
 EggTab:AddSection("Aksi Cepat & Teleportasi")
-EggTab:AddButton("🛒 Beli 1 Telur Terpilih (Manual 1x)", function()
-    if AutoBuyEgg and AutoBuyEgg.BuyEgg then
+EggTab:AddButton("🛒 Beli 1x Semua Telur yang Dicentang (Manual)", function()
+    if AutoBuyEgg and AutoBuyEgg.RunSingleCycle then
         task.spawn(function()
-            local targetEgg = CurrentConfig.SelectedEgg or "Capybara Egg"
-            Notify("Beli Telur", "Membeli: " .. targetEgg .. "...", 1.5)
-            AutoBuyEgg.BuyEgg(targetEgg)
-            Notify("Beli Telur", "Selesai membeli " .. targetEgg .. "!", 2)
+            Notify("Beli Telur", "Membeli telur yang dicentang...", 1.5)
+            AutoBuyEgg.RunSingleCycle()
+            Notify("Beli Telur", "Selesai membeli!", 2)
         end)
     end
 end)
@@ -1437,7 +1494,7 @@ EggTab:AddButton("🏪 Teleport ke EggShop", function()
     pcall(function()
         local eggShop = workspace:FindFirstChild("EggShop", true) or workspace:FindFirstChild("Shop", true)
         if eggShop and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = (eggShop:IsA("Model") and eggShop:GetPivot() or eggShop.CFrame) + Vector3.new(0, 3, 0)
+            LocalPlayer.Character.HumanoidRootPart.CFrame = (eggShop:IsA("Model") and eggShop:GetPivot() or eggShop.CFrame) * CFrame.new(0, 2, 5)
             Notify("Teleport", "Berhasil teleport ke EggShop!", 2)
         else
             Notify("Teleport", "EggShop tidak ditemukan di Workspace.", 2)
@@ -1756,6 +1813,7 @@ SettingsTab:AddButton("🔄 Muat Ulang Config (Load Config)", function()
     if loaded then
         tutToggle:Set(loaded.AutoTutorial, false)
         eggToggle:Set(loaded.AutoBuyEgg, false)
+        buyAllStockToggle:Set(loaded.BuyAllStock ~= false, false)
         placeEggToggle:Set(loaded.AutoPlaceEgg, false)
         hatchEggToggle:Set(loaded.AutoHatchEgg, false)
         deleteToggle:Set(loaded.AutoDelete, false)
@@ -1773,6 +1831,14 @@ SettingsTab:AddButton("🔄 Muat Ulang Config (Load Config)", function()
                 plantCardRefs[pKey]:SetChecked(isChk)
             end
         end
+
+        for _, egg in ipairs(OFFICIAL_EGGS_CATALOG) do
+            local eKey = egg.name:lower()
+            local isChk = (loaded.SelectedEggs and loaded.SelectedEggs[eKey] == true)
+            if eggCardRefs[eKey] then
+                eggCardRefs[eKey]:SetChecked(isChk)
+            end
+        end
         Notify("Config Loaded", "Pengaturan berhasil dimuat dari file JSON!", 2.5)
     else
         Notify("Config Error", "File konfigurasi belum ada atau rusak.", 2.5)
@@ -1783,6 +1849,7 @@ SettingsTab:AddButton("🗑️ Reset Config ke Default", function()
     ConfigManager.Reset()
     tutToggle:Set(DEFAULT_CONFIG.AutoTutorial, false)
     eggToggle:Set(DEFAULT_CONFIG.AutoBuyEgg, false)
+    buyAllStockToggle:Set(DEFAULT_CONFIG.BuyAllStock, false)
     placeEggToggle:Set(DEFAULT_CONFIG.AutoPlaceEgg, false)
     hatchEggToggle:Set(DEFAULT_CONFIG.AutoHatchEgg, false)
     deleteToggle:Set(DEFAULT_CONFIG.AutoDelete, false)
@@ -1798,6 +1865,14 @@ SettingsTab:AddButton("🗑️ Reset Config ke Default", function()
         local isChk = (DEFAULT_CONFIG.SelectedPlants and DEFAULT_CONFIG.SelectedPlants[pKey] == true)
         if plantCardRefs[pKey] then
             plantCardRefs[pKey]:SetChecked(isChk)
+        end
+    end
+
+    for _, egg in ipairs(OFFICIAL_EGGS_CATALOG) do
+        local eKey = egg.name:lower()
+        local isChk = (DEFAULT_CONFIG.SelectedEggs and DEFAULT_CONFIG.SelectedEggs[eKey] == true)
+        if eggCardRefs[eKey] then
+            eggCardRefs[eKey]:SetChecked(isChk)
         end
     end
     Notify("Config Reset", "Semua pengaturan dikembalikan ke default.", 2.5)
@@ -1821,8 +1896,15 @@ task.spawn(function()
     if CurrentConfig.AntiAFK and AFKModule then AFKModule.Enable() end
     if CurrentConfig.PinkRemover and PinkRemover then PinkRemover.Start() end
     if CurrentConfig.AutoClaim and AutoClaim then AutoClaim.Start() end
-    if CurrentConfig.AutoDelete and AutoDelete then AutoDelete.Start() end
-    if CurrentConfig.AutoBuyEgg and AutoBuyEgg then AutoBuyEgg.Start() end
+    if CurrentConfig.AutoBuyEgg and AutoBuyEgg then
+        if AutoBuyEgg.Config then
+            AutoBuyEgg.Config.SelectedEggs = CurrentConfig.SelectedEggs
+            AutoBuyEgg.Config.BuyAllStock = CurrentConfig.BuyAllStock
+            AutoBuyEgg.Config.AutoPlace = CurrentConfig.AutoPlaceEgg
+            AutoBuyEgg.Config.AutoHatch = CurrentConfig.AutoHatchEgg
+        end
+        AutoBuyEgg.Start()
+    end
     if CurrentConfig.AutoTutorial and AutoTutorial then AutoTutorial.Start() end
 end)
 
