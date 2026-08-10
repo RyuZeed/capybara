@@ -1246,6 +1246,8 @@ local function startHunt()
 				statusCard:SetStatus(msg, Color3.fromRGB(255, 215, 0))
 			elseif state == "waiting_gold" then
 				statusCard:SetStatus(msg, Color3.fromRGB(255, 170, 0))
+			elseif state == "waiting" or state == "waiting_plot" or state == "waiting_prompt" or state == "reacquiring" then
+				statusCard:SetStatus(msg, Color3.fromRGB(255, 200, 80))
 			elseif state == "resuming" then
 				statusCard:SetStatus(msg, Color3.fromRGB(0, 255, 200))
 			else
@@ -1530,9 +1532,13 @@ end
 
 if savedConfig.AutoHuntEnabled then
 	task.spawn(function()
-		task.wait(1.5)
+		task.wait(2.5)
 		Notify("Auto-Resume", "Melanjutkan Auto-Hunt dari sesi sebelumnya...", 3)
-		startHunt()
+		if huntToggleRef then
+			huntToggleRef:Set(true, true)
+		else
+			startHunt()
+		end
 	end)
 end
 

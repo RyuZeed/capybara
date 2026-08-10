@@ -45,38 +45,86 @@ function AutoRollModule.MoveToRollButton(rollBtn)
     end
 end
 
-function AutoRollModule.FindMyPlot()
-    local plots = WS:FindFirstChild("Plots")
-    if not plots then return nil end
-    for _, plot in ipairs(plots:GetChildren()) do
-        for attrName, attrVal in pairs(plot:GetAttributes()) do
-            if tostring(attrVal) == LocalPlayer.Name or tostring(attrVal) == tostring(LocalPlayer.UserId) then
-                return plot
-            end
-        end
+function AutoRollModule.WaitForCharacter(timeout)
+    local start = tick()
+    timeout = timeout or 15
+    while tick() - start < timeout do
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then return char, hrp end
+        task.wait(0.5)
     end
-    for _, plot in ipairs(plots:GetChildren()) do
-        local namePart = plot:FindFirstChild("NameBillboardPart", true)
-        if namePart then
-            for _, d in ipairs(namePart:GetDescendants()) do
-                if d:IsA("TextLabel") and d.Text == LocalPlayer.Name then
-                    return plot
+    local char = LocalPlayer.Character
+    return char, char and char:FindFirstChild("HumanoidRootPart")
+end
+
+function AutoRollModule.FindMyPlot(timeout)
+    timeout = timeout or 0
+    local start = tick()
+    repeat
+        local plots = WS:FindFirstChild("Plots")
+        if plots then
+            for _, plot in ipairs(plots:GetChildren()) do
+                for attrName, attrVal in pairs(plot:GetAttributes()) do
+                    if tostring(attrVal) == LocalPlayer.Name or tostring(attrVal) == tostring(LocalPlayer.UserId) then
+                        return plot
+                    end
+                end
+            end
+            for _, plot in ipairs(plots:GetChildren()) do
+                local namePart = plot:FindFirstChild("NameBillboardPart", true)
+                if namePart then
+                    for _, d in ipairs(namePart:GetDescendants()) do
+                        if d:IsA("TextLabel") and (d.Text == LocalPlayer.Name or d.Text:find(LocalPlayer.Name)) then
+                            return plot
+                        end
+                    end
                 end
             end
         end
-    end
+        if timeout > 0 and (tick() - start < timeout) then
+            task.wait(0.5)
+        else
+            break
+        end
+    until false
     return nil
 end
 
-function AutoRollModule.GetRollPrompt(plot)
-    local roll = plot:FindFirstChild("Roll")
-    if not roll then return nil, nil end
-    for _, p in ipairs(roll:GetDescendants()) do
-        if p:IsA("ProximityPrompt") and p.Name == "RollPrompt" then
-            p.Enabled = true
-            return p, p.Parent
+function AutoRollModule.GetRollPrompt(plot, timeout)
+    if not plot then return nil, nil end
+    timeout = timeout or 0
+    local start = tick()
+    repeat
+        -- 1. Cari di child Roll
+        local roll = plot:FindFirstChild("Roll")
+        if roll then
+            for _, p in ipairs(roll:GetDescendants()) do
+                if p:IsA("ProximityPrompt") and (p.Name == "RollPrompt" or p.Name:lower():find("roll")) then
+                    p.Enabled = true
+                    return p, p.Parent
+                end
+            end
         end
-    end
+
+        -- 2. Fallback scan semua descendants di plot
+        for _, p in ipairs(plot:GetDescendants()) do
+            if p:IsA("ProximityPrompt") then
+                local pName = p.Name:lower()
+                local act = tostring(p.ActionText):lower()
+                if pName == "rollprompt" or pName:find("roll") or act:find("roll") then
+                    p.Enabled = true
+                    return p, p.Parent
+                end
+            end
+        end
+
+        if timeout > 0 and (tick() - start < timeout) then
+            task.wait(0.5)
+        else
+            break
+        end
+    until false
     return nil, nil
 end
 
@@ -211,16 +259,24 @@ function AutoRollModule.Start(options)
     local onError = options.OnError or function() end
     
     rollThread = task.spawn(function()
-        local myPlot = AutoRollModule.FindMyPlot()
+        onStatus("Status: ⏳ Menunggu karakter siap...", "waiting")
+        AutoRollModule.WaitForCharacter(15)
+        if not isRunning then return end
+        
+        onStatus("Status: ⏳ Menunggu plot dimuat...", "waiting_plot")
+        local myPlot = AutoRollModule.FindMyPlot(25)
+        if not isRunning then return end
         if not myPlot then
-            onError("Plot kamu tidak ditemukan!")
+            onError("Plot kamu tidak ditemukan (timeout 25 detik)!")
             isRunning = false
             return
         end
         
-        local rollPrompt, rollBtn = AutoRollModule.GetRollPrompt(myPlot)
+        onStatus("Status: ⏳ Menunggu stasiun RollPrompt...", "waiting_prompt")
+        local rollPrompt, rollBtn = AutoRollModule.GetRollPrompt(myPlot, 25)
+        if not isRunning then return end
         if not rollPrompt or not rollBtn then
-            onError("RollPrompt tidak ditemukan di plot!")
+            onError("RollPrompt tidak ditemukan di plot (timeout 25 detik)!")
             isRunning = false
             return
         end
@@ -232,11 +288,23 @@ function AutoRollModule.Start(options)
         local rollCount = 0
         
         while isRunning do
-            rollCount += 1
-            onStatus(string.format("Status: 🎰 Roll #%d | Plot: %s", rollCount, myPlot.Name), "rolling", rollCount)
+            -- Jika prompt atau button hilang karena respawn/streaming, re-acquire dengan sabar
+            if not rollPrompt or not rollPrompt.Parent or not rollBtn or not rollBtn.Parent then
+                onStatus("Status: 🔄 Memperbarui koneksi RollPrompt...", "reacquiring")
+                rollPrompt, rollBtn = AutoRollModule.GetRollPrompt(myPlot, 10)
+                if not rollPrompt or not rollBtn then
+                    myPlot = AutoRollModule.FindMyPlot(10) or myPlot
+                    rollPrompt, rollBtn = AutoRollModule.GetRollPrompt(myPlot, 10)
+                end
+            end
             
-            AutoRollModule.MoveToRollButton(rollBtn)
-            AutoRollModule.TriggerRoll(rollPrompt)
+            if rollPrompt and rollBtn then
+                rollCount += 1
+                onStatus(string.format("Status: 🎰 Roll #%d | Plot: %s", rollCount, myPlot.Name), "rolling", rollCount)
+                
+                AutoRollModule.MoveToRollButton(rollBtn)
+                AutoRollModule.TriggerRoll(rollPrompt)
+            end
             
             task.wait(getInterval())
             
@@ -269,7 +337,7 @@ function AutoRollModule.Start(options)
                     task.wait(0.4)
                 end
                 
-                AutoRollModule.MoveToRollButton(rollBtn)
+                if rollBtn then AutoRollModule.MoveToRollButton(rollBtn) end
                 onStatus("Status: 🎉 Sukses Beli! Melanjutkan Hunt...", "resuming")
                 task.wait(1.5)
             end
