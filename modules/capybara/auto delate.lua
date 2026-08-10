@@ -24,6 +24,7 @@
 ]]
 
 local AutoDeletePlant = {}
+_G.AutoDeletePlant = AutoDeletePlant
 
 if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
 task.wait(0.3)
@@ -401,6 +402,11 @@ function AutoDeletePlant.ShouldDelete(plantName, plantRarity, isEquipped)
     if not plantName or plantName == "" then return false end
     local baseName = cleanPlantName(plantName):lower()
     local rarity = (plantRarity or getPlantRarityFromName(baseName)):lower()
+
+    -- 0. PROTEKSI SELAMA AUTO TUTORIAL BERJALAN (Jangan hapus Carrot/Potato sebelum tutorial selesai)
+    if _G.AutoTutorialRunning and (rarity == "common" or baseName == "carrot" or baseName == "potato") then
+        return false
+    end
 
     -- 1. Jangan hapus Capybara atau Egg jika tidak sengaja terscan
     if baseName:find("egg") or baseName:find("capybara") or baseName:find("hammer") or baseName:find("sponge") or baseName:find("totem") then
@@ -1626,6 +1632,22 @@ function AutoDeletePlant.OpenUI()
         guiInstance = buildUltraHDGui()
     end
     return guiInstance
+end
+
+function AutoDeletePlant.OnTutorialCompleted()
+    AutoDeletePlant.Config.DeleteCommon = true
+    AutoDeletePlant.Config.Enabled = true
+    AutoDeletePlant.Start()
+    task.spawn(function()
+        task.wait(0.5)
+        AutoDeletePlant.RunSingleCycle()
+        if guiInstance then
+            pcall(function()
+                guiInstance.SetToggle(true)
+                guiInstance.Notify("🏆 Tutorial Selesai!", "Auto Delete Common Aktif & Membersihkan semua tanaman!", 4)
+            end)
+        end
+    end)
 end
 
 -- Otomatis tampilkan Ultra HD GUI saat file dijalankan

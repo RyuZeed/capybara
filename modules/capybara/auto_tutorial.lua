@@ -177,6 +177,12 @@ local function runAutoTutorial()
     _G.AutoTutorialRunning = true
     print("🚀 [Ritod Hub] Auto Tutorial Started...")
 
+    -- Selama Auto Tutorial berjalan, nonaktifkan penghapusan Common (Carrot & Potato)
+    if _G.AutoDeletePlant then
+        _G.AutoDeletePlant.Config.DeleteCommon = false
+        print("🛡️ [Ritod Hub] Auto Tutorial Aktif -> Auto Delete Common: [ OFF ]")
+    end
+
     task.spawn(function()
         pcall(function()
             local HATCH_WAIT = 8
@@ -320,6 +326,19 @@ local function runAutoTutorial()
             task.wait(5)
             callRemote("SaveTutorialStage", 99)
             callRemote("RequestTutorialCompleted")
+
+            -- 🏆 TUTORIAL SELESAI: AKTIFKAN AUTO DELETE COMMON & BERSIHKAN SELURUH TANAMAN SAMPAH
+            if _G.AutoDeletePlant then
+                if _G.AutoDeletePlant.OnTutorialCompleted then
+                    _G.AutoDeletePlant.OnTutorialCompleted()
+                else
+                    _G.AutoDeletePlant.Config.DeleteCommon = true
+                    _G.AutoDeletePlant.Config.Enabled = true
+                    _G.AutoDeletePlant.Start()
+                    _G.AutoDeletePlant.RunSingleCycle()
+                end
+                print("🏆 [Ritod Hub] Tutorial Selesai -> Auto Delete Common: [ ON ] & Membersihkan seluruh tanaman!")
+            end
         end)
 
         _G.AutoTutorialRunning = false
