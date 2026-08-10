@@ -40,6 +40,19 @@ local function checkAndHidePinkLabel(label)
     end
 end
 
+local textConns = {}
+
+local function monitorLabel(descendant)
+    if descendant:IsA("TextLabel") then
+        checkAndHidePinkLabel(descendant)
+        if not textConns[descendant] then
+            textConns[descendant] = descendant:GetPropertyChangedSignal("Text"):Connect(function()
+                checkAndHidePinkLabel(descendant)
+            end)
+        end
+    end
+end
+
 function PinkRemover.Start()
     if running then return end
     running = true
@@ -47,30 +60,34 @@ function PinkRemover.Start()
     local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
     if not playerGui then return end
 
-    -- Realtime detection via DescendantAdded (Zero Lag)
+    -- Realtime detection via DescendantAdded
     descendantConn = playerGui.DescendantAdded:Connect(function(descendant)
-        pcall(checkAndHidePinkLabel, descendant)
+        pcall(monitorLabel, descendant)
     end)
 
-    local pinkPollThread = nil
-    -- Polling backup every 1.5 seconds
+    -- Attach ke semua label yang sudah ada
+    for _, obj in ipairs(playerGui:GetDescendants()) do
+        pcall(monitorLabel, obj)
+    end
+
+    -- Fast Polling backup every 0.1 seconds (Instant Destroy)
     pinkPollThread = task.spawn(function()
         while running do
             pcall(function()
                 local pg = LocalPlayer:FindFirstChild("PlayerGui")
                 if pg then
                     for _, label in ipairs(pg:GetDescendants()) do
-                        if label:IsA("TextLabel") and label.Visible then
+                        if label:IsA("TextLabel") and label.Visible and label.Text ~= "" then
                             checkAndHidePinkLabel(label)
                         end
                     end
                 end
             end)
-            task.wait(1.5)
+            task.wait(0.1)
         end
     end)
 
-    print("🚫 [Ritod Hub] Pink Notification Destroyer Aktif!")
+    print("🚫 [Ritod Hub] Pink Notification Destroyer Aktif (Instant 0.1s)!")
 end
 
 function PinkRemover.Stop()
@@ -79,6 +96,10 @@ function PinkRemover.Stop()
         descendantConn:Disconnect()
         descendantConn = nil
     end
+    for _, conn in pairs(textConns) do
+        pcall(function() conn:Disconnect() end)
+    end
+    textConns = {}
     if pinkPollThread then
         task.cancel(pinkPollThread)
         pinkPollThread = nil

@@ -286,48 +286,13 @@ local function processRewardCard(card, cardType)
     if state == "READY" and claimBtn then
         -- Cooldown per kartu (hindari spam klik ganda)
         local lastClick = clickDebounce[cardKey] or 0
-        if tick() - lastClick > 4 then
+        if tick() - lastClick > 5 then
             clickDebounce[cardKey] = tick()
+            claimedHistory[cardKey] = true -- Langsung kunci agar tidak pernah diklik ulang
             print(string.format("🎁 [Auto Claim] Hadiah READY! Mengklaim %s (%s)...", tostring(cardType), tostring(card.Name)))
             
-            -- 1. Klik tombol UI via multi-event simulation
+            -- Eksekusi 1x klik bersih pada tombol claim
             clickButton(claimBtn)
-
-            -- 2. Pemicu Remote Langsung berdasarkan tipe hadiah
-            local itemNum = tonumber(card.Name:match("(%d+)"))
-            if cardType == "Playtime Gift" then
-                if itemNum then
-                    callRemote("ClaimPlaytimeReward", itemNum)
-                    callRemote("ClaimPlaytimeReward", "Reward" .. tostring(itemNum))
-                    callRemote("ClaimPlaytime", itemNum)
-                    callRemote("ClaimFreeGift", itemNum)
-                end
-            elseif cardType == "Daily Login" then
-                if itemNum then
-                    callRemote("ClaimDailyReward", itemNum)
-                    callRemote("ClaimDailyReward", "Day" .. tostring(itemNum))
-                    callRemote("ClaimDaily", itemNum)
-                    callRemote("ClaimDay", itemNum)
-                end
-            elseif cardType == "Quest" then
-                if itemNum then
-                    callRemote("ClaimQuest", itemNum)
-                    callRemote("ClaimQuest", "DailyQuest" .. tostring(itemNum))
-                    callRemote("ClaimDailyQuest", itemNum)
-                    callRemote("ClaimQuestReward", itemNum)
-                else
-                    callRemote("ClaimQuest", card.Name)
-                end
-            end
-
-            -- Tunggu sebentar dan periksa apakah status berubah menjadi CLAIMED
-            task.delay(0.5, function()
-                local newState = evaluateRewardCard(card)
-                if newState == "CLAIMED" then
-                    claimedHistory[cardKey] = true
-                    print(string.format("✅ [Auto Claim] Sukses! %s (%s) sudah CLAIMED.", tostring(cardType), tostring(card.Name)))
-                end
-            end)
             return true
         end
     end
