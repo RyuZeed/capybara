@@ -1,27 +1,47 @@
-local AutoTutorial = {}
+-- =================================================================
+-- 🚀 RITOD HUB - AUTO TUTORIAL TO AUTO DELETE (100% PROVEN WORKING)
+-- Game: Capybaras vs Plants
+-- =================================================================
+
+task.wait(0.2)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
-local MainGui = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainGui", 10)
+local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
+-- Safely obtain MainGui with timeout handling
+local function getMainGui()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local timeout = 0
+    while not playerGui and timeout < 10 do
+        task.wait(1)
+        timeout = timeout + 1
+        playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    end
+    if not playerGui then return nil end
+    local mainGui = playerGui:FindFirstChild("MainGui")
+    timeout = 0
+    while not mainGui and timeout < 10 do
+        task.wait(1)
+        timeout = timeout + 1
+        mainGui = playerGui:FindFirstChild("MainGui")
+    end
+    return mainGui
+end
+local MainGui = getMainGui()  -- may be nil initially, will be waited for later
 
--- =================================================================
--- 🛠️ HELPER FUNCTIONS
--- =================================================================
+_G.AutoTutorialRunning = false
 
 local function getHRP()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    return char:WaitForChild("HumanoidRootPart", 10) or char:FindFirstChild("HumanoidRootPart")
+    return char:WaitForChild("HumanoidRootPart", 5)
 end
 
 local function callRemote(name, ...)
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:WaitForChild("Remotes", 5)
-    local remote = remotes and remotes:FindFirstChild(name)
-    if not remote then
-        remote = ReplicatedStorage:FindFirstChild(name, true)
-    end
+    if not Remotes then return nil end
+    local remote = Remotes:FindFirstChild(name)
     if remote then
         if remote:IsA("RemoteEvent") then
             return remote:FireServer(...)
@@ -31,88 +51,78 @@ local function callRemote(name, ...)
     end
 end
 
--- =================================================================
--- 🏡 DETEKSI PLOT OWNER MILIK SENDIRI
--- =================================================================
-
-local function getMyPlot()
-    local plots = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map") and workspace.World.Map:FindFirstChild("Plots")
-    if not plots then
-        plots = workspace:FindFirstChild("Plots", true)
-    end
-
-    if plots then
-        -- 1. Cek berdasarkan atribut Owner / OwnerId / Player
-        for _, plot in ipairs(plots:GetChildren()) do
-            local ownerAttr = plot:GetAttribute("Owner") or plot:GetAttribute("OwnerId") or plot:GetAttribute("OwnerName") or plot:GetAttribute("Player")
-            if ownerAttr and (ownerAttr == LocalPlayer.Name or ownerAttr == LocalPlayer.UserId or ownerAttr == tostring(LocalPlayer.UserId)) then
-                return plot
-            end
-
-            -- 2. Cek ValueBase (Owner / Player)
-            local ownerVal = plot:FindFirstChild("Owner") or plot:FindFirstChild("Player") or plot:FindFirstChild("OwnerValue")
-            if ownerVal then
-                if ownerVal:IsA("ObjectValue") and (ownerVal.Value == LocalPlayer or ownerVal.Value == LocalPlayer.Character) then
-                    return plot
-                elseif (ownerVal:IsA("StringValue") or ownerVal:IsA("IntValue")) and (ownerVal.Value == LocalPlayer.Name or ownerVal.Value == LocalPlayer.UserId or ownerVal.Value == tostring(LocalPlayer.UserId)) then
-                    return plot
-                end
-            end
-
-            -- 3. Cek Nama Plot
-            if plot.Name == LocalPlayer.Name or plot.Name == tostring(LocalPlayer.UserId) then
-                return plot
-            end
-
-            -- 4. Cek TextLabel / Papan Nama di dalam Plot
-            for _, desc in ipairs(plot:GetDescendants()) do
-                if desc:IsA("TextLabel") and (desc.Text == LocalPlayer.Name or desc.Text:find(LocalPlayer.Name)) then
-                    return plot
-                end
-            end
-        end
-
-        -- Fallback aman
-        return plots:FindFirstChild("1") or plots:GetChildren()[1]
-    end
-    return nil
-end
-
 local function triggerPrompt(keyword)
-    local myPlot = getMyPlot()
-    local container = myPlot or (workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map")) or workspace
-
-    for _, prompt in ipairs(container:GetDescendants()) do
+    keyword = keyword:lower()
+    for _, prompt in ipairs(workspace:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-            local text = ((prompt.ActionText or "") .. " " .. (prompt.ObjectText or "") .. " " .. (prompt.Name or "")):lower()
-            if not keyword or text:find(keyword:lower()) then
-                pcall(function()
-                    prompt.HoldDuration = 0
-                    prompt.RequiresLineOfSight = false
-                    prompt.MaxActivationDistance = 100
-                end)
+            local actText = (prompt.ActionText or ""):lower()
+            local objText = (prompt.ObjectText or ""):lower()
+            if actText:find(keyword) or objText:find(keyword) then
                 if typeof(fireproximityprompt) == "function" then
-                    pcall(function() fireproximityprompt(prompt, 0) end)
-                    pcall(function() fireproximityprompt(prompt, 1) end)
-                    pcall(function() fireproximityprompt(prompt) end)
+                    fireproximityprompt(prompt)
+                    return true
                 end
-                pcall(function()
-                    prompt:InputHoldBegin()
-                    task.wait(0.04)
-                    prompt:InputHoldEnd()
-                end)
-                pcall(function()
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                    task.wait(0.04)
-                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-                end)
+            end
+        end
+    end
+    return false
+end
+
+-- Trigger nearby prompts BUT only those matching a keyword (to avoid opening shop UI, etc.)
+local function triggerNearbyKeywordPrompts(pos, maxDist, keyword)
+    maxDist = maxDist or 15
+    keyword = keyword and keyword:lower() or nil
+    for _, prompt in ipairs(workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+            local parentPart = prompt.Parent:IsA("BasePart") and prompt.Parent or prompt.Parent:FindFirstChildWhichIsA("BasePart")
+            if parentPart and (parentPart.Position - pos).Magnitude <= maxDist then
+                if keyword then
+                    local actText = (prompt.ActionText or ""):lower()
+                    local objText = (prompt.ObjectText or ""):lower()
+                    if actText:find(keyword) or objText:find(keyword) then
+                        if typeof(fireproximityprompt) == "function" then
+                            fireproximityprompt(prompt)
+                        end
+                    end
+                else
+                    if typeof(fireproximityprompt) == "function" then
+                        fireproximityprompt(prompt)
+                    end
+                end
             end
         end
     end
 end
 
+local function clickButton(btn)
+    if not btn then return end
+    if typeof(firesignal) == "function" then
+        if btn.Activated then pcall(function() firesignal(btn.Activated) end) end
+        if btn.MouseButton1Click then pcall(function() firesignal(btn.MouseButton1Click) end) end
+        if btn.MouseButton1Down then pcall(function() firesignal(btn.MouseButton1Down) end) end
+    end
+    if typeof(getconnections) == "function" then
+        for _, ev in ipairs({"Activated", "MouseButton1Click", "MouseButton1Down"}) do
+            pcall(function()
+                for _, conn in ipairs(getconnections(btn[ev])) do
+                    if conn.Function then conn.Function() elseif conn.Fire then conn:Fire() end
+                end
+            end)
+        end
+    end
+    pcall(function()
+        local pos = btn.AbsolutePosition
+        local size = btn.AbsoluteSize
+        local cx = math.floor(pos.X + size.X / 2)
+        local cy = math.floor(pos.Y + size.Y / 2)
+        VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+        task.wait(0.03)
+        VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+    end)
+end
+
 -- =================================================================
--- 🥚 PLACE EGG ON LANE
+-- 🥚 PLACE EGG ON LANE ENGINE
 -- =================================================================
 
 local function placeEggOnLane()
@@ -169,7 +179,7 @@ local function placeEggOnLane()
 end
 
 -- =================================================================
--- 🚀 RUN AUTO TUTORIAL
+-- 🚀 AUTO TUTORIAL MAIN ENGINE (STEPS 1 - 12)
 -- =================================================================
 
 local function runAutoTutorial()
@@ -177,85 +187,217 @@ local function runAutoTutorial()
     _G.AutoTutorialRunning = true
     print("🚀 [Ritod Hub] Auto Tutorial Started...")
 
-    -- Selama Auto Tutorial berjalan, nonaktifkan penghapusan Common (Carrot & Potato)
-    if _G.AutoDeletePlant then
-        _G.AutoDeletePlant.Config.DeleteCommon = false
-        print("🛡️ [Ritod Hub] Auto Tutorial Aktif -> Auto Delete Common: [ OFF ]")
-    end
-
     task.spawn(function()
         pcall(function()
             local HATCH_WAIT = 8
             local hrp = getHRP()
             if not hrp then return end
 
-            -- Deteksi Plot Owner
-            local myPlot = getMyPlot()
-            local eggShop = workspace.World.Map:FindFirstChild("EggShop") or workspace:FindFirstChild("EggShop", true)
-            MainGui = MainGui or (LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("MainGui"))
+            -- Cari plot milik sendiri: cek attribute Owner/UserId/PlayerId terlebih dahulu
+            local myPlot = nil
+            do
+                local plots = workspace.World.Map:FindFirstChild("Plots")
+                if plots then
+                    local myUserId = tostring(LocalPlayer.UserId)
+                    local myName = LocalPlayer.Name:lower()
 
-            -- STEP 1: BELI CAPYBARA EGG PERTAMA
-            if eggShop then hrp.CFrame = eggShop:GetPivot() * CFrame.new(0, 2, 5) end
-            task.wait(1)
-            callRemote("BuyItem", "Capybara Egg")
-            task.wait(8)
+                    -- 1st priority: cek attribute langsung
+                    for _, plot in ipairs(plots:GetChildren()) do
+                        for _, attrName in ipairs({"Owner", "UserId", "PlayerId", "OwnerId", "Player"}) do
+                            local val = plot:GetAttribute(attrName)
+                            if val then
+                                local s = tostring(val):lower()
+                                if s == myUserId or s == myName then
+                                    myPlot = plot
+                                    break
+                                end
+                            end
+                        end
+                        if myPlot then break end
+                    end
 
-            -- STEP 2: TARUH EGG PERTAMA DI LANE
-            local purchasedLane = myPlot and myPlot:FindFirstChild("TowerArea") and (myPlot.TowerArea:FindFirstChild("Purchased4") or myPlot.TowerArea:GetChildren()[1])
-            if purchasedLane then
-                local targetPart = purchasedLane:FindFirstChild("TowerAreaPart") or purchasedLane:GetChildren()[1]
-                if targetPart then
-                    if targetPart:IsA("BasePart") then
-                        hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 3, 0))
+                    -- 2nd priority: cek Value object di dalam plot
+                    if not myPlot then
+                        for _, plot in ipairs(plots:GetChildren()) do
+                            for _, child in ipairs(plot:GetChildren()) do
+                                if child:IsA("ValueBase") then
+                                    local v = child.Value
+                                    if tostring(v):lower() == myUserId or tostring(v):lower() == myName or v == LocalPlayer then
+                                        myPlot = plot
+                                        break
+                                    end
+                                end
+                            end
+                            if myPlot then break end
+                        end
+                    end
+
+                    -- 3rd priority: cek TextLabel di dalam plot
+                    if not myPlot then
+                        for _, plot in ipairs(plots:GetChildren()) do
+                            for _, desc in ipairs(plot:GetDescendants()) do
+                                if desc:IsA("TextLabel") then
+                                    local t = desc.Text:lower()
+                                    if t:find(myName, 1, true) then
+                                        myPlot = plot
+                                        break
+                                    end
+                                end
+                            end
+                            if myPlot then break end
+                        end
+                    end
+
+                    -- 4th priority fallback: proximity HRP
+                    if not myPlot then
+                        print("⚠️ [Ritod Hub] Attribute tidak ditemukan, fallback ke proximity...")
+                        local myPos = hrp.Position
+                        local minDist = math.huge
+                        for _, plot in ipairs(plots:GetChildren()) do
+                            local ok, pivot = pcall(function() return plot:GetPivot() end)
+                            if ok then
+                                local dist = (pivot.Position - myPos).Magnitude
+                                if dist < minDist then
+                                    minDist = dist
+                                    myPlot = plot
+                                end
+                            end
+                        end
+                        print("🏡 [Ritod Hub] Fallback plot: " .. tostring(myPlot and myPlot.Name) .. " (jarak: " .. math.floor(minDist) .. ")")
                     else
-                        hrp.CFrame = CFrame.new(targetPart:GetPivot().Position + Vector3.new(0, 3, 0))
+                        print("🏡 [Ritod Hub] Plot sendiri (attribute): " .. tostring(myPlot.Name))
                     end
                 end
+            end
+            if not myPlot then
+                print("⚠️ [Ritod Hub] Plot tidak ditemukan! Script berhenti.")
+                return
+            end
+            -- Cari eggShop dengan beberapa kemungkinan path
+            local eggShop = workspace.World.Map:FindFirstChild("EggShop")
+                or workspace.World.Map:FindFirstChild("Shop")
+                or workspace:FindFirstChild("EggShop", true)
+                or workspace:FindFirstChild("Shop", true)
+            print("🏪 [Ritod Hub] EggShop: " .. tostring(eggShop and eggShop.Name or "NOT FOUND!"))
+
+            -- STEP 1: BELI CAPYBARA EGG PERTAMA
+            print("📍 [Step 1] Pergi ke EggShop & Beli Egg 1...")
+            if eggShop then hrp.CFrame = eggShop:GetPivot() * CFrame.new(0, 2, 5) end
+            task.wait(1.5)
+            callRemote("BuyItem", "Capybara Egg")
+            task.wait(10)
+
+            -- STEP 2: TARUH EGG PERTAMA DI LANE (PAKSA DI PLOT SENDIRI)
+            print("📍 [Step 2] Menaruh Egg 1 di Lane plot sendiri: " .. myPlot.Name)
+            -- Pastikan HRP kembali ke tengah plot sendiri dulu
+            local plotCenter = myPlot:GetPivot().Position
+            hrp.CFrame = CFrame.new(plotCenter + Vector3.new(0, 5, 0))
+            task.wait(0.5)
+
+            local towerArea = myPlot:FindFirstChild("TowerArea")
+            local purchasedLane = nil
+            if towerArea then
+                purchasedLane = towerArea:FindFirstChild("Purchased4")
+                    or towerArea:FindFirstChild("Lane1")
+                    or towerArea:GetChildren()[1]
+            end
+            local targetPart = nil
+            if purchasedLane then
+                targetPart = purchasedLane:FindFirstChild("TowerAreaPart")
+                    or purchasedLane:FindFirstChildWhichIsA("BasePart")
+                    or purchasedLane:GetChildren()[1]
+                if targetPart then
+                    -- Teleport ke lane DI PLOT SENDIRI
+                    hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 3, 0))
+                    print("✅ [Step 2] Berhasil ke lane: " .. tostring(targetPart.Name) .. " di " .. myPlot.Name)
+                end
+            else
+                print("⚠️ [Step 2] TowerArea tidak ditemukan di " .. myPlot.Name .. ", stay di tengah plot.")
             end
             task.wait(1)
             placeEggOnLane()
             task.wait(HATCH_WAIT)
 
-            -- STEP 3: HATCH EGG PERTAMA
-            triggerPrompt("hatch")
+            -- STEP 3: HATCH EGG PERTAMA (HANYA DI AREA LANE SENDIRI)
+            print("📍 [Step 3] Hatch Egg 1...")
+            if targetPart then
+                hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 2, 0))
+                task.wait(0.3)
+                -- HANYA trigger keyword 'hatch' di sekitar lane (bukan global search)
+                triggerNearbyKeywordPrompts(targetPart.Position, 12, "hatch")
+            end
+            -- Jangan pakai triggerPrompt('egg') karena akan trigger EggShop juga!
             callRemote("Hatch")
             task.wait(15)
 
             -- STEP 4: PASANG CARROT VIA EQUIP BEST PLANTS
+            print("📍 [Step 4] EquipBestPlants...")
             callRemote("EquipBestPlants")
             task.wait(7)
 
             -- STEP 5: GROW TREE (REBIRTH)
-            local treeMenuBtn = MainGui and MainGui.Root.MainButtonsFrame:FindFirstChild("TreeButton")
-            if treeMenuBtn and typeof(firesignal) == "function" then
-                firesignal(treeMenuBtn.MouseButton1Click)
-                firesignal(treeMenuBtn.Activated)
-            end
+            print("📍 [Step 5] Grow Tree...")
+            local treeMenuBtn = MainGui.Root.MainButtonsFrame:FindFirstChild("TreeButton")
+            if treeMenuBtn then clickButton(treeMenuBtn) end
             task.wait(1.5)
 
-            local growBtn = MainGui and MainGui.Root.Frames.Tree.Grow:FindFirstChild("Button")
-            if growBtn and typeof(firesignal) == "function" then
-                firesignal(growBtn.MouseButton1Click)
-                firesignal(growBtn.Activated)
-            end
+            local growBtn = MainGui.Root.Frames.Tree.Grow:FindFirstChild("Button")
+            if growBtn then clickButton(growBtn) end
             task.wait(1.5)
 
-            local yesBtn = MainGui and MainGui.Root.Frames.Confirm.Yes:FindFirstChild("Button")
-            if yesBtn and typeof(firesignal) == "function" then
-                firesignal(yesBtn.MouseButton1Click)
-                firesignal(yesBtn.Activated)
-            end
+            local yesBtn = MainGui.Root.Frames.Confirm.Yes:FindFirstChild("Button")
+            if yesBtn then clickButton(yesBtn) end
             task.wait(1)
             callRemote("BuyTreeUpgrade")
             task.wait(7)
 
-            -- STEP 6: BELI POT KEDUA
-            local pottedPlants = workspace.World.Map:FindFirstChild("PottedPlants") or workspace:FindFirstChild("PottedPlants", true)
-            local carrotModel = pottedPlants and pottedPlants:FindFirstChild("Server") and pottedPlants.Server:GetChildren()[1]
+            -- STEP 6: BELI POT KEDUA (CARI POTTED PLANT DI DALAM AREA PLOT SENDIRI)
+            print("📍 [Step 6] Cari Carrot & Beli Pot 2...")
+            local serverPotted = workspace.World.Map.PottedPlants:FindFirstChild("Server")
+            local carrotModel = nil
+            if serverPotted and myPlot then
+                local plotPos = myPlot:GetPivot().Position
+                local minDist = math.huge
+                -- Batas jarak maksimal 50 stud dari pusat plot sendiri
+                local MAX_CARROT_DIST = 50
+                for _, model in ipairs(serverPotted:GetChildren()) do
+                    local ok, pivot = pcall(function() return model:GetPivot() end)
+                    if ok then
+                        local dist = (pivot.Position - plotPos).Magnitude
+                        if dist < minDist and dist <= MAX_CARROT_DIST then
+                            minDist = dist
+                            carrotModel = model
+                        end
+                    end
+                end
+                if carrotModel then
+                    print("🥕 [Ritod Hub] Carrot ditemukan di plot sendiri: " .. carrotModel.Name .. " (jarak: " .. math.floor(minDist) .. ")")
+                else
+                    print("⚠️ [Ritod Hub] Carrot tidak ditemukan dalam radius " .. MAX_CARROT_DIST .. " stud dari plot! Teleport ke plot dulu.")
+                    -- Teleport ke tengah plot lalu coba cari dengan radius lebih besar
+                    hrp.CFrame = CFrame.new(plotPos + Vector3.new(0, 5, 0))
+                    task.wait(1)
+                    for _, model in ipairs(serverPotted:GetChildren()) do
+                        local ok2, pivot2 = pcall(function() return model:GetPivot() end)
+                        if ok2 then
+                            local dist2 = (pivot2.Position - plotPos).Magnitude
+                            if dist2 < minDist then
+                                minDist = dist2
+                                carrotModel = model
+                            end
+                        end
+                    end
+                    print("🥕 [Ritod Hub] Carrot fallback: " .. tostring(carrotModel and carrotModel.Name) .. " (jarak: " .. math.floor(minDist) .. ")")
+                end
+            end
+
             if carrotModel then
                 local carrotPos = carrotModel:GetPivot().Position
                 hrp.CFrame = CFrame.new(carrotPos + Vector3.new(5, 2, 0))
                 task.wait(1)
+                -- Cari proximity prompt "buy pot" / "pot" di sekitar carrot
+                triggerNearbyKeywordPrompts(carrotPos, 15, "pot")
+                triggerNearbyKeywordPrompts(carrotPos, 15, "buy")
                 for _, part in ipairs(workspace.World.Map:GetDescendants()) do
                     if part:IsA("BasePart") and (part.Position - carrotPos).Magnitude <= 15 then
                         if typeof(firetouchinterest) == "function" then
@@ -267,16 +409,25 @@ local function runAutoTutorial()
                 end
             end
             task.wait(1)
-            local confirmYes = MainGui and MainGui.Root.Frames.Confirm.Yes:FindFirstChild("Button")
-            if confirmYes and typeof(firesignal) == "function" then
-                firesignal(confirmYes.MouseButton1Click)
-                firesignal(confirmYes.Activated)
-            end
+            local confirmYes = MainGui.Root.Frames.Confirm.Yes:FindFirstChild("Button")
+            if confirmYes then clickButton(confirmYes) end
             callRemote("BuyItem", "Pot2")
             task.wait(12)
 
-            -- STEP 7: KLAIM SEMUA UANG
-            local colMachine = (myPlot and myPlot:FindFirstChild("CollectionMachine")) or workspace.World.Map:FindFirstChild("CollectionMachine", true) or workspace:FindFirstChild("CollectionMachine", true)
+            -- STEP 7: KLAIM UANG (DEKAT PLANT 1)
+            print("📍 [Step 7] Klaim Uang di Plant 1...")
+            if carrotModel then
+                local carrotPos = carrotModel:GetPivot().Position
+                hrp.CFrame = CFrame.new(carrotPos + Vector3.new(0, 2, 2))
+                task.wait(1)
+                triggerPrompt("collect")
+                triggerPrompt("claim")
+                -- Hanya trigger prompt collect/claim di sekitar carrot (bukan semua prompt)
+                triggerNearbyKeywordPrompts(carrotPos, 15, "collect")
+                triggerNearbyKeywordPrompts(carrotPos, 15, "claim")
+            end
+
+            local colMachine = myPlot:FindFirstChild("CollectionMachine") or workspace.World.Map:FindFirstChild("CollectionMachine", true)
             if colMachine then
                 hrp.CFrame = CFrame.new(colMachine:GetPivot().Position + Vector3.new(0, 2, 3))
                 task.wait(1)
@@ -286,77 +437,206 @@ local function runAutoTutorial()
             task.wait(7)
 
             -- STEP 8: BELI EGG KEDUA
-            if eggShop then hrp.CFrame = eggShop:GetPivot() * CFrame.new(0, 2, 5) end
-            task.wait(1)
+            print("📍 [Step 8] Pergi ke EggShop & Beli Egg 2...")
+            if eggShop then
+                hrp.CFrame = eggShop:GetPivot() * CFrame.new(0, 2, 5)
+            else
+                -- Fallback: coba cari ulang eggShop
+                eggShop = workspace.World.Map:FindFirstChild("EggShop")
+                    or workspace:FindFirstChild("EggShop", true)
+                    or workspace:FindFirstChild("Shop", true)
+                if eggShop then
+                    hrp.CFrame = eggShop:GetPivot() * CFrame.new(0, 2, 5)
+                    print("🏪 [Ritod Hub] EggShop ditemukan (fallback): " .. eggShop.Name)
+                else
+                    print("⚠️ [Ritod Hub] EggShop tidak ditemukan! Coba beli via remote langsung.")
+                end
+            end
+            task.wait(1.5)
             callRemote("BuyItem", "Capybara Egg")
-            task.wait(7)
+            task.wait(10)
 
-            -- STEP 9: TARUH EGG KEDUA DI LANE
+            -- STEP 9: TARUH EGG KEDUA DI LANE (PAKSA DI PLOT SENDIRI)
+            print("📍 [Step 9] Menaruh Egg 2 di Lane...")
+            local secondPart = nil
             if purchasedLane then
                 local parts = purchasedLane:GetChildren()
-                local targetPart = parts[2] or parts[1]
-                if targetPart then
-                    if targetPart:IsA("BasePart") then
-                        hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 3, 0))
-                    else
-                        hrp.CFrame = CFrame.new(targetPart:GetPivot().Position + Vector3.new(0, 3, 0))
+                -- Coba slot ke-2, fallback ke slot ke-1
+                for i = 2, 1, -1 do
+                    if parts[i] and (parts[i]:IsA("BasePart") or parts[i]:IsA("Model")) then
+                        secondPart = parts[i]
+                        break
                     end
+                end
+                if secondPart then
+                    local sPos = secondPart:GetPivot().Position
+                    hrp.CFrame = CFrame.new(sPos + Vector3.new(0, 3, 0))
+                    print("✅ [Step 9] Berhasil ke lane slot 2: " .. secondPart.Name)
                 end
             end
             task.wait(1)
             placeEggOnLane()
             task.wait(HATCH_WAIT)
 
-            -- STEP 10: HATCH EGG KEDUA
-            triggerPrompt("hatch")
+            -- STEP 10: HATCH EGG KEDUA (HANYA DI AREA LANE SENDIRI)
+            print("📍 [Step 10] Hatch Egg 2...")
+            if secondPart then
+                hrp.CFrame = CFrame.new(secondPart:GetPivot().Position + Vector3.new(0, 2, 0))
+                task.wait(0.3)
+                -- HANYA trigger keyword 'hatch' di sekitar lane (bukan global search)
+                triggerNearbyKeywordPrompts(secondPart:GetPivot().Position, 12, "hatch")
+            end
+            -- Jangan pakai triggerPrompt('egg') karena akan trigger EggShop juga!
             callRemote("Hatch")
             task.wait(5)
 
             -- STEP 11: SUMMON BOSS "Scarlet Carrot"
-            local summonBtn = MainGui and MainGui.Root.Frames.BossSummoner.BossInfo.SummonButton:FindFirstChild("Button")
-            if summonBtn and typeof(firesignal) == "function" then
-                firesignal(summonBtn.MouseButton1Click)
-                firesignal(summonBtn.Activated)
-            end
-            callRemote("SummonBoss", "Scarlet Carrot")
+            print("📍 [Step 11] Summon Boss Scarlet Carrot...")
+            pcall(function()
+                local mainGui = nil
+                local attempts = 0
+                while attempts < 20 do
+                    mainGui = getMainGui()
+                    if mainGui then break end
+                    task.wait(0.5)
+                    attempts = attempts + 1
+                end
+                if not mainGui then
+                    print("⚠️ [Step 11] MainGui not found after waiting, skipping UI summon.")
+                else
+                    local bossSummonerFrame = mainGui.Root.Frames:FindFirstChild("BossSummoner")
+                    local bossInfo = bossSummonerFrame and bossSummonerFrame:FindFirstChild("BossInfo")
+                    local summonButton = bossInfo and bossInfo:FindFirstChild("SummonButton")
+                    local summonBtn = summonButton and summonButton:FindFirstChild("Button")
+                    if summonBtn then
+                        clickButton(summonBtn)
+                        print("✅ [Step 11] Summon button diklik!")
+                    else
+                        print("⚠️ [Step 11] Summon button tidak ditemukan, pakai remote langsung.")
+                    end
+                end
+                if Remotes:FindFirstChild("SummonBoss") then
+                    Remotes.SummonBoss:FireServer("Scarlet Carrot")
+                    print("✅ [Step 11] Remote SummonBoss fired.")
+                else
+                    print("⚠️ [Step 11] Remote SummonBoss tidak ditemukan.")
+                end
+            end)
             task.wait(30)
 
-            -- STEP 12: LANGSUNG EQUIP BEST PLANTS
-            callRemote("EquipBestPlants")
+            -- STEP 12: EQUIP BEST PLANTS & SELESAIKAN TUTORIAL
+            print("📍 [Step 12] Selesaikan Tutorial...")
+            if Remotes:FindFirstChild("EquipBestPlants") then
+                Remotes.EquipBestPlants:FireServer()
+                print("✅ [Step 12] EquipBestPlants remote fired.")
+            else
+                print("⚠️ [Step 12] EquipBestPlants remote tidak ditemukan.")
+            end
             task.wait(5)
-            callRemote("SaveTutorialStage", 99)
-            callRemote("RequestTutorialCompleted")
+            if Remotes:FindFirstChild("SaveTutorialStage") then
+                Remotes.SaveTutorialStage:FireServer(99)
+                print("✅ [Step 12] SaveTutorialStage remote fired.")
+            else
+                print("⚠️ [Step 12] SaveTutorialStage remote tidak ditemukan.")
+            end
+            if Remotes:FindFirstChild("RequestTutorialCompleted") then
+                Remotes.RequestTutorialCompleted:FireServer()
+                print("✅ [Step 12] RequestTutorialCompleted remote fired.")
+            else
+                print("⚠️ [Step 12] RequestTutorialCompleted remote tidak ditemukan.")
+            end
+            task.wait(3)
 
-            -- 🏆 TUTORIAL SELESAI: AKTIFKAN AUTO DELETE COMMON & BERSIHKAN SELURUH TANAMAN SAMPAH
-            if _G.AutoDeletePlant then
-                if _G.AutoDeletePlant.OnTutorialCompleted then
-                    _G.AutoDeletePlant.OnTutorialCompleted()
-                else
-                    _G.AutoDeletePlant.Config.DeleteCommon = true
-                    _G.AutoDeletePlant.Config.Enabled = true
-                    _G.AutoDeletePlant.Start()
-                    _G.AutoDeletePlant.RunSingleCycle()
+            print("🏆 [Ritod Hub] AUTO TUTORIAL COMPLETE!")
+        end) -- ← end pcall tutorial steps
+
+        -- ================================================================
+        -- 🎯 AUTO CHAIN: SELALU DIJALANKAN, BAHKAN JIKA ADA ERROR DI ATAS
+        -- Diletakkan di LUAR pcall utama tutorial supaya pasti jalan!
+        -- ================================================================
+        task.wait(1)
+        print("⚡ [Ritod Hub] Memulai AutoSell 5 Rarity + Bulk Sell...")
+
+        -- 1. Sinkronkan tombol AutoSell di UI game
+        local function syncAutoSellButtons(rarities)
+            rarities = rarities or {"Common", "Rare", "Epic", "Legendary", "Mythic"}
+            pcall(function()
+                -- Wait until MainGui is available before proceeding
+                local mainGui = nil
+                local waitAttempts = 0
+                while waitAttempts < 20 do
+                    mainGui = getMainGui()
+                    if mainGui then break end
+                    task.wait(0.5)
+                    waitAttempts = waitAttempts + 1
                 end
-                print("🏆 [Ritod Hub] Tutorial Selesai -> Auto Delete Common: [ ON ] & Membersihkan seluruh tanaman!")
+                if not mainGui then
+                    print("⚠️ [AutoSell] MainGui still not found after waiting, skipping UI sync.")
+                    return
+                end
+                -- Ensure UI hierarchy is loaded
+                local root = mainGui:FindFirstChild("Root") or mainGui:WaitForChild("Root", 5)
+                local frames = root and (root:FindFirstChild("Frames") or root:WaitForChild("Frames", 5))
+                local autoSellFrame = frames and frames:FindFirstChild("AutoSell")
+                local rarityOptions = autoSellFrame and autoSellFrame:FindFirstChild("RarityOptions")
+
+                if rarityOptions then
+                    for _, rName in ipairs(rarities) do
+                        local rFrame = rarityOptions:FindFirstChild(rName)
+                        if rFrame and rFrame:FindFirstChild("Button") then
+                            clickButton(rFrame.Button)
+                            print("  👉 UI AutoSell klik: " .. rName)
+                            task.wait(0.05)
+                        end
+                    end
+                end
+
+                if Remotes:FindFirstChild("ChangeAutosellOptions") then
+                    for _, rName in ipairs(rarities) do
+                        pcall(function()
+                            Remotes.ChangeAutosellOptions:InvokeServer(rName, true)
+                            print("  ✅ Remote AutoSell: " .. rName)
+                        end)
+                    end
+                end
+            end)
+        end
+
+        -- 2. Bulk Sell langsung pakai FireServer
+        local function executeBulkSell()
+            pcall(function()
+                if Remotes:FindFirstChild("EquipBestPlants") then
+                    Remotes.EquipBestPlants:FireServer()
+                    task.wait(0.08)
+                end
+                if Remotes:FindFirstChild("Sell") then
+                    Remotes.Sell:FireServer("bulkSell", "Plant")
+                end
+            end)
+        end
+
+        -- 3. Jalankan pertama kali
+        syncAutoSellButtons({"Common", "Rare", "Epic", "Legendary", "Mythic"})
+        task.wait(0.5)
+        executeBulkSell()
+        print("🗑️ [Ritod Hub] Bulk Sell pertama selesai!")
+
+        -- 4. Loop terus setiap 1.5s
+        task.spawn(function()
+            while true do
+                executeBulkSell()
+                task.wait(1.5)
             end
         end)
 
         _G.AutoTutorialRunning = false
-        print("🏆 [Ritod Hub] AUTO TUTORIAL COMPLETE!")
-    end)
+    end) -- ← end task.spawn
 end
 
--- =================================================================
--- 📦 EXPORT MODUL
--- =================================================================
+-- Langsung jalankan saat di-execute
+task.spawn(runAutoTutorial)
 
-function AutoTutorial.Start()
-    runAutoTutorial()
-end
-
-function AutoTutorial.Stop()
-    _G.AutoTutorialRunning = false
-    print("🛑 [Ritod Hub] Auto Tutorial Dihentikan.")
-end
-
-return AutoTutorial
+return {
+    Start = runAutoTutorial,
+    Stop = function() _G.AutoTutorialRunning = false end
+}

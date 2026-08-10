@@ -6,14 +6,17 @@
 
 -- =================================================================
 -- ⚙️ PENGATURAN AWAL (AUTO-START CONFIG)
+-- Anda bisa ubah true/false di sini atau lewat getgenv().Config di executor!
 -- =================================================================
+local USER_CONFIG = (typeof(getgenv) == "function" and getgenv().Config) or _G.Config or {}
+
 local CONFIG = {
-    AutoTutorial   = true,   -- 🚀 Otomatis jalankan Auto Tutorial (Step 1-12)
-    FarmMode       = false,   -- 🚜 Redupkan Layar (Screen Off) saat AFK
-    AntiLag        = false,   -- ❄️ Batasi FPS ke 5 & Nonaktifkan Shadow
-    PotatoGraphics = true,   -- 🥔 Hapus Tekstur, Partikel, & Efek Berat
-    AutoClaim      = true,   -- 🎁 Otomatis klaim Hadiah Playtime & Daily
-    AutoDelete     = false,  -- 🗑️ Otomatis hapus tanaman Common / Sampah
+    AutoTutorial   = (USER_CONFIG.AutoTutorial ~= nil and USER_CONFIG.AutoTutorial) or true,    -- 🚀 Otomatis jalankan Auto Tutorial (Step 1-12)
+    AutoDelete     = (USER_CONFIG.AutoDelete ~= nil and USER_CONFIG.AutoDelete) or true,        -- 🗑️ Otomatis jual tanaman sampah di backpack
+    AutoClaim      = (USER_CONFIG.AutoClaim ~= nil and USER_CONFIG.AutoClaim) or true,          -- 🎁 Otomatis klaim Hadiah Playtime & Daily
+    FarmMode       = (USER_CONFIG.FarmMode ~= nil and USER_CONFIG.FarmMode) or false,          -- 🚜 Redupkan Layar (Screen Off) saat AFK
+    AntiLag        = (USER_CONFIG.AntiLag ~= nil and USER_CONFIG.AntiLag) or false,            -- ❄️ Batasi FPS ke 5 & Nonaktifkan Shadow
+    PotatoGraphics = (USER_CONFIG.PotatoGraphics ~= nil and USER_CONFIG.PotatoGraphics) or true,  -- 🥔 Hapus Tekstur, Partikel, & Efek Berat
 }
 
 task.wait(0.5)
@@ -75,7 +78,7 @@ local PinkRemover    = loadModule("pink_remover")
 local GraphicsModule = loadModule("graphics")
 local AutoClaim      = loadModule("auto_claim")
 local AutoTutorial   = loadModule("auto_tutorial")
-local AutoDelete     = loadModule("auto_delete") or loadModule("auto delate")
+local AutoDelete     = loadModule("auto delate") or loadModule("auto_delete")
 
 -- Auto Start background utilities
 if AFKModule then AFKModule.Enable() end
@@ -127,7 +130,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -40, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "👑 RITOD HUB (CAPYBARA)"
+Title.Text = "👑 RITOD HUB"
 Title.TextColor3 = Color3.fromRGB(0, 230, 138)
 Title.TextSize = 13
 Title.Font = Enum.Font.GothamBold
@@ -164,7 +167,7 @@ UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 end)
 
 local function createToggle(text, initialState, callback)
-    local state = (initialState == true)
+    local state = initialState or false
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 40)
@@ -177,7 +180,7 @@ local function createToggle(text, initialState, callback)
     corner.Parent = btn
 
     local function updateVisual(val)
-        if val ~= nil then state = val end
+        state = (val ~= nil) and val or state
         if state then
             btn.BackgroundColor3 = Color3.fromRGB(0, 180, 100)
             btn.Text = text .. " [ ON ]"
@@ -189,66 +192,63 @@ local function createToggle(text, initialState, callback)
         end
     end
 
-    updateVisual(state)
-
-    if state then
-        task.spawn(function()
-            pcall(function() callback(true) end)
-        end)
-    end
+    updateVisual(initialState)
 
     btn.MouseButton1Click:Connect(function()
         state = not state
         updateVisual(state)
-        pcall(function() callback(state) end)
+        callback(state)
     end)
 
     return updateVisual
 end
 
 -- =================================================================
--- 🔘 DAFTAR TOMBOL FITUR DI GUI
+-- 🚀 REGISTER TOGGLES DENGAN MODUL TERPISAH
 -- =================================================================
 
+-- 1. AUTO TUTORIAL
 createToggle("🚀 Auto Tutorial", CONFIG.AutoTutorial, function(state)
-    if state and AutoTutorial then
-        AutoTutorial.Start()
-    elseif not state and AutoTutorial then
-        AutoTutorial.Stop()
-    end
+    if AutoTutorial then AutoTutorial.Toggle(state) end
 end)
 
-local updateFarmModeBtn
-updateFarmModeBtn = createToggle("🚜 Farm Mode (Screen Off)", CONFIG.FarmMode, function(state)
-    if GraphicsModule then
-        GraphicsModule.SetFarmMode(state, function(newState)
-            if updateFarmModeBtn then updateFarmModeBtn(newState) end
-        end)
-    end
-end)
-
-createToggle("❄️ Anti-Lag (FPS Cap 5)", CONFIG.AntiLag, function(state)
-    if GraphicsModule then
-        GraphicsModule.SetAntiLag(state)
-    end
-end)
-
-createToggle("🥔 Potato Graphics", CONFIG.PotatoGraphics, function(state)
-    if GraphicsModule then
-        GraphicsModule.EnablePotato(state)
-    end
-end)
-
-createToggle("🎁 Auto Claim Rewards", CONFIG.AutoClaim, function(state)
-    if AutoClaim then
-        if state then AutoClaim.Start() else AutoClaim.Stop() end
-    end
-end)
-
+-- 2. AUTO DELETE & AUTO SELL PLANTS
 createToggle("🗑️ Auto Delete Plants", CONFIG.AutoDelete, function(state)
-    if AutoDelete then
-        if state then AutoDelete.Start() else AutoDelete.Stop() end
-    end
+    if AutoDelete then AutoDelete.Toggle(state) end
 end)
 
-print("👑 [RITOD HUB CAPYBARA] Modular Loaded Successfully!")
+-- 3. AUTO CLAIM REWARDS
+createToggle("🎁 Auto Claim Rewards", CONFIG.AutoClaim, function(state)
+    if AutoClaim then AutoClaim.Toggle(state) end
+end)
+
+-- 4. FARM MODE (SCREEN OFF)
+local updateFarmMode = nil
+updateFarmMode = createToggle("🚜 Farm Mode (Screen Off)", CONFIG.FarmMode, function(state)
+    if GraphicsModule then GraphicsModule.SetFarmMode(state) end
+end)
+
+-- 5. ANTI-LAG (FPS CAP 5)
+createToggle("❄️ Anti-Lag (FPS Cap 5)", CONFIG.AntiLag, function(state)
+    if GraphicsModule then GraphicsModule.SetAntiLag(state) end
+end)
+
+-- 6. POTATO GRAPHICS
+createToggle("🥔 Potato Graphics", CONFIG.PotatoGraphics, function(state)
+    if GraphicsModule then GraphicsModule.SetPotatoGraphics(state) end
+end)
+
+-- =================================================================
+-- ⚡ INITIAL EXECUTION BERDASARKAN CONFIG
+-- =================================================================
+task.spawn(function()
+    task.wait(0.5)
+    if CONFIG.PotatoGraphics and GraphicsModule then GraphicsModule.SetPotatoGraphics(true) end
+    if CONFIG.AntiLag and GraphicsModule then GraphicsModule.SetAntiLag(true) end
+    if CONFIG.FarmMode and GraphicsModule then GraphicsModule.SetFarmMode(true) end
+    if CONFIG.AutoClaim and AutoClaim then AutoClaim.Start() end
+    if CONFIG.AutoTutorial and AutoTutorial then AutoTutorial.Start() end
+    if CONFIG.AutoDelete and AutoDelete then AutoDelete.Start() end
+end)
+
+print("👑 [RITOD HUB] Loaded successfully with Config!")

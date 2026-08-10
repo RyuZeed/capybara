@@ -1,48 +1,46 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - AUTO DELETE PLANT (100% REAL IN-GAME DUMP)
+	⚡ RITOD HUB - AUTO DELETE & AUTO SELL PLANTS (100% VERIFIED)
 	Game: Capybaras vs Plants (PlaceId: 104973076655377)
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
-	- 🌿 EXACT 100% PLANT CATALOG (From Game Source Dump):
-	  • Common: Carrot, Potato
-	  • Rare: Orange Tulip, Broccoli
-	  • Epic: Sunflower, Tomato
-	  • Legendary: Watermelon, Garlic
-	  • Mythic: Fancy Avocado, Cocotree, Fancy Ghost Avocado
-	  • Divine: Carnivorous Plant, Mandrake
-	  • Godly: Ghost Pepper, Magic Mushroom, Robot Mushroom
-	  • Secret: Pumpking, True Carrot, Disco Carrot, Disco True Carrot, Pumpkin, Dragonfruit
-	  • BOSS: Scarlet Carrot, Red Potato, Dark Tomato, Skull Flower, Holy Grailic, 
-	          Carnivorous Jester, Pumpkin Tyrant, Golem King, Conqueror Carrot
-	- 🧬 MUTATION STRIPPER: Menangani [1.6x], [Moonlit], [Chilly], dll
-	- 🗑️ TRIPLE-ENGINE ENGINE:
-	  1. Remote Event: ReplicatedStorage.Remotes.Sell & ChangeAutosellOptions
-	  2. Inventory Scanner: BackpackGui.Backpack.Inventory.ScrollingFrame
-	  3. Plot & Pot Shovel Scanner
+	🎯 CONFIGURABLE SETTINGS:
+	- Bisa diubah lewat getgenv().AutoDeleteConfig sebelum execute!
+	- Mengatur Tier Rarity (Common, Rare, Epic, Mythic, Legendary)
+	- Mengatur Tanaman Spesifik yang ingin dijual / disimpan
 	===============================================================
 ]]
 
 local AutoDeletePlant = {}
 _G.AutoDeletePlant = AutoDeletePlant
 
+-- Tunggu game ter-load sempurna
 if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
-task.wait(0.3)
+task.wait(0.2)
 
+-- Services
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+-- 🧹 HAPUS PAKSA SEMUA GUI LAMA YANG MENEMPEL DI MEMORI
+pcall(function()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if pg and pg:FindFirstChild("RitodHubAutoDelete") then pg.RitodHubAutoDelete:Destroy() end
+    if CoreGui and CoreGui:FindFirstChild("RitodHubAutoDelete") then CoreGui.RitodHubAutoDelete:Destroy() end
+end)
 
 -- =================================================================
--- 🎨 RARITY COLORS & EXACT IN-GAME DATA
+-- 🎨 RARITY COLORS & EXACT CATALOG DUMP
 -- =================================================================
+
 local RARITY_COLORS = {
     ["Common"]    = Color3.fromRGB(180, 180, 180),
     ["Rare"]      = Color3.fromRGB(75, 170, 255),
@@ -107,146 +105,92 @@ local REAL_PLANTS_CATALOG = {
     { name = "Conqueror Carrot", rarity = "BOSS" },
 }
 
--- REAL CAPYBARAS CATALOG (FROM DUMP)
-local REAL_CAPYBARAS_CATALOG = {
-    { name = "Capybara", rarity = "Common" },
-    { name = "Alpha Capybara", rarity = "Rare" },
-    { name = "Archer Capybara", rarity = "Epic" },
-    { name = "Magic Capybara", rarity = "Legendary" },
-    { name = "Baby Prince Capybara", rarity = "Legendary" },
-    { name = "Ghost Capybara", rarity = "Mythic" },
-    { name = "Royal Mage Capybara", rarity = "Mythic" },
-    { name = "Sinister Capybara", rarity = "Mythic" },
-    { name = "Golem Capybara", rarity = "Divine" },
-    { name = "Fallen King Capybara", rarity = "Divine" },
-    { name = "Obsidian Capybara", rarity = "Divine" },
-    { name = "Robot Capybara", rarity = "Godly" },
-    { name = "Jester Capybara", rarity = "Godly" },
-    { name = "Soul Fist Capybara", rarity = "Godly" },
-    { name = "Disco Capybara", rarity = "Secret" },
-    { name = "Bounty Hunter Capybara", rarity = "Secret" },
-    { name = "Angel Capybara", rarity = "Secret" },
-    { name = "Timekeeper Capybara", rarity = "Secret" },
-    { name = "Void Maw Capybara", rarity = "Secret" },
-    { name = "Shinigami Capybara", rarity = "Secret" },
-}
+-- =================================================================
+-- ⚙️ CONFIGURATION (UBAH SETTING DI SINI ATAU DI EXECUTOR)
+-- =================================================================
 
--- =================================================================
--- ⚙️ CONFIGURATION & STATE
--- =================================================================
+local USER_CFG = (typeof(getgenv) == "function" and getgenv().AutoDeleteConfig) or _G.AutoDeleteConfig or {}
+
 AutoDeletePlant.Config = {
-    Enabled = false,
-    ScanInterval = 1.8,
+    Enabled            = (USER_CFG.Enabled ~= nil and USER_CFG.Enabled) or true,
+    ScanInterval       = USER_CFG.ScanInterval or 1.5,
 
-    -- Rarity Filters
-    DeleteCommon = true,      -- Hapus Carrot & Potato
-    DeleteRare = false,        -- Orange Tulip, Broccoli
-    DeleteEpic = false,        -- Sunflower, Tomato
-    DeleteLegendary = false,   -- Watermelon, Garlic
-    DeleteMythic = false,      -- Fancy Avocado, Cocotree
-    DeleteDivine = false,      -- Carnivorous Plant, Mandrake
-    DeleteGodly = false,       -- Ghost Pepper, Magic Mushroom
-    DeleteSecret = false,      -- Pumpking, True Carrot, Dragonfruit
-    DeleteBoss = false,        -- Boss Plants
+    -- Proteksi
+    ProtectEquipped    = (USER_CFG.ProtectEquipped ~= nil and USER_CFG.ProtectEquipped) or true,
+    AutoEquipBestFirst = (USER_CFG.AutoEquipBestFirst ~= nil and USER_CFG.AutoEquipBestFirst) or true,
+    AutoSyncInGameUI   = (USER_CFG.AutoSyncInGameUI ~= nil and USER_CFG.AutoSyncInGameUI) or true,
 
-    -- Safety Features
-    ProtectEquipped = true,
-    AutoEquipBestFirst = true,
-    CleanPlotPots = true,
-
-    -- Custom Whitelist (Tanaman yang TIDAK BOLEH dihapus)
-    Whitelist = {
-        "dragonfruit", "pumpkin", "true carrot", "disco", "ghost pepper",
-        "magic mushroom", "carnivorous plant", "mandrake", "fancy avocado",
-        "watermelon", "garlic", "sunflower"
+    -- 🎯 1. PILIH RARITY YANG INGIN DIJUAL DI INVENTORY (true = Jual | false = Simpan)
+    Rarities = USER_CFG.Rarities or {
+        Common    = true,   -- ⚪ Biasa (Carrot, Potato)
+        Rare      = true,   -- 🔵 Aneh (Orange Tulip, Broccoli)
+        Epic      = true,   -- 🟣 Epik (Sunflower, Tomato)
+        Mythic    = true,   -- 🔴 Mistik (Fancy Avocado, Cocotree)
+        Legendary = false,  -- 🟡 Legendary (Watermelon, Garlic)
+        Divine    = false,  -- 🌸 Divine (Carnivorous Plant, Mandrake)
+        Godly     = false,  -- ✨ Godly (Ghost Pepper, Magic Mushroom)
+        Secret    = false,  -- 👑 Secret (Dragonfruit, Pumpkin, True Carrot)
     },
 
-    -- Custom Blacklist (Tanaman yang SELALU dihapus)
-    Blacklist = {
-        "carrot", "potato"
-    },
-
-    -- Selected specific plants for deletion
-    SelectedPlants = {
-        ["carrot"] = true,
-        ["potato"] = true,
+    -- 🎯 2. PILIH TANAMAN SPESIFIK YANG INGIN DIJUAL (true = Jual | false = Simpan)
+    SelectedPlants = USER_CFG.SelectedPlants or {
+        ["carrot"]              = true,
+        ["potato"]              = true,
+        ["orange tulip"]        = true,
+        ["broccoli"]            = true,
+        ["sunflower"]           = true,
+        ["tomato"]              = true,
+        ["fancy avocado"]       = true,
+        ["cocotree"]            = true,
+        ["fancy ghost avocado"] = true,
     }
 }
 
 local isRunning = false
 local deleteThread = nil
 local totalDeletedCount = 0
-local totalScannedCount = 0
 
 -- =================================================================
--- 🛠️ HELPER FUNCTIONS & REMOTES
+-- 🛠️ HELPER FUNCTIONS & UI CLICKER
 -- =================================================================
 
-local function getChar()
-    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-end
-
-local function getHRP()
-    local char = getChar()
-    return char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 5)
-end
-
-local function getMainGui()
-    local pg = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)
-    if not pg then return nil end
-    return pg:FindFirstChild("MainGui") or pg:WaitForChild("MainGui", 3) or pg:FindFirstChildWhichIsA("ScreenGui")
-end
-
-local function getBackpackGui()
-    local pg = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)
-    if not pg then return nil end
-    return pg:FindFirstChild("BackpackGui") or pg:FindFirstChild("Backpack")
-end
-
-local function getRemotes()
-    return ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:FindFirstChild("Remotes", true)
-end
-
-local function callRemote(name, ...)
-    local remotes = getRemotes()
-    local remote = remotes and remotes:FindFirstChild(name)
-    if not remote then
-        remote = ReplicatedStorage:FindFirstChild(name, true)
-    end
-    if remote then
-        if remote:IsA("RemoteEvent") then
-            return remote:FireServer(...)
-        elseif remote:IsA("RemoteFunction") then
-            return remote:InvokeServer(...)
-        end
-    end
-    return nil
-end
-
--- Membersihkan tag mutasi seperti "[Moonlit] Carrot", "[1.6x] Carrot", "[Chilly] Potato"
 local function cleanPlantName(rawText)
     if not rawText or type(rawText) ~= "string" then return "" end
-    -- Hapus semua pola [....]
     local cleaned = rawText:gsub("%b[]", ""):gsub("^%s*(.-)%s*$", "%1")
     return cleaned
 end
 
-local function clickButton(btn)
+local function getPlantCount()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then return 0 end
+    local c = 0
+    for _, t in ipairs(backpack:GetChildren()) do
+        if t:IsA("Tool") then
+            local n = t.Name:lower()
+            if n:find("carrot") or n:find("potato") or n:find("tulip") or n:find("broccoli")
+                or n:find("sunflower") or n:find("tomato") or n:find("watermelon") or n:find("garlic")
+                or n:find("avocado") or n:find("cocotree") or n:find("pepper") or n:find("mushroom")
+                or n:find("plant") or n:find("mandrake") or n:find("pumpkin") or n:find("dragonfruit") then
+                c = c + 1
+            end
+        end
+    end
+    return c
+end
+
+local function clickImageButton(btn)
     if not btn then return end
 
     if typeof(firesignal) == "function" then
-        if btn.MouseButton1Click then pcall(function() firesignal(btn.MouseButton1Click) end) end
-        if btn.MouseButton1Down then pcall(function() firesignal(btn.MouseButton1Down) end) end
         if btn.Activated then pcall(function() firesignal(btn.Activated) end) end
+        if btn.MouseButton1Click then pcall(function() firesignal(btn.MouseButton1Click) end) end
     end
 
     if typeof(getconnections) == "function" then
-        for _, eventName in ipairs({"Activated", "MouseButton1Click", "MouseButton1Down", "TouchTap"}) do
+        for _, ev in ipairs({"Activated", "MouseButton1Click", "MouseButton1Down"}) do
             pcall(function()
-                if btn[eventName] then
-                    for _, conn in ipairs(getconnections(btn[eventName])) do
-                        if conn.Function then conn.Function() elseif conn.Fire then conn:Fire() end
-                    end
+                for _, conn in ipairs(getconnections(btn[ev])) do
+                    if conn.Function then conn.Function() elseif conn.Fire then conn:Fire() end
                 end
             end)
         end
@@ -257,370 +201,70 @@ local function clickButton(btn)
         local size = btn.AbsoluteSize
         local cx = math.floor(pos.X + size.X / 2)
         local cy = math.floor(pos.Y + size.Y / 2)
-
-        if typeof(VirtualInputManager) == "userdata" or typeof(VirtualInputManager) == "table" then
-            pcall(function()
-                VirtualInputManager:SendTouchEvent(1, 0, cx, cy)
-                task.wait(0.02)
-                VirtualInputManager:SendTouchEvent(1, 2, cx, cy)
-            end)
-            pcall(function()
-                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
-                task.wait(0.02)
-                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
-            end)
-        end
-    end)
-
-    pcall(function()
-        VirtualUser:CaptureController()
-        local pos = btn.AbsolutePosition
-        local size = btn.AbsoluteSize
-        VirtualUser:ClickButton1(Vector2.new(pos.X + size.X / 2, pos.Y + size.Y / 2))
+        VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+        task.wait(0.02)
+        VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
     end)
 end
 
-local function triggerSinglePromptInstant(prompt)
-    if not prompt or not prompt:IsA("ProximityPrompt") or not prompt.Enabled then return false end
+-- =================================================================
+-- 🔄 SINKRONISASI TOMBOL "JUAL OTOMATIS" DI MENU GAME
+-- =================================================================
 
+function AutoDeletePlant.SyncInGameRarityButtons(rarities)
+    rarities = rarities or {"Common", "Rare", "Epic", "Mythic"}
     pcall(function()
-        prompt.HoldDuration = 0
-        prompt.RequiresLineOfSight = false
-        prompt.MaxActivationDistance = 100
-        prompt.Enabled = true
-    end)
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        local mainGui = pg and pg:FindFirstChild("MainGui")
+        local autoSellFrame = mainGui and mainGui.Root and mainGui.Root.Frames:FindFirstChild("AutoSell")
+        local rarityOptions = autoSellFrame and autoSellFrame:FindFirstChild("RarityOptions")
 
-    if typeof(fireproximityprompt) == "function" then
-        pcall(function() fireproximityprompt(prompt, 0) end)
-        pcall(function() fireproximityprompt(prompt, 1) end)
-        pcall(function() fireproximityprompt(prompt) end)
-    end
-
-    pcall(function()
-        prompt:InputHoldBegin()
-        task.wait(0.03)
-        prompt:InputHoldEnd()
-    end)
-
-    pcall(function()
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-        task.wait(0.03)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-    end)
-
-    return true
-end
-
-local function handleConfirmPopup(maxWait)
-    local waitTime = maxWait or 1.2
-    local startTime = tick()
-
-    while (tick() - startTime) < waitTime do
-        local clicked = false
-        pcall(function()
-            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-            if not playerGui then return end
-
-            for _, gui in ipairs(playerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") and gui.Enabled then
-                    for _, obj in ipairs(gui:GetDescendants()) do
-                        if obj:IsA("GuiObject") and obj.Visible then
-                            local objName = obj.Name:lower()
-                            if objName:find("confirm") or objName:find("prompt") or objName:find("modal") or objName:find("popup") or objName:find("delete") or objName:find("sell") or objName:find("trash") then
-                                for _, btn in ipairs(obj:GetDescendants()) do
-                                    if btn:IsA("TextButton") or btn:IsA("ImageButton") then
-                                        local btnName = btn.Name:lower()
-                                        local btnText = (btn:IsA("TextButton") and btn.Text or ""):lower()
-
-                                        if btnName == "yes" or btnName:find("confirm") or btnName:find("accept") or btnName:find("agree") or btnName:find("delete") or btnName:find("sell") or btnName:find("trash")
-                                            or btnText == "yes" or btnText == "ya" or btnText:find("confirm") or btnText:find("delete") or btnText:find("sell") or btnText:find("hapus") or btnText:find("jual") or btnText == "ok" then
-                                            clickButton(btn)
-                                            clicked = true
-                                            task.wait(0.08)
-                                            break
-                                        end
-                                    end
-                                end
-                            end
-                            if clicked then break end
-                        end
-                    end
+        if rarityOptions then
+            for _, rName in ipairs(rarities) do
+                local rFrame = rarityOptions:FindFirstChild(rName)
+                if rFrame and rFrame:FindFirstChild("Button") then
+                    clickImageButton(rFrame.Button)
+                    task.wait(0.03)
                 end
-                if clicked then break end
             end
-        end)
-
-        if clicked then
-            task.wait(0.1)
-            return true
         end
+
+        if Remotes:FindFirstChild("ChangeAutosellOptions") then
+            for _, rName in ipairs(rarities) do
+                Remotes.ChangeAutosellOptions:InvokeServer(rName, true)
+            end
+        end
+    end)
+end
+
+-- =================================================================
+-- 🎯 100% EXACT BULK SELL PLANTS FROM GAME SOURCE CODE
+-- =================================================================
+
+function AutoDeletePlant.InstantSellAllPlants()
+    local before = getPlantCount()
+
+    -- 1. Pasang Tanaman Terbaik (Proteksi) jika aktif
+    if AutoDeletePlant.Config.AutoEquipBestFirst and Remotes:FindFirstChild("EquipBestPlants") then
+        Remotes.EquipBestPlants:FireServer()
         task.wait(0.08)
     end
-    return false
+
+    -- 2. EKSEKUSI ENGINE ASLI BULK SELL
+    Remotes.Sell:FireServer("bulkSell", "Plant")
+
+    task.wait(0.3)
+    local after = getPlantCount()
+    totalDeletedCount = totalDeletedCount + 1
+    return before, after
 end
-
--- =================================================================
--- 🏡 AKURAT: DETEKSI PLOT MILIK LOCALPLAYER (FROM DUMP: Owner == UserId)
--- =================================================================
-
-local function getMyPlot()
-    local map = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map") or workspace:FindFirstChild("Map") or workspace
-    local plots = map:FindFirstChild("Plots")
-    if not plots then plots = workspace:FindFirstChild("Plots", true) end
-    if not plots then return nil end
-
-    local myUserId = tostring(LocalPlayer.UserId)
-    local myName = LocalPlayer.Name
-
-    -- Dari hasil dump, Owner disimpan sebagai string UserId: e.g. "134346469"
-    for _, plot in ipairs(plots:GetChildren()) do
-        local ownerAttr = plot:GetAttribute("Owner")
-        if ownerAttr and (tostring(ownerAttr) == myUserId or tostring(ownerAttr) == myName) then
-            return plot
-        end
-    end
-
-    -- Fallback
-    return plots:FindFirstChild("1") or plots:GetChildren()[1]
-end
-
--- =================================================================
--- 🔍 PLANT EVALUATION ENGINE
--- =================================================================
-
-local function getPlantRarityFromName(plantName)
-    local pClean = cleanPlantName(plantName):lower()
-    for _, p in ipairs(REAL_PLANTS_CATALOG) do
-        if p.name:lower() == pClean then
-            return p.rarity
-        end
-    end
-    return "Common"
-end
-
-function AutoDeletePlant.ShouldDelete(plantName, plantRarity, isEquipped)
-    if not plantName or plantName == "" then return false end
-    local baseName = cleanPlantName(plantName):lower()
-    local rarity = (plantRarity or getPlantRarityFromName(baseName)):lower()
-
-    -- 0. PROTEKSI SELAMA AUTO TUTORIAL BERJALAN (Jangan hapus Carrot/Potato sebelum tutorial selesai)
-    if _G.AutoTutorialRunning and (rarity == "common" or baseName == "carrot" or baseName == "potato") then
-        return false
-    end
-
-    -- 1. Jangan hapus Capybara atau Egg jika tidak sengaja terscan
-    if baseName:find("egg") or baseName:find("capybara") or baseName:find("hammer") or baseName:find("sponge") or baseName:find("totem") then
-        return false
-    end
-
-    -- 2. Proteksi tanaman terpasang (Equipped)
-    if AutoDeletePlant.Config.ProtectEquipped and isEquipped then
-        return false
-    end
-
-    -- 3. Whitelist: Paling prioritas (Aman)
-    for _, safe in ipairs(AutoDeletePlant.Config.Whitelist) do
-        local safeLower = safe:lower()
-        if baseName == safeLower or baseName:find(safeLower) or (rarity ~= "" and rarity:find(safeLower)) then
-            return false
-        end
-    end
-
-    -- 4. Specific Selected Plants
-    if AutoDeletePlant.Config.SelectedPlants[baseName] then
-        return true
-    end
-    for pName, state in pairs(AutoDeletePlant.Config.SelectedPlants) do
-        if state and (baseName == pName:lower() or baseName:find(pName:lower())) then
-            return true
-        end
-    end
-
-    -- 5. Blacklist
-    for _, target in ipairs(AutoDeletePlant.Config.Blacklist) do
-        if baseName == target:lower() or baseName:find(target:lower()) then
-            return true
-        end
-    end
-
-    -- 6. Rarity Category Filter (Sesuai Catalog Asli In-Game)
-    if AutoDeletePlant.Config.DeleteCommon and (rarity == "common" or baseName == "carrot" or baseName == "potato") then return true end
-    if AutoDeletePlant.Config.DeleteRare and (rarity == "rare" or baseName == "orange tulip" or baseName == "broccoli") then return true end
-    if AutoDeletePlant.Config.DeleteEpic and (rarity == "epic" or baseName == "sunflower" or baseName == "tomato") then return true end
-    if AutoDeletePlant.Config.DeleteLegendary and (rarity == "legendary" or baseName == "watermelon" or baseName == "garlic") then return true end
-    if AutoDeletePlant.Config.DeleteMythic and (rarity == "mythic" or baseName:find("avocado") or baseName == "cocotree") then return true end
-    if AutoDeletePlant.Config.DeleteDivine and (rarity == "divine" or baseName:find("carnivorous") or baseName == "mandrake") then return true end
-    if AutoDeletePlant.Config.DeleteGodly and (rarity == "godly" or baseName:find("mushroom") or baseName == "ghost pepper") then return true end
-    if AutoDeletePlant.Config.DeleteSecret and (rarity == "secret" or baseName:find("pumpkin") or baseName:find("dragonfruit") or baseName:find("true carrot")) then return true end
-    if AutoDeletePlant.Config.DeleteBoss and rarity == "boss" then return true end
-
-    return false
-end
-
--- =================================================================
--- ⚡ TRIPLE-ENGINE REAL IN-GAME PLANT CLEANER
--- =================================================================
-
--- ENGINE 1: Real In-Game Sell Remote Execution (Dari Dump: ReplicatedStorage.Remotes.Sell)
-local function executeSellRemotes(plantName)
-    pcall(function()
-        callRemote("Sell", plantName)
-        callRemote("Sell", { plantName })
-        callRemote("Sell", 1, plantName)
-    end)
-end
-
--- ENGINE 2: Real Backpack Inventory Scanner (BackpackGui.Backpack.Inventory.ScrollingFrame)
-local function scanBackpackInventoryUI()
-    local bpGui = getBackpackGui() or getMainGui()
-    if not bpGui then return 0 end
-
-    local deletedCount = 0
-
-    pcall(function()
-        local invFrame = bpGui:FindFirstChild("Inventory", true)
-        local scrollFrame = invFrame and invFrame:FindFirstChild("ScrollingFrame")
-        if not scrollFrame then
-            scrollFrame = bpGui:FindFirstChildWhichIsA("ScrollingFrame", true)
-        end
-
-        if scrollFrame then
-            for _, itemCard in ipairs(scrollFrame:GetChildren()) do
-                if itemCard:IsA("GuiObject") and itemCard.Visible and not itemCard.Name:lower():find("template") and not itemCard.Name:lower():find("layout") then
-                    totalScannedCount += 1
-                    local rawName = itemCard.Name
-                    local isEquipped = false
-
-                    for _, label in ipairs(itemCard:GetDescendants()) do
-                        if label:IsA("TextLabel") and label.Text ~= "" then
-                            rawName = label.Text
-                            if label.Text:lower():find("equipped") or label.Text:lower():find("terpasang") then
-                                isEquipped = true
-                            end
-                        end
-                        if label.Name:lower():find("checkmark") or label.Name:lower():find("equipped") then
-                            if label.Visible then isEquipped = true end
-                        end
-                    end
-
-                    local baseName = cleanPlantName(rawName)
-                    local rarity = getPlantRarityFromName(baseName)
-
-                    if AutoDeletePlant.ShouldDelete(baseName, rarity, isEquipped) then
-                        -- 1. Klik tombol delete/sell di kartu
-                        local sellBtn = nil
-                        for _, btn in ipairs(itemCard:GetDescendants()) do
-                            if btn:IsA("GuiButton") then
-                                local bName = btn.Name:lower()
-                                if bName:find("sell") or bName:find("del") or bName:find("trash") or bName:find("remove") then
-                                    sellBtn = btn
-                                    break
-                                end
-                            end
-                        end
-
-                        if sellBtn then
-                            clickButton(sellBtn)
-                            task.wait(0.04)
-                            handleConfirmPopup(0.5)
-                        else
-                            clickButton(itemCard)
-                            task.wait(0.04)
-                            handleConfirmPopup(0.5)
-                        end
-
-                        -- 2. Jalankan Sell Remote
-                        executeSellRemotes(baseName)
-                        executeSellRemotes(rawName)
-
-                        deletedCount += 1
-                        totalDeletedCount += 1
-                        task.wait(0.04)
-                    end
-                end
-            end
-        end
-    end)
-
-    return deletedCount
-end
-
--- ENGINE 3: Plot Pot Shovel Scanner (Membersihkan tanaman sampah di plot pot)
-local function scanPlotPots()
-    if not AutoDeletePlant.Config.CleanPlotPots then return 0 end
-    local myPlot = getMyPlot()
-    if not myPlot then return 0 end
-
-    local cleanedCount = 0
-    pcall(function()
-        local pottedPlants = myPlot:FindFirstChild("PottedPlants") or myPlot:FindFirstChild("Pots") or myPlot:FindFirstChild("TowerArea")
-        if not pottedPlants then return end
-
-        for _, pot in ipairs(pottedPlants:GetChildren()) do
-            for _, prompt in ipairs(pot:GetDescendants()) do
-                if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                    local actText = (prompt.ActionText or ""):lower()
-                    local objText = (prompt.ObjectText or ""):lower()
-
-                    if actText:find("shovel") or actText:find("remove") or actText:find("clear") or actText:find("sell")
-                        or objText:find("shovel") or objText:find("remove") or objText:find("delete") then
-
-                        local potPlantName = pot.Name:lower()
-                        for _, child in ipairs(pot:GetChildren()) do
-                            if child:IsA("Model") or child:IsA("Folder") then
-                                potPlantName = child.Name:lower()
-                            end
-                        end
-
-                        local baseName = cleanPlantName(potPlantName)
-                        if AutoDeletePlant.ShouldDelete(baseName, "common", false) then
-                            triggerSinglePromptInstant(prompt)
-                            task.wait(0.06)
-                            handleConfirmPopup(0.5)
-                            cleanedCount += 1
-                            totalDeletedCount += 1
-                        end
-                    end
-                end
-            end
-        end
-    end)
-
-    return cleanedCount
-end
-
--- =================================================================
--- 🔄 SINGLE CYCLE RUNNER
--- =================================================================
 
 function AutoDeletePlant.RunSingleCycle()
-    pcall(function()
-        -- 1. Equip Best Plants agar tanaman terbaik selalu aman
-        if AutoDeletePlant.Config.AutoEquipBestFirst then
-            callRemote("EquipBestPlants")
-            task.wait(0.15)
-        end
-
-        -- 2. Bersihkan inventory via UI Backpack
-        scanBackpackInventoryUI()
-
-        -- 3. Bersihkan via Remote Sell untuk tanaman yang dipilih
-        for pName, state in pairs(AutoDeletePlant.Config.SelectedPlants) do
-            if state then
-                executeSellRemotes(pName)
-            end
-        end
-        for _, blackName in ipairs(AutoDeletePlant.Config.Blacklist) do
-            executeSellRemotes(blackName)
-        end
-
-        -- 4. Bersihkan pot plot jika ada tanaman sampah
-        scanPlotPots()
-    end)
+    AutoDeletePlant.InstantSellAllPlants()
 end
 
 -- =================================================================
--- 🎨 ULTRA HD GUI BUILDER (SAME AS ROLL ANIME PRO)
+-- 🎨 ULTRA HD GUI BUILDER
 -- =================================================================
 
 local function buildUltraHDGui()
@@ -643,7 +287,6 @@ local function buildUltraHDGui()
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = parentGui
 
-    -- ===================== DRAGGABLE HANDLER =====================
     local function makeDraggable(frame, dragHandle, onClick)
         dragHandle = dragHandle or frame
         local dragging = false
@@ -688,7 +331,6 @@ local function buildUltraHDGui()
         end)
     end
 
-    -- ===================== NOTIFICATION SYSTEM =====================
     local notifHolder = Instance.new("Frame")
     notifHolder.Name = "NotifHolder"
     notifHolder.AnchorPoint = Vector2.new(1, 1)
@@ -704,10 +346,10 @@ local function buildUltraHDGui()
     notifList.Parent = notifHolder
 
     local function Notify(title, desc, duration)
-        duration = duration or 3
+        duration = duration or 2.5
         local n = Instance.new("Frame")
-        n.Size = UDim2.new(1, 0, 0, 64)
-        n.BackgroundColor3 = Color3.fromRGB(18, 14, 24)
+        n.Size = UDim2.new(1, 0, 0, 60)
+        n.BackgroundColor3 = Color3.fromRGB(20, 15, 28)
         n.BackgroundTransparency = 0.1
         n.BorderSizePixel = 0
         n.Position = UDim2.new(1, 100, 0, 0)
@@ -715,7 +357,7 @@ local function buildUltraHDGui()
         n.Parent = notifHolder
 
         local nCorner = Instance.new("UICorner")
-        nCorner.CornerRadius = UDim.new(0, 12)
+        nCorner.CornerRadius = UDim.new(0, 10)
         nCorner.Parent = n
 
         local nStroke = Instance.new("UIStroke")
@@ -723,21 +365,9 @@ local function buildUltraHDGui()
         nStroke.Color = Color3.fromRGB(185, 90, 255)
         nStroke.Parent = n
 
-        local nGlow = Instance.new("Frame")
-        nGlow.Size = UDim2.new(0, 4, 1, -16)
-        nGlow.Position = UDim2.new(0, 8, 0, 8)
-        nGlow.BackgroundColor3 = Color3.fromRGB(185, 90, 255)
-        nGlow.BorderSizePixel = 0
-        nGlow.ZIndex = 202
-        nGlow.Parent = n
-
-        local ngCorner = Instance.new("UICorner")
-        ngCorner.CornerRadius = UDim.new(1, 0)
-        ngCorner.Parent = nGlow
-
         local nTitle = Instance.new("TextLabel")
-        nTitle.Position = UDim2.new(0, 22, 0, 10)
-        nTitle.Size = UDim2.new(1, -30, 0, 18)
+        nTitle.Position = UDim2.new(0, 12, 0, 8)
+        nTitle.Size = UDim2.new(1, -24, 0, 18)
         nTitle.BackgroundTransparency = 1
         nTitle.Text = title
         nTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -748,39 +378,34 @@ local function buildUltraHDGui()
         nTitle.Parent = n
 
         local nDesc = Instance.new("TextLabel")
-        nDesc.Position = UDim2.new(0, 22, 0, 30)
-        nDesc.Size = UDim2.new(1, -30, 0, 22)
+        nDesc.Position = UDim2.new(0, 12, 0, 28)
+        nDesc.Size = UDim2.new(1, -24, 0, 22)
         nDesc.BackgroundTransparency = 1
         nDesc.Text = desc
         nDesc.TextColor3 = Color3.fromRGB(190, 175, 205)
         nDesc.TextSize = 11
         nDesc.Font = Enum.Font.GothamMedium
         nDesc.TextXAlignment = Enum.TextXAlignment.Left
-        nDesc.TextWrapped = true
         nDesc.ZIndex = 202
         nDesc.Parent = n
 
-        TweenService:Create(n, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+        TweenService:Create(n, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
 
         task.delay(duration, function()
             if n and n.Parent then
-                local out = TweenService:Create(n, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(1, 150, 0, 0)})
+                local out = TweenService:Create(n, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(1, 150, 0, 0)})
                 out:Play()
                 out.Completed:Connect(function() n:Destroy() end)
             end
         end)
     end
 
-    -- ==============================================================================
-    -- 🖥️ MAIN HUB WINDOW (680x440)
-    -- ==============================================================================
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainHub"
     mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
     mainFrame.Size = UDim2.new(0, 680, 0, 440)
     mainFrame.BackgroundColor3 = Color3.fromRGB(15, 12, 20)
-    mainFrame.BackgroundTransparency = 0.05
     mainFrame.BorderSizePixel = 0
     mainFrame.ClipsDescendants = true
     mainFrame.ZIndex = 10
@@ -796,7 +421,6 @@ local function buildUltraHDGui()
     mainStroke.Transparency = 0.4
     mainStroke.Parent = mainFrame
 
-    -- TopBar
     local topBar = Instance.new("Frame")
     topBar.Name = "TopBar"
     topBar.Size = UDim2.new(1, 0, 0, 50)
@@ -823,7 +447,7 @@ local function buildUltraHDGui()
     hubTitle.Position = UDim2.new(0, 18, 0, 0)
     hubTitle.Size = UDim2.new(0, 360, 1, 0)
     hubTitle.BackgroundTransparency = 1
-    hubTitle.Text = "⚡ RITOD HUB <font color='#c47aff'>AUTO DELETE PLANTS</font>"
+    hubTitle.Text = "⚡ RITOD HUB <font color='#c47aff'>AUTO DELETE & AUTO SELL</font>"
     hubTitle.RichText = true
     hubTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     hubTitle.TextSize = 15
@@ -837,29 +461,13 @@ local function buildUltraHDGui()
     statsLabel.Position = UDim2.new(1, -95, 0.5, 0)
     statsLabel.Size = UDim2.new(0, 160, 0, 24)
     statsLabel.BackgroundTransparency = 1
-    statsLabel.Text = "FPS: 60  |  PING: 35ms"
+    statsLabel.Text = "FPS: 60  |  PING: 24ms"
     statsLabel.TextColor3 = Color3.fromRGB(160, 145, 175)
     statsLabel.TextSize = 11
     statsLabel.Font = Enum.Font.GothamMedium
     statsLabel.TextXAlignment = Enum.TextXAlignment.Right
     statsLabel.ZIndex = 12
     statsLabel.Parent = topBar
-
-    task.spawn(function()
-        local lastTime = tick()
-        local frameCount = 0
-        RunService.RenderStepped:Connect(function()
-            frameCount = frameCount + 1
-            local curTime = tick()
-            if curTime - lastTime >= 1 then
-                local fps = math.floor(frameCount / (curTime - lastTime))
-                local ping = math.floor(LocalPlayer:GetNetworkPing() * 1000)
-                statsLabel.Text = string.format("FPS: %d  |  PING: %dms", fps, ping)
-                frameCount = 0
-                lastTime = curTime
-            end
-        end)
-    end)
 
     local closeBtn = Instance.new("TextButton")
     closeBtn.Name = "CloseBtn"
@@ -899,12 +507,11 @@ local function buildUltraHDGui()
     minCorner.CornerRadius = UDim.new(0, 8)
     minCorner.Parent = minBtn
 
-    -- Floating Widget
     local floatWidget = Instance.new("Frame")
     floatWidget.Name = "FloatWidget"
     floatWidget.AnchorPoint = Vector2.new(0, 0.5)
     floatWidget.Position = UDim2.new(0, 24, 0.5, 0)
-    floatWidget.Size = UDim2.new(0, 60, 0, 60)
+    floatWidget.Size = UDim2.new(0, 56, 0, 56)
     floatWidget.BackgroundColor3 = Color3.fromRGB(20, 14, 28)
     floatWidget.BorderSizePixel = 0
     floatWidget.ZIndex = 100
@@ -912,46 +519,22 @@ local function buildUltraHDGui()
     floatWidget.Parent = screenGui
 
     local floatCorner = Instance.new("UICorner")
-    floatCorner.CornerRadius = UDim.new(0, 18)
+    floatCorner.CornerRadius = UDim.new(0, 16)
     floatCorner.Parent = floatWidget
 
     local floatStroke = Instance.new("UIStroke")
     floatStroke.Thickness = 2.5
     floatStroke.Color = Color3.fromRGB(190, 90, 255)
-    floatStroke.Transparency = 0.2
     floatStroke.Parent = floatWidget
-
-    local strokeGrad = Instance.new("UIGradient")
-    strokeGrad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 160)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(170, 90, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(90, 210, 255)),
-    })
-    strokeGrad.Rotation = 45
-    strokeGrad.Parent = floatStroke
 
     local floatIcon = Instance.new("TextLabel")
     floatIcon.Size = UDim2.new(1, 0, 1, 0)
     floatIcon.BackgroundTransparency = 1
     floatIcon.Text = "🗑️"
-    floatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
     floatIcon.TextSize = 22
     floatIcon.Font = Enum.Font.GothamBlack
     floatIcon.ZIndex = 101
     floatIcon.Parent = floatWidget
-
-    local statusDot = Instance.new("Frame")
-    statusDot.AnchorPoint = Vector2.new(1, 0)
-    statusDot.Position = UDim2.new(1, -6, 0, 6)
-    statusDot.Size = UDim2.new(0, 10, 0, 10)
-    statusDot.BackgroundColor3 = Color3.fromRGB(70, 255, 140)
-    statusDot.BorderSizePixel = 0
-    statusDot.ZIndex = 102
-    statusDot.Parent = floatWidget
-
-    local statusCorner = Instance.new("UICorner")
-    statusCorner.CornerRadius = UDim.new(1, 0)
-    statusCorner.Parent = statusDot
 
     local isHubVisible = true
     local lastSavedPosition = mainFrame.Position
@@ -986,7 +569,6 @@ local function buildUltraHDGui()
         end
     end)
 
-    -- Sidebar & Content Area
     local sideBar = Instance.new("Frame")
     sideBar.Name = "SideBar"
     sideBar.Position = UDim2.new(0, 0, 0, 50)
@@ -1016,7 +598,6 @@ local function buildUltraHDGui()
     contentArea.ZIndex = 11
     contentArea.Parent = mainFrame
 
-    -- ===================== TAB BUILDER =====================
     local tabs = {}
     local activeTab = nil
 
@@ -1143,14 +724,6 @@ local function buildUltraHDGui()
             bStroke.Color = Color3.fromRGB(70, 50, 85)
             bStroke.Parent = btn
 
-            btn.MouseEnter:Connect(function()
-                TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(48, 32, 65)}):Play()
-                TweenService:Create(bStroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(180, 90, 255)}):Play()
-            end)
-            btn.MouseLeave:Connect(function()
-                TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(26, 20, 34)}):Play()
-                TweenService:Create(bStroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(70, 50, 85)}):Play()
-            end)
             btn.MouseButton1Click:Connect(function()
                 if callback then callback() end
             end)
@@ -1236,7 +809,7 @@ local function buildUltraHDGui()
 
         function elements:AddStatusCard()
             local card = Instance.new("Frame")
-            card.Size = UDim2.new(1, 0, 0, 68)
+            card.Size = UDim2.new(1, 0, 0, 48)
             card.BackgroundColor3 = Color3.fromRGB(24, 18, 32)
             card.BorderSizePixel = 0
             card.ZIndex = 14
@@ -1246,43 +819,25 @@ local function buildUltraHDGui()
             cCorner.CornerRadius = UDim.new(0, 10)
             cCorner.Parent = card
 
-            local cStroke = Instance.new("UIStroke")
-            cStroke.Thickness = 1
-            cStroke.Color = Color3.fromRGB(140, 70, 220)
-            cStroke.Transparency = 0.5
-            cStroke.Parent = card
-
-            local statusLbl = Instance.new("TextLabel")
-            statusLbl.Position = UDim2.new(0, 12, 0, 8)
-            statusLbl.Size = UDim2.new(1, -24, 0, 22)
-            statusLbl.BackgroundTransparency = 1
-            statusLbl.Text = "Status: ⚪ OFF (Idle)"
-            statusLbl.TextColor3 = Color3.fromRGB(200, 185, 220)
-            statusLbl.TextSize = 12
-            statusLbl.Font = Enum.Font.GothamBold
-            statusLbl.TextXAlignment = Enum.TextXAlignment.Left
-            statusLbl.ZIndex = 15
-            statusLbl.Parent = card
-
             local subInfo = Instance.new("TextLabel")
-            subInfo.Position = UDim2.new(0, 12, 0, 34)
-            subInfo.Size = UDim2.new(0.5, 0, 0, 22)
+            subInfo.Position = UDim2.new(0, 12, 0, 0)
+            subInfo.Size = UDim2.new(0.5, 0, 1, 0)
             subInfo.BackgroundTransparency = 1
-            subInfo.Text = "🗑️ Terhapus: 0 unit"
+            subInfo.Text = "🗑️ Terjual: 0 siklus"
             subInfo.TextColor3 = Color3.fromRGB(255, 110, 130)
-            subInfo.TextSize = 11
+            subInfo.TextSize = 12
             subInfo.Font = Enum.Font.GothamBold
             subInfo.TextXAlignment = Enum.TextXAlignment.Left
             subInfo.ZIndex = 15
             subInfo.Parent = card
 
             local scanInfo = Instance.new("TextLabel")
-            scanInfo.Position = UDim2.new(0.5, 0, 0, 34)
-            scanInfo.Size = UDim2.new(0.5, -12, 0, 22)
+            scanInfo.Position = UDim2.new(0.5, 0, 0, 0)
+            scanInfo.Size = UDim2.new(0.5, -12, 1, 0)
             scanInfo.BackgroundTransparency = 1
-            scanInfo.Text = "🔍 Scan: 0 item"
+            scanInfo.Text = "🔍 Sisa: " .. tostring(getPlantCount()) .. " item"
             scanInfo.TextColor3 = Color3.fromRGB(0, 230, 140)
-            scanInfo.TextSize = 11
+            scanInfo.TextSize = 12
             scanInfo.Font = Enum.Font.GothamBold
             scanInfo.TextXAlignment = Enum.TextXAlignment.Right
             scanInfo.ZIndex = 15
@@ -1290,18 +845,13 @@ local function buildUltraHDGui()
 
             task.spawn(function()
                 while card and card.Parent do
-                    subInfo.Text = "🗑️ Terhapus: " .. tostring(totalDeletedCount) .. " item"
-                    scanInfo.Text = "🔍 Scan: " .. tostring(totalScannedCount) .. " item"
+                    subInfo.Text = "🗑️ Siklus Jual: " .. tostring(totalDeletedCount) .. "x"
+                    scanInfo.Text = "🔍 Sisa Tanaman: " .. tostring(getPlantCount()) .. " item"
                     task.wait(0.8)
                 end
             end)
 
-            return {
-                SetStatus = function(self, text, color)
-                    statusLbl.Text = text
-                    if color then statusLbl.TextColor3 = color end
-                end
-            }
+            return card
         end
 
         function elements:AddPlantCard(plantName, plantRarity, onStateChanged)
@@ -1392,63 +942,23 @@ local function buildUltraHDGui()
             }
         end
 
-        function elements:AddInput(placeholder, callback)
-            local inputFrame = Instance.new("Frame")
-            inputFrame.Size = UDim2.new(1, 0, 0, 38)
-            inputFrame.BackgroundColor3 = Color3.fromRGB(26, 20, 34)
-            inputFrame.BorderSizePixel = 0
-            inputFrame.ZIndex = 14
-            inputFrame.Parent = page
-
-            local inCorner = Instance.new("UICorner")
-            inCorner.CornerRadius = UDim.new(0, 8)
-            inCorner.Parent = inputFrame
-
-            local textBox = Instance.new("TextBox")
-            textBox.Size = UDim2.new(1, -20, 1, 0)
-            textBox.Position = UDim2.new(0, 10, 0, 0)
-            textBox.BackgroundTransparency = 1
-            textBox.PlaceholderText = placeholder or "Ketik nama..."
-            textBox.PlaceholderColor3 = Color3.fromRGB(140, 120, 155)
-            textBox.Text = ""
-            textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-            textBox.TextSize = 12
-            textBox.Font = Enum.Font.GothamMedium
-            textBox.TextXAlignment = Enum.TextXAlignment.Left
-            textBox.ClearTextOnFocus = false
-            textBox.ZIndex = 15
-            textBox.Parent = inputFrame
-
-            textBox.FocusLost:Connect(function(enterPressed)
-                if callback then callback(textBox.Text) end
-            end)
-
-            return textBox
-        end
-
         return elements
     end
 
-    -- ==============================================================================
-    -- 📑 PAGES & FEATURES SETUP
-    -- ==============================================================================
-
-    -- TAB 1: 🗑️ AUTO DELETE (MASTER CONTROLLER)
+    -- =========================================================================
+    -- 📑 TAB 1: 🗑️ AUTO DELETE (MASTER CONTROLLER)
+    -- =========================================================================
     local MainTab = CreateTab("Auto Delete", "🗑️")
-    MainTab:AddSection("Live Delete Controller")
-    local statusCard = MainTab:AddStatusCard()
+    MainTab:AddStatusCard()
 
-    local masterToggleRef = nil
-    masterToggleRef = MainTab:AddToggle("Aktifkan Auto Delete Plant", AutoDeletePlant.Config.Enabled, function(state)
+    MainTab:AddToggle("Aktifkan Auto Delete Plant", AutoDeletePlant.Config.Enabled, function(state)
         AutoDeletePlant.Config.Enabled = state
         if state then
             AutoDeletePlant.Start()
-            statusCard:SetStatus("Status: 🟢 Auto Delete ON (Membersihkan...)", Color3.fromRGB(0, 255, 180))
-            Notify("Auto Delete", "Pembersih Tanaman Aktif!", 2.5)
+            Notify("Auto Delete", "Auto Delete Aktif! Menjual tanaman otomatis...", 2.5)
         else
             AutoDeletePlant.Stop()
-            statusCard:SetStatus("Status: ⚪ Auto Delete OFF (Idle)", Color3.fromRGB(200, 185, 220))
-            Notify("Auto Delete", "Pembersih Tanaman Dimatikan.", 2.5)
+            Notify("Auto Delete", "Auto Delete Dimatikan.", 2.5)
         end
     end)
 
@@ -1456,38 +966,79 @@ local function buildUltraHDGui()
     MainTab:AddToggle("🛡️ Lindungi Tanaman Terpasang (Equipped)", AutoDeletePlant.Config.ProtectEquipped, function(val)
         AutoDeletePlant.Config.ProtectEquipped = val
     end)
+
     MainTab:AddToggle("🌟 Pasang Tanaman Terbaik Dulu (Equip Best)", AutoDeletePlant.Config.AutoEquipBestFirst, function(val)
         AutoDeletePlant.Config.AutoEquipBestFirst = val
-    end)
-    MainTab:AddToggle("🪴 Bersihkan Pot Sampah di Plot (Shovel)", AutoDeletePlant.Config.CleanPlotPots, function(val)
-        AutoDeletePlant.Config.CleanPlotPots = val
     end)
 
     MainTab:AddSection("Aksi Cepat")
     MainTab:AddButton("⚡ Hapus & Bersihkan Sekarang (Manual)", function()
-        AutoDeletePlant.RunSingleCycle()
-        Notify("Manual Clean", "Siklus pembersihan selesai dijalankan!", 2.5)
-    end)
-    MainTab:AddButton("🛡️ Equip Best Plants Sekarang", function()
-        callRemote("EquipBestPlants")
-        Notify("Equip Best", "Tanaman terbaik berhasil dipasang!", 2)
+        local b, a = AutoDeletePlant.InstantSellAllPlants()
+        Notify("Instant Sell", "Sebelum: " .. tostring(b) .. " | Sisa: " .. tostring(a), 2.5)
     end)
 
-    -- TAB 2: 🌿 100% IN-GAME PLANT CATALOG
+    MainTab:AddButton("🔄 Sinkronkan Menu Jual Game (Biasa -> Mistik)", function()
+        AutoDeletePlant.SyncInGameRarityButtons({"Common", "Rare", "Epic", "Mythic"})
+        Notify("AutoSell Game", "Biasa, Aneh, Epik, dan Mistik Aktif!", 2)
+    end)
+
+    MainTab:AddButton("🛡️ Equip Best Plants Sekarang", function()
+        if Remotes:FindFirstChild("EquipBestPlants") then
+            Remotes.EquipBestPlants:FireServer()
+            Notify("Equip Best", "Tanaman terbaik berhasil dipasang!", 2)
+        end
+    end)
+
+    -- =========================================================================
+    -- 📑 TAB 2: 🌿 PLANTS CATALOG (AUTO SELECT COMMON, RARE, EPIC, MYTHIC)
+    -- =========================================================================
     local CatalogTab = CreateTab("Plants Catalog", "🌿")
-    CatalogTab:AddSection("Daftar Tanaman Asli (100% Sesuai Game)")
+    CatalogTab:AddSection("Auto Select Berdasarkan Rarity")
 
     local plantCardRefs = {}
 
-    CatalogTab:AddButton("☑️ Pilih Semua Common (Carrot & Potato)", function()
-        for _, p in ipairs(REAL_PLANTS_CATALOG) do
-            if p.rarity == "Common" then
-                local pKey = p.name:lower()
-                AutoDeletePlant.Config.SelectedPlants[pKey] = true
-                if plantCardRefs[pKey] then plantCardRefs[pKey]:SetChecked(true) end
+    local function selectRarity(rarityName, state)
+        for _, plant in ipairs(REAL_PLANTS_CATALOG) do
+            if plant.rarity:lower() == rarityName:lower() then
+                local pKey = plant.name:lower()
+                AutoDeletePlant.Config.SelectedPlants[pKey] = state and true or nil
+                if plantCardRefs[pKey] then
+                    plantCardRefs[pKey]:SetChecked(state)
+                end
             end
         end
-        Notify("Quick Select", "Carrot & Potato dipilih untuk dihapus!", 2)
+        if state and AutoDeletePlant.Config.AutoSyncInGameUI then
+            AutoDeletePlant.SyncInGameRarityButtons({rarityName})
+        end
+    end
+
+    CatalogTab:AddButton("⚪ Auto Select Common (Biasa)", function()
+        selectRarity("Common", true)
+        Notify("Auto Select", "Semua Common (Carrot, Potato) dipilih!", 2)
+    end)
+
+    CatalogTab:AddButton("🔵 Auto Select Rare (Aneh)", function()
+        selectRarity("Rare", true)
+        Notify("Auto Select", "Semua Rare (Orange Tulip, Broccoli) dipilih!", 2)
+    end)
+
+    CatalogTab:AddButton("🟣 Auto Select Epic (Epik)", function()
+        selectRarity("Epic", true)
+        Notify("Auto Select", "Semua Epic (Sunflower, Tomato) dipilih!", 2)
+    end)
+
+    CatalogTab:AddButton("🔴 Auto Select Mythic (Mistik)", function()
+        selectRarity("Mythic", true)
+        Notify("Auto Select", "Semua Mythic dipilih!", 2)
+    end)
+
+    CatalogTab:AddButton("⚡ AUTO SELECT ALL: Biasa + Aneh + Epik + Mistik", function()
+        selectRarity("Common", true)
+        selectRarity("Rare", true)
+        selectRarity("Epic", true)
+        selectRarity("Mythic", true)
+        AutoDeletePlant.SyncInGameRarityButtons({"Common", "Rare", "Epic", "Mythic"})
+        Notify("Auto Select All", "Biasa, Aneh, Epik, dan Mistik SEMUA TERPILIH!", 2.5)
     end)
 
     CatalogTab:AddButton("⬜ Kosongkan Pilihan (Uncheck All)", function()
@@ -1504,79 +1055,15 @@ local function buildUltraHDGui()
         plantCardRefs[plant.name:lower()] = ref
     end
 
-    -- TAB 3: 🐾 CAPYBARAS & EGGS CATALOG
-    local CapyTab = CreateTab("Capybaras", "🐾")
-    CapyTab:AddSection("Daftar Capybara In-Game (Tier Asli)")
-    for _, capy in ipairs(REAL_CAPYBARAS_CATALOG) do
-        local rColor = RARITY_COLORS[capy.rarity] or Color3.fromRGB(200, 200, 200)
-        CapyTab:AddButton(string.format("[%s]  %s", capy.rarity, capy.name), function()
-            Notify("Capybara Info", string.format("Capybara: %s\nRarity: %s", capy.name, capy.rarity), 2.5)
-        end)
-    end
-
-    -- TAB 4: 🌿 FILTER RARITY
-    local FilterTab = CreateTab("Filter Rarity", "⚡")
-    FilterTab:AddSection("Pilih Tier / Rarity untuk Dihapus")
-
-    FilterTab:AddToggle("⚪ Hapus Common (Carrot, Potato)", AutoDeletePlant.Config.DeleteCommon, function(val)
-        AutoDeletePlant.Config.DeleteCommon = val
-    end)
-    FilterTab:AddToggle("🔵 Hapus Rare (Orange Tulip, Broccoli)", AutoDeletePlant.Config.DeleteRare, function(val)
-        AutoDeletePlant.Config.DeleteRare = val
-    end)
-    FilterTab:AddToggle("🟣 Hapus Epic (Sunflower, Tomato)", AutoDeletePlant.Config.DeleteEpic, function(val)
-        AutoDeletePlant.Config.DeleteEpic = val
-    end)
-    FilterTab:AddToggle("🟡 Hapus Legendary (Watermelon, Garlic)", AutoDeletePlant.Config.DeleteLegendary, function(val)
-        AutoDeletePlant.Config.DeleteLegendary = val
-    end)
-    FilterTab:AddToggle("🔴 Hapus Mythic (Fancy Avocado, Cocotree)", AutoDeletePlant.Config.DeleteMythic, function(val)
-        AutoDeletePlant.Config.DeleteMythic = val
-    end)
-    FilterTab:AddToggle("🌸 Hapus Divine (Carnivorous Plant, Mandrake)", AutoDeletePlant.Config.DeleteDivine, function(val)
-        AutoDeletePlant.Config.DeleteDivine = val
-    end)
-    FilterTab:AddToggle("✨ Hapus Godly (Ghost Pepper, Magic Mushroom)", AutoDeletePlant.Config.DeleteGodly, function(val)
-        AutoDeletePlant.Config.DeleteGodly = val
-    end)
-    FilterTab:AddToggle("👑 Hapus Secret (Pumpking, True Carrot, Dragonfruit)", AutoDeletePlant.Config.DeleteSecret, function(val)
-        AutoDeletePlant.Config.DeleteSecret = val
-    end)
-
-    -- TAB 5: 📋 WHITELIST & BLACKLIST
-    local ListTab = CreateTab("Lists", "📋")
-    ListTab:AddSection("Custom Blacklist (Selalu Dihapus)")
-    ListTab:AddInput("Tambah nama tanaman ke Blacklist...", function(text)
-        if text and text ~= "" then
-            table.insert(AutoDeletePlant.Config.Blacklist, text:lower())
-            AutoDeletePlant.Config.SelectedPlants[text:lower()] = true
-            Notify("Blacklist Ditambah", text .. " berhasil ditambahkan ke Blacklist!", 2.5)
-        end
-    end)
-
-    ListTab:AddSection("Custom Whitelist (Aman / Tidak Pernah Dihapus)")
-    ListTab:AddInput("Tambah nama tanaman ke Whitelist...", function(text)
-        if text and text ~= "" then
-            table.insert(AutoDeletePlant.Config.Whitelist, text:lower())
-            AutoDeletePlant.Config.SelectedPlants[text:lower()] = nil
-            Notify("Whitelist Ditambah", text .. " aman dari penghapusan!", 2.5)
-        end
-    end)
-
-    -- TAB 6: ⚙️ SETTINGS
+    -- =========================================================================
+    -- 📑 TAB 3: ⚙️ SETTINGS
+    -- =========================================================================
     local SettingsTab = CreateTab("Settings", "⚙️")
     SettingsTab:AddSection("Informasi Sesi")
-    local myPlot = getMyPlot()
-    SettingsTab:AddButton("Plot Terdeteksi: " .. (myPlot and tostring(myPlot.Name) or "Tidak ditemukan"), function()
-        myPlot = getMyPlot()
-        Notify("Info Plot", "Plot terdeteksi saat ini: " .. (myPlot and tostring(myPlot.Name) or "None"), 3)
-    end)
     SettingsTab:AddButton("Player: " .. LocalPlayer.Name, function() end)
 
     SettingsTab:AddSection("Kontrol GUI")
-    SettingsTab:AddButton("➖ Minimize GUI (atau Tekan Right Control)", function()
-        toggleHub()
-    end)
+    SettingsTab:AddButton("➖ Minimize GUI", function() toggleHub() end)
     SettingsTab:AddButton("🛑 Tutup & Matikan Script", function()
         AutoDeletePlant.Stop()
         screenGui:Destroy()
@@ -1584,14 +1071,12 @@ local function buildUltraHDGui()
 
     return {
         ScreenGui = screenGui,
-        Notify = Notify,
-        SetStatus = function(txt, col) statusCard:SetStatus(txt, col) end,
-        SetToggle = function(val) if masterToggleRef then masterToggleRef:Set(val, false) end end
+        Notify = Notify
     }
 end
 
 -- =================================================================
--- 🚀 PUBLIC CONTROL API (START / STOP / OPEN GUI)
+-- 🚀 PUBLIC CONTROL API & AUTO EXECUTE
 -- =================================================================
 
 local guiInstance = nil
@@ -1600,12 +1085,28 @@ function AutoDeletePlant.Start()
     if isRunning then return end
     isRunning = true
     AutoDeletePlant.Config.Enabled = true
-    print("🗑️ [Ritod Hub] Auto Delete Plant: [ ON ]")
+    print("🗑️ [Ritod Hub] Auto Delete Plants: [ ON ]")
 
+    -- 1. Sinkronkan tombol game berdasarkan pilihan config
+    local syncList = {}
+    if AutoDeletePlant.Config.Rarities.Common then table.insert(syncList, "Common") end
+    if AutoDeletePlant.Config.Rarities.Rare then table.insert(syncList, "Rare") end
+    if AutoDeletePlant.Config.Rarities.Epic then table.insert(syncList, "Epic") end
+    if AutoDeletePlant.Config.Rarities.Mythic then table.insert(syncList, "Mythic") end
+    if AutoDeletePlant.Config.Rarities.Legendary then table.insert(syncList, "Legendary") end
+
+    if #syncList > 0 then
+        AutoDeletePlant.SyncInGameRarityButtons(syncList)
+    end
+
+    -- 2. Langsung jalankan 1x instant sell
+    AutoDeletePlant.RunSingleCycle()
+
+    -- 3. Loop terus menerus setiap interval
     deleteThread = task.spawn(function()
         while isRunning and AutoDeletePlant.Config.Enabled do
             AutoDeletePlant.RunSingleCycle()
-            task.wait(AutoDeletePlant.Config.ScanInterval or 1.8)
+            task.wait(AutoDeletePlant.Config.ScanInterval or 1.5)
         end
         isRunning = false
     end)
@@ -1618,7 +1119,7 @@ function AutoDeletePlant.Stop()
         task.cancel(deleteThread)
         deleteThread = nil
     end
-    print("🛑 [Ritod Hub] Auto Delete Plant: [ OFF ]")
+    print("🛑 [Ritod Hub] Auto Delete Plants: [ OFF ]")
 end
 
 function AutoDeletePlant.Toggle(state)
@@ -1634,26 +1135,13 @@ function AutoDeletePlant.OpenUI()
     return guiInstance
 end
 
-function AutoDeletePlant.OnTutorialCompleted()
-    AutoDeletePlant.Config.DeleteCommon = true
-    AutoDeletePlant.Config.Enabled = true
-    AutoDeletePlant.Start()
-    task.spawn(function()
-        task.wait(0.5)
-        AutoDeletePlant.RunSingleCycle()
-        if guiInstance then
-            pcall(function()
-                guiInstance.SetToggle(true)
-                guiInstance.Notify("🏆 Tutorial Selesai!", "Auto Delete Common Aktif & Membersihkan semua tanaman!", 4)
-            end)
-        end
-    end)
-end
-
--- Otomatis tampilkan Ultra HD GUI saat file dijalankan
+-- ⚡ AUTO EXECUTE: LANGSUNG JALANKAN OTOMATIS SAAT SCRIPT DI-EXECUTE!
 task.spawn(function()
     pcall(function()
         guiInstance = buildUltraHDGui()
+        if AutoDeletePlant.Config.Enabled then
+            AutoDeletePlant.Start()
+        end
     end)
 end)
 
