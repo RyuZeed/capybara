@@ -361,7 +361,7 @@ local function scanDailyLoginRewards()
 end
 
 -- =================================================================
--- 📜 3. QUESTS SCANNER (DAILY QUESTS & ACHIEVEMENTS)
+-- 📜 3. QUESTS SCANNER (DAILY & LIFETIME QUESTS + ACHIEVEMENTS)
 -- =================================================================
 local function scanQuestsAndMissions()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
@@ -374,14 +374,14 @@ local function scanQuestsAndMissions()
                 if desc:IsA("GuiObject") and not processed[desc] then
                     local dName = desc.Name:lower()
 
-                    -- Deteksi Container Quest
-                    if (dName:find("quest") or dName:find("task") or dName:find("achievement") or dName:find("mission")) then
-                        -- Cek apakah ada tombol "Claim All" dan ada misi yang berstatus READY
+                    -- Deteksi Container Quest (Daily Quests, Lifetime Quests, Achievements, Missions)
+                    if (dName:find("quest") or dName:find("task") or dName:find("achievement") or dName:find("mission") or dName:find("lifetime") or dName:find("life_time")) then
+                        -- Cek apakah ada tombol "Claim All"
                         local claimAllBtn = nil
                         local hasAnyReady = false
 
                         for _, sub in ipairs(desc:GetDescendants()) do
-                            if sub:IsA("GuiButton") and sub.Visible then
+                            if sub:IsA("GuiButton") then
                                 local bTxt = (sub:IsA("TextButton") and sub.Text or ""):lower():gsub("%s+", "")
                                 if bTxt:find("all") or sub.Name:lower():find("all") then
                                     claimAllBtn = sub
@@ -389,14 +389,19 @@ local function scanQuestsAndMissions()
                             end
                         end
 
-                        -- Scan setiap kartu misi individual
+                        -- Scan setiap item/baris misi di dalam container (termasuk Daily & Lifetime)
                         for _, questItem in ipairs(desc:GetDescendants()) do
-                            if questItem:IsA("GuiObject") and not processed[questItem] then
+                            if questItem:IsA("GuiObject") and not questItem:IsA("ScrollingFrame") and not processed[questItem] then
                                 local qName = questItem.Name:lower()
-                                if not qName:find("holder") and not qName:find("list") and not qName:find("container") and not qName:find("frame") and not qName:find("main") then
-                                    if qName:find("quest") or qName:find("task") or qName:find("item") or tonumber(questItem.Name) ~= nil or qName:find("card") or qName:find("row") then
+                                -- Pastikan bukan container wrapper besar (Holder, List, Content, Container, Background)
+                                if not (qName == "holder" or qName == "list" or qName == "container" or qName == "content" or qName == "main" or qName == "background" or qName == "bg") then
+                                    -- Cek apakah item ini memiliki tombol (Claim/Button) dan TextLabel (Progress/Title)
+                                    local hasBtn = questItem:FindFirstChildWhichIsA("GuiButton", true) or questItem:IsA("GuiButton")
+                                    local hasLbl = questItem:FindFirstChildWhichIsA("TextLabel", true) or questItem:IsA("TextLabel")
+
+                                    if hasBtn and hasLbl then
                                         processed[questItem] = true
-                                        local isClaimedOrReady = processRewardCard(questItem, "Quest")
+                                        local isClaimedOrReady = processRewardCard(questItem, dName:find("lifetime") and "Lifetime Quest" or "Daily Quest")
                                         if isClaimedOrReady then hasAnyReady = true end
                                     end
                                 end
@@ -405,10 +410,10 @@ local function scanQuestsAndMissions()
 
                         -- Jika ada tombol Claim All dan terdeteksi misi ready, klik Claim All
                         if claimAllBtn and hasAnyReady then
-                            local allKey = claimAllBtn:GetDebugId() or tostring(claimAllBtn)
+                            local allKey = claimAllBtn:GetFullName()
                             if not clickDebounce[allKey] or tick() - clickDebounce[allKey] > 6 then
                                 clickDebounce[allKey] = tick()
-                                print("📜 [Auto Claim] Menekan tombol Claim All Quests!")
+                                print("📜 [Auto Claim] Menekan tombol Claim All Quests (" .. tostring(desc.Name) .. ")!")
                                 clickButton(claimAllBtn)
                             end
                         end
