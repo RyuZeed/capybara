@@ -1,230 +1,77 @@
--- =================================================================
--- 👑 RITOD HUB LITE (MODULAR & CLOUD LOADED)
--- Game: Capybaras vs Plants
--- GitHub: https://github.com/RyuZeed/capybara
--- =================================================================
+--[[
+	===============================================================
+	⚡ RITOD HUB - UNIVERSAL MASTER LAUNCHER (V3.3)
+	GitHub: https://github.com/RyuZeed/capybara
+	===============================================================
+	- 🎮 PLACE ID DETECTION (INSTANT 100% ACCURATE):
+	  • 107653945083776 -> Roll Anime To fight (roll_anime.lua)
+	  • 104973076655377 -> Capybaras vs Plants (capybara.lua)
+	===============================================================
+]]
 
--- =================================================================
--- ⚙️ PENGATURAN AWAL (AUTO-START CONFIG)
--- Ubah ke true jika ingin fitur langsung berjalan otomatis saat script di-load
--- =================================================================
-local CONFIG = {
-    AutoTutorial   = true,   -- 🚀 Otomatis jalankan Auto Tutorial (Step 1-12)
-    FarmMode       = true,   -- 🚜 Redupkan Layar (Screen Off) saat AFK
-    AntiLag        = true,   -- ❄️ Batasi FPS ke 5 & Nonaktifkan Shadow
-    PotatoGraphics = true,   -- 🥔 Hapus Tekstur, Partikel, & Efek Berat
-    AutoClaim      = true,   -- 🎁 Otomatis klaim Hadiah Playtime & Daily
+if not game:IsLoaded() then game.Loaded:Wait() end
+task.wait(0.3)
+
+-- 🎯 DAFTAR PLACE ID GAME RESMI
+local PLACE_IDS = {
+    ROLL_ANIME = 107653945083776,
+    CAPYBARA   = 104973076655377,
 }
 
-task.wait(0.5)
+local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/"
 
--- 🧹 HAPUS PAKSA UI LAMA BILA ADA
-pcall(function()
-    local pg = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    for _, child in ipairs(pg:GetChildren()) do
-        if child.Name == "CPU_RAM_Saver_GUI" or child.Name == "AFKScreenOff" or child.Name == "RitodHubLite" or child.Name == "PerfectAutoClaimTester" then
-            child:Destroy()
+local function executeScript(filename)
+    -- 1. Coba load dari file lokal di folder workspace executor
+    if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(filename) then
+        local success, result = pcall(function()
+            return loadstring(readfile(filename))()
+        end)
+        if success then
+            print("📁 [Ritod Launcher] Sukses memuat script lokal: " .. filename)
+            return true
         end
     end
-end)
 
-if _G.RitodHubLoaded and _G.RitodHubGui then
-    pcall(function() _G.RitodHubGui:Destroy() end)
-end
-_G.RitodHubLoaded = true
-
--- =================================================================
--- 🌐 IMPORT MODUL DARI GITHUB
--- =================================================================
-local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/"
-
-local function loadModule(name)
+    -- 2. Fallback load langsung dari GitHub Cloud (Raw)
     local success, result = pcall(function()
-        return loadstring(game:HttpGet(BASE_URL .. name .. ".lua"))()
+        return loadstring(game:HttpGet(BASE_URL .. filename))()
     end)
-    if success and result then
-        return result
+    if success then
+        print("🌐 [Ritod Launcher] Sukses memuat script cloud: " .. filename)
+        return true
     else
-        warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name .. " -> " .. tostring(result))
-        return nil
+        warn("⚠️ [Ritod Launcher] Gagal memuat " .. filename .. " -> " .. tostring(result))
+        return false
     end
 end
 
-local AFKModule      = loadModule("anti_afk")
-local PinkRemover    = loadModule("pink_remover")
-local GraphicsModule = loadModule("graphics")
-local AutoClaim      = loadModule("auto_claim")
-local AutoTutorial   = loadModule("auto_tutorial")
-
--- Auto Start background utilities
-if AFKModule then AFKModule.Enable() end
-if PinkRemover then PinkRemover.Start() end
-
 -- =================================================================
--- 🎨 GUI CREATION (RITOD HUB LITE)
+-- 🔍 DETEKSI GAME VIA PLACE ID
 -- =================================================================
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
+local currentPlaceId = game.PlaceId
+print("🎮 [Ritod Launcher] Checking PlaceId: " .. tostring(currentPlaceId))
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RitodHubLite"
-if gethui then ScreenGui.Parent = gethui() else ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
-_G.RitodHubGui = ScreenGui
+if currentPlaceId == PLACE_IDS.ROLL_ANIME then
+    print("⚡ [Ritod Launcher] Terdeteksi Game: Roll Anime To fight!")
+    executeScript("roll_anime.lua")
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 280, 0, 280)
-MainFrame.Position = UDim2.new(0.5, -140, 0.5, -140)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Visible = false
-MainFrame.Parent = ScreenGui
+elseif currentPlaceId == PLACE_IDS.CAPYBARA then
+    print("👑 [Ritod Launcher] Terdeteksi Game: Capybaras vs Plants!")
+    executeScript("capybara.lua")
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = MainFrame
+else
+    -- Fallback jika ada update PlaceId / sub-place
+    local RS = game:GetService("ReplicatedStorage")
+    local WS = game:GetService("Workspace")
 
-local ToggleIconBtn = Instance.new("TextButton")
-ToggleIconBtn.Size = UDim2.new(0, 120, 0, 32)
-ToggleIconBtn.Position = UDim2.new(0, 10, 0, 10)
-ToggleIconBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-ToggleIconBtn.Text = "👑 RITOD HUB"
-ToggleIconBtn.TextColor3 = Color3.fromRGB(0, 230, 138)
-ToggleIconBtn.TextSize = 12
-ToggleIconBtn.Font = Enum.Font.FredokaOne
-ToggleIconBtn.Parent = ScreenGui
-
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(0, 6)
-ToggleCorner.Parent = ToggleIconBtn
-
-ToggleIconBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = not MainFrame.Visible
-end)
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -40, 0, 30)
-Title.Position = UDim2.new(0, 10, 0, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "👑 RITOD HUB LITE"
-Title.TextColor3 = Color3.fromRGB(0, 230, 138)
-Title.TextSize = 13
-Title.Font = Enum.Font.GothamBold
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = MainFrame
-
-local MinimizeBtn = Instance.new("TextButton")
-MinimizeBtn.Size = UDim2.new(0, 25, 0, 25)
-MinimizeBtn.Position = UDim2.new(1, -30, 0, 3)
-MinimizeBtn.BackgroundTransparency = 1
-MinimizeBtn.Text = "➖"
-MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinimizeBtn.TextSize = 12
-MinimizeBtn.Parent = MainFrame
-
-MinimizeBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = false
-end)
-
-local ContentScroll = Instance.new("ScrollingFrame")
-ContentScroll.Size = UDim2.new(1, -16, 1, -40)
-ContentScroll.Position = UDim2.new(0, 8, 0, 35)
-ContentScroll.BackgroundTransparency = 1
-ContentScroll.ScrollBarThickness = 3
-ContentScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-ContentScroll.Parent = MainFrame
-
-local UIListLayout = Instance.new("UIListLayout")
-UIListLayout.Padding = UDim.new(0, 6)
-UIListLayout.Parent = ContentScroll
-
--- Canvas otomatis mengikuti tinggi tombol
-UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    ContentScroll.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
-end)
-
-local function createToggle(text, initialState, callback)
-    local state = (initialState == true)
-
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 40)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 11
-    btn.Parent = ContentScroll
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = btn
-
-    local function updateVisual(val)
-        if val ~= nil then state = val end
-        if state then
-            btn.BackgroundColor3 = Color3.fromRGB(0, 180, 100)
-            btn.Text = text .. " [ ON ]"
-            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        else
-            btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-            btn.Text = text .. " [ OFF ]"
-            btn.TextColor3 = Color3.fromRGB(170, 170, 170)
-        end
+    if RS:FindFirstChild("Modules") and RS.Modules:FindFirstChild("Characters") then
+        print("⚡ [Ritod Launcher] Fallback Terdeteksi: Roll Anime To fight!")
+        executeScript("roll_anime.lua")
+    elseif WS:FindFirstChild("EggShop", true) or WS:FindFirstChild("PottedPlants", true) then
+        print("👑 [Ritod Launcher] Fallback Terdeteksi: Capybaras vs Plants!")
+        executeScript("capybara.lua")
+    else
+        warn("⚠️ [Ritod Launcher] PlaceId tidak terdaftar (" .. tostring(currentPlaceId) .. "). Memuat default Roll Anime...")
+        executeScript("roll_anime.lua")
     end
-
-    updateVisual(state)
-
-    -- Eksekusi otomatis saat load jika defaultnya true
-    if state then
-        task.spawn(function()
-            pcall(function() callback(true) end)
-        end)
-    end
-
-    btn.MouseButton1Click:Connect(function()
-        state = not state
-        updateVisual(state)
-        pcall(function() callback(state) end)
-    end)
-
-    return updateVisual
 end
-
--- =================================================================
--- 🔘 DAFTAR TOMBOL FITUR DI GUI
--- =================================================================
-
-createToggle("🚀 Auto Tutorial", CONFIG.AutoTutorial, function(state)
-    if state and AutoTutorial then
-        AutoTutorial.Start()
-    elseif not state and AutoTutorial then
-        AutoTutorial.Stop()
-    end
-end)
-
-local updateFarmModeBtn
-updateFarmModeBtn = createToggle("🚜 Farm Mode (Screen Off)", CONFIG.FarmMode, function(state)
-    if GraphicsModule then
-        GraphicsModule.SetFarmMode(state, function(newState)
-            if updateFarmModeBtn then updateFarmModeBtn(newState) end
-        end)
-    end
-end)
-
-createToggle("❄️ Anti-Lag (FPS Cap 5)", CONFIG.AntiLag, function(state)
-    if GraphicsModule then
-        GraphicsModule.SetAntiLag(state)
-    end
-end)
-
-createToggle("🥔 Potato Graphics", CONFIG.PotatoGraphics, function(state)
-    if GraphicsModule then
-        GraphicsModule.EnablePotato(state)
-    end
-end)
-
-createToggle("🎁 Auto Claim Rewards", CONFIG.AutoClaim, function(state)
-    if AutoClaim then
-        if state then AutoClaim.Start() else AutoClaim.Stop() end
-    end
-end)
-
-print("👑 [RITOD HUB LITE] Modular Cloud Edition Loaded Successfully!")
-

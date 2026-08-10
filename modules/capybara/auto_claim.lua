@@ -286,4 +286,3 @@ function AutoClaim.Stop()
 end
 
 return AutoClaim
-

@@ -234,4 +234,3 @@ function GraphicsModule.SetAntiLag(enable)
 end
 
 return GraphicsModule
-
