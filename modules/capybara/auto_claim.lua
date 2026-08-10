@@ -135,7 +135,7 @@ local function evaluateRewardCard(card)
         return "INVALID", nil
     end
 
-    local cardKey = card:GetDebugId() or tostring(card)
+    local cardKey = card:GetFullName()
 
     -- 1. CEK CLAIMED STATE (Apakah sudah pernah diklaim sebelumnya)
     if claimedHistory[cardKey] == true then
@@ -148,10 +148,11 @@ local function evaluateRewardCard(card)
         return "CLAIMED", nil
     end
 
-    -- Cek teks status di seluruh anak kartu
+    -- Cek teks status di seluruh anak kartu (tanpa mempedulikan apakah window sedang terbuka/tertutup)
     for _, desc in ipairs(card:GetDescendants()) do
         if desc:IsA("TextLabel") or desc:IsA("TextButton") then
-            local txt = (desc.Text or ""):lower():gsub("%s+", "")
+            local rawTxt = desc.Text or ""
+            local txt = rawTxt:gsub("<[^>]*>", ""):lower():gsub("%s+", "")
             if txt == "claimed" or txt == "terklaim" or txt == "sudahdiklaim" or txt == "collected" or txt == "received" or txt:find("sudah") then
                 claimedHistory[cardKey] = true
                 return "CLAIMED", nil
@@ -160,7 +161,7 @@ local function evaluateRewardCard(card)
 
         -- Cek visual icon ceklis/claimed
         local dName = desc.Name:lower()
-        if (dName == "claimed" or dName == "check" or dName == "tick" or dName == "done" or dName == "checkmark") and desc:IsA("GuiObject") and desc.Visible then
+        if (dName == "claimed" or dName == "check" or dName == "tick" or dName == "done" or dName == "checkmark") and desc:IsA("GuiObject") then
             if (desc:IsA("ImageLabel") and desc.ImageTransparency < 0.8 and desc.Image ~= "") or (desc:IsA("Frame") and desc.BackgroundTransparency < 0.8) then
                 claimedHistory[cardKey] = true
                 return "CLAIMED", nil
@@ -170,9 +171,9 @@ local function evaluateRewardCard(card)
 
     -- 2. CEK LOCKED STATE (Apakah kartu masih cooldown / progress belum selesai)
     for _, desc in ipairs(card:GetDescendants()) do
-        if desc:IsA("TextLabel") and desc.Visible then
+        if desc:IsA("TextLabel") then
             local rawTxt = desc.Text or ""
-            local clean = rawTxt:gsub("%s+", ""):lower()
+            local clean = rawTxt:gsub("<[^>]*>", ""):gsub("%s+", ""):lower()
 
             -- Timer Countdown aktif (misal "05:20", "12:00:00", "01:30")
             -- Catatan: jika "00:00" atau "0:00", berarti countdown SELESAI (READY)!
@@ -212,18 +213,18 @@ local function evaluateRewardCard(card)
     local foundBtn = nil
 
     local function checkButtonReady(btn)
-        if not btn or not (btn:IsA("GuiButton") or btn:IsA("TextButton") or btn:IsA("ImageButton")) or not btn.Visible then
+        if not btn or not (btn:IsA("GuiButton") or btn:IsA("TextButton") or btn:IsA("ImageButton")) then
             return false
         end
 
         local btnText = ""
         if btn:IsA("TextButton") then
-            btnText = (btn.Text or ""):lower():gsub("%s+", "")
+            btnText = (btn.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
         end
 
         for _, c in ipairs(btn:GetChildren()) do
-            if c:IsA("TextLabel") and c.Visible then
-                local t = (c.Text or ""):lower():gsub("%s+", "")
+            if c:IsA("TextLabel") then
+                local t = (c.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
                 if t ~= "" then btnText = t end
             end
         end
@@ -259,24 +260,65 @@ local function evaluateRewardCard(card)
         return "READY", foundBtn
     end
 
+    -- Jika card sendiri memiliki text "Claim" atau "Ready" di labelnya
+    for _, desc in ipairs(card:GetDescendants()) do
+        if desc:IsA("TextLabel") then
+            local t = (desc.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
+            if t == "claim" or t == "klaim" or t == "collect" or t == "ready" or t == "00:00" then
+                -- Cari button apapun di dalam card
+                local anyBtn = card:FindFirstChildWhichIsA("GuiButton", true) or card:FindFirstChildWhichIsA("TextButton", true) or card:FindFirstChildWhichIsA("ImageButton", true)
+                if anyBtn then return "READY", anyBtn end
+            end
+        end
+    end
+
     return "LOCKED", nil
 end
 
 -- =================================================================
--- 📦 PROCESS CARD (EKSEKUSI KLAIM SECARA TEPAT)
+-- 📦 PROCESS CARD (EKSEKUSI KLAIM SECARA TEPAT + DUAL REMOTE TRIGGER)
 -- =================================================================
 
 local function processRewardCard(card, cardType)
     local state, claimBtn = evaluateRewardCard(card)
-    local cardKey = card:GetDebugId() or tostring(card)
+    local cardKey = card:GetFullName()
 
     if state == "READY" and claimBtn then
         -- Cooldown per kartu (hindari spam klik ganda)
         local lastClick = clickDebounce[cardKey] or 0
-        if tick() - lastClick > 5 then
+        if tick() - lastClick > 4 then
             clickDebounce[cardKey] = tick()
             print(string.format("🎁 [Auto Claim] Hadiah READY! Mengklaim %s (%s)...", tostring(cardType), tostring(card.Name)))
+            
+            -- 1. Klik tombol UI via multi-event simulation
             clickButton(claimBtn)
+
+            -- 2. Pemicu Remote Langsung berdasarkan tipe hadiah
+            local itemNum = tonumber(card.Name:match("(%d+)"))
+            if cardType == "Playtime Gift" then
+                if itemNum then
+                    callRemote("ClaimPlaytimeReward", itemNum)
+                    callRemote("ClaimPlaytimeReward", "Reward" .. tostring(itemNum))
+                    callRemote("ClaimPlaytime", itemNum)
+                    callRemote("ClaimFreeGift", itemNum)
+                end
+            elseif cardType == "Daily Login" then
+                if itemNum then
+                    callRemote("ClaimDailyReward", itemNum)
+                    callRemote("ClaimDailyReward", "Day" .. tostring(itemNum))
+                    callRemote("ClaimDaily", itemNum)
+                    callRemote("ClaimDay", itemNum)
+                end
+            elseif cardType == "Quest" then
+                if itemNum then
+                    callRemote("ClaimQuest", itemNum)
+                    callRemote("ClaimQuest", "DailyQuest" .. tostring(itemNum))
+                    callRemote("ClaimDailyQuest", itemNum)
+                    callRemote("ClaimQuestReward", itemNum)
+                else
+                    callRemote("ClaimQuest", card.Name)
+                end
+            end
 
             -- Tunggu sebentar dan periksa apakah status berubah menjadi CLAIMED
             task.delay(0.5, function()
