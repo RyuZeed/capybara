@@ -123,34 +123,8 @@ local function clickButton(btn)
 end
 
 -- =================================================================
--- 🎯 SMART REWARD STATE EVALUATOR (EXACTLY LIKE HAS_STOCK)
--- States:
---   "CLAIMED" -> Sudah diambil / diceklis (Diabaikan permanen)
---   "LOCKED"  -> Masih hitung mundur / progress belum selesai (Diabaikan)
---   "READY"   -> Siap diklaim (Countdown selesai / Progress 100% / Tombol Claim)
+-- 🎯 STRICT REWARD STATE EVALUATOR ("Claim" vs "Claimed")
 -- =================================================================
-
-local function isClaimText(raw)
-    if not raw or raw == "" then return false end
-    local clean = raw:gsub("<[^>]*>", ""):lower():gsub("%s+", "")
-
-    -- Jangan anggap claim jika sudah claimed
-    if clean:find("claimed") or clean:find("terklaim") or clean:find("collected") or clean:find("sudah") or clean:find("received") then
-        return false
-    end
-
-    -- Mengandung kata claim, klaim, collect, ambil, get, ready
-    if clean:find("claim") or clean:find("klaim") or clean:find("collect") or clean:find("ambil") or clean:find("get") or clean:find("ready") then
-        return true
-    end
-    return false
-end
-
-local function isClaimedText(raw)
-    if not raw or raw == "" then return false end
-    local clean = raw:gsub("<[^>]*>", ""):lower():gsub("%s+", "")
-    return clean:find("claimed") or clean:find("terklaim") or clean:find("sudah") or clean:find("collected") or clean:find("received")
-end
 
 local function evaluateRewardCard(card)
     if not card or not card:IsA("GuiObject") then
@@ -159,21 +133,16 @@ local function evaluateRewardCard(card)
 
     local cardKey = card:GetFullName()
 
-    -- 1. CEK CLAIMED STATE (Apakah sudah pernah diklaim sebelumnya)
+    -- 1. Cek apakah sudah pernah diklaim di sesi ini
     if claimedHistory[cardKey] == true then
         return "CLAIMED", nil
     end
 
-    -- Cek attribute Claimed pada kartu
-    if card:GetAttribute("Claimed") == true or card:GetAttribute("IsClaimed") == true or card:GetAttribute("Completed") == true then
-        claimedHistory[cardKey] = true
-        return "CLAIMED", nil
-    end
-
-    -- Cek teks status di seluruh anak kartu (tanpa mempedulikan apakah window sedang terbuka/tertutup)
+    -- 2. Cek apakah ada teks "Claimed" di dalam kartu
     for _, desc in ipairs(card:GetDescendants()) do
         if desc:IsA("TextLabel") or desc:IsA("TextButton") then
-            if isClaimedText(desc.Text) then
+            local clean = (desc.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
+            if clean:find("claimed") or clean:find("terklaim") or clean:find("collected") or clean:find("sudah") then
                 claimedHistory[cardKey] = true
                 return "CLAIMED", nil
             end
@@ -189,117 +158,58 @@ local function evaluateRewardCard(card)
         end
     end
 
-    -- 2. CEK LOCKED STATE (Apakah kartu masih cooldown / progress belum selesai)
+    -- 3. Cek apakah ada tombol / TextLabel bertuliskan "Claim"
+    local claimBtn = nil
     for _, desc in ipairs(card:GetDescendants()) do
-        if desc:IsA("TextLabel") then
-            local rawTxt = desc.Text or ""
-            local clean = rawTxt:gsub("<[^>]*>", ""):gsub("%s+", ""):lower()
-
-            -- Timer Countdown aktif (misal "05:20", "12:00:00", "01:30")
-            -- Catatan: jika "00:00" atau "0:00", berarti countdown SELESAI (READY)!
-            if (clean:match("^%d+:%d+$") or clean:match("^%d+:%d+:%d+$")) then
-                if clean ~= "00:00" and clean ~= "0:00" and clean ~= "00:00:00" and clean ~= "0:00:00" then
-                    return "LOCKED", nil
+        if desc:IsA("GuiButton") or desc:IsA("TextButton") or desc:IsA("ImageButton") then
+            local btnTxt = (desc:IsA("TextButton") and desc.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
+            for _, c in ipairs(desc:GetChildren()) do
+                if c:IsA("TextLabel") then
+                    local ct = (c.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
+                    if ct ~= "" then btnTxt = ct end
                 end
             end
 
-            -- Progress fraksi (misal "0/5", "2/10", "3/10") - Abaikan jika format tanggal Day/Month/Year
-            if not clean:match("%d+/%d+/%d+") then
-                local cur, max = clean:match("(%d+)%s*/%s*(%d+)")
-                if cur and max then
-                    local nCur = tonumber(cur)
-                    local nMax = tonumber(max)
-                    if nCur and nMax and nMax > 0 and nCur < nMax then
-                        return "LOCKED", nil
+            -- Jika bertuliskan "Claim" (dan bukan "Claimed")
+            if btnTxt == "claim" or (btnTxt:find("claim") and not btnTxt:find("claimed")) then
+                claimBtn = desc
+                break
+            end
+
+            -- Jika nama tombolnya Claim dan bukan countdown
+            local bName = desc.Name:lower()
+            if (bName == "claim" or bName == "claimbutton" or bName == "claimbtn") and not (btnTxt:find(":") or btnTxt:find("claimed")) then
+                claimBtn = desc
+                break
+            end
+        end
+    end
+
+    -- Jika tombol tidak punya teks langsung, cek apakah ada TextLabel di dalam card bertuliskan "Claim"
+    if not claimBtn then
+        for _, desc in ipairs(card:GetDescendants()) do
+            if desc:IsA("TextLabel") then
+                local txt = (desc.Text or ""):gsub("<[^>]*>", ""):lower():gsub("%s+", "")
+                if txt == "claim" or (txt:find("claim") and not txt:find("claimed")) then
+                    local anyBtn = card:FindFirstChildWhichIsA("GuiButton", true) or card:FindFirstChildWhichIsA("TextButton", true) or card:FindFirstChildWhichIsA("ImageButton", true)
+                    if anyBtn then
+                        claimBtn = anyBtn
+                        break
                     end
                 end
             end
-
-            -- Progress persentase (misal "50%", "0%")
-            local pct = clean:match("(%d+)%%")
-            if pct then
-                local nPct = tonumber(pct)
-                if nPct and nPct < 100 then
-                    return "LOCKED", nil
-                end
-            end
-
-            -- Teks eksplisit terkunci
-            if clean:find("locked") or clean:find("cooldown") or clean:find("terkunci") or clean:find("inprogress") or clean:find("belum") then
-                return "LOCKED", nil
-            end
         end
     end
 
-    -- 3. CEK READY TO CLAIM (Mencari tombol Claim yang aktif)
-    local foundBtn = nil
-
-    local function checkButtonReady(btn)
-        if not btn or not (btn:IsA("GuiButton") or btn:IsA("TextButton") or btn:IsA("ImageButton")) then
-            return false
-        end
-
-        local btnText = ""
-        if btn:IsA("TextButton") then
-            btnText = btn.Text or ""
-        end
-
-        for _, c in ipairs(btn:GetChildren()) do
-            if c:IsA("TextLabel") then
-                local t = c.Text or ""
-                if t ~= "" then btnText = t end
-            end
-        end
-
-        -- Teks tombol mengandung kata claim, klaim, collect, ambil, get, ready
-        if isClaimText(btnText) then
-            return true
-        end
-
-        -- Nama tombol adalah Claim / ClaimButton / Reward / Collect / Action dan bukan status terklaim
-        local bName = btn.Name:lower()
-        if (bName:find("claim") or bName:find("collect") or bName:find("reward") or bName:find("btn") or bName:find("button")) then
-            local clean = btnText:gsub("<[^>]*>", ""):lower():gsub("%s+", "")
-            if not (clean:find("claimed") or clean:find("terklaim") or clean:find("collected") or clean:find("locked")) then
-                -- Jika tombol memiliki warna cerah / aktif atau tidak ada teks locked
-                return true
-            end
-        end
-
-        return false
-    end
-
-    for _, desc in ipairs(card:GetDescendants()) do
-        if checkButtonReady(desc) then
-            foundBtn = desc
-            break
-        end
-    end
-
-    if not foundBtn and checkButtonReady(card) then
-        foundBtn = card
-    end
-
-    if foundBtn then
-        return "READY", foundBtn
-    end
-
-    -- Jika card memiliki TextLabel yang berisi kata Claim atau 00:00
-    for _, desc in ipairs(card:GetDescendants()) do
-        if desc:IsA("TextLabel") then
-            local raw = desc.Text or ""
-            if isClaimText(raw) or raw:find("00:00") then
-                local anyBtn = card:FindFirstChildWhichIsA("GuiButton", true) or card:FindFirstChildWhichIsA("TextButton", true) or card:FindFirstChildWhichIsA("ImageButton", true)
-                if anyBtn then return "READY", anyBtn end
-            end
-        end
+    if claimBtn then
+        return "READY", claimBtn
     end
 
     return "LOCKED", nil
 end
 
 -- =================================================================
--- 📦 PROCESS CARD (EKSEKUSI KLAIM SECARA TEPAT)
+-- 📦 PROCESS CARD (EKSEKUSI KLAIM 1X BERSIH)
 -- =================================================================
 
 local function processRewardCard(card, cardType)
@@ -311,22 +221,11 @@ local function processRewardCard(card, cardType)
         local lastClick = clickDebounce[cardKey] or 0
         if tick() - lastClick > 4 then
             clickDebounce[cardKey] = tick()
-            claimedHistory[cardKey] = true -- Langsung kunci agar tidak pernah diklik ulang
-            print(string.format("🎁 [Auto Claim] Hadiah READY! Mengklaim %s (%s)...", tostring(cardType), tostring(card.Name)))
+            claimedHistory[cardKey] = true -- Langsung kunci permanen agar tidak pernah diklik ulang
+            print(string.format("🎁 [Auto Claim] %s READY! Mengklaim (%s)...", tostring(cardType), tostring(card.Name)))
             
             -- Eksekusi 1x klik bersih pada tombol claim
             clickButton(claimBtn)
-
-            -- Cadangan: Panggil remote quest jika ada nomor index
-            local itemNum = tonumber(card.Name:match("(%d+)"))
-            if cardType:find("Quest") then
-                if itemNum then
-                    callRemote("ClaimQuest", itemNum)
-                    callRemote("ClaimDailyQuest", itemNum)
-                    callRemote("ClaimLifetimeQuest", itemNum)
-                    callRemote("ClaimAchievement", itemNum)
-                end
-            end
             return true
         end
     end
