@@ -615,11 +615,16 @@ local function runAutoTutorial()
             end)
         end
 
-        -- 3. Jalankan pertama kali
-        syncAutoSellButtons({"Common", "Rare", "Epic", "Legendary", "Mythic"})
+        -- 3. Jalankan sinkronisasi dan bulk sell selesai tutorial
+        syncAutoSellButtons({"Common", "Rare", "Epic", "Legendary", "Mythic", "Divine", "Secret"})
         task.wait(0.5)
         executeBulkSell()
-        print("🗑️ [Ritod Hub] Bulk Sell pertama selesai!")
+        print("🗑️ [Ritod Hub] Tutorial Selesai: Bulk Sell & Auto Delete Diaktifkan!")
+
+        -- Aktifkan engine AutoDelete jika tersedia
+        if _G.AutoDeletePlant and _G.AutoDeletePlant.Start then
+            _G.AutoDeletePlant.Start()
+        end
 
         -- 4. Loop terus setiap 1.5s
         task.spawn(function()

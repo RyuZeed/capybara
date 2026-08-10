@@ -95,7 +95,7 @@ ConfigManager.ConfigPath = CONFIG_PATH
 
 local DEFAULT_CONFIG = {
     AutoTutorial       = true,
-    AutoDelete         = true,
+    AutoDelete         = false,
     AutoClaim          = true,
     FarmMode           = false,
     AntiLag            = false,
@@ -1249,17 +1249,18 @@ DeleteTab:AddButton("⚡ Hapus & Bersihkan Sampah Sekarang (Manual)", function()
     end
 end)
 
-DeleteTab:AddButton("🔄 Sinkronkan Menu Jual In-Game (Biasa -> Mistik)", function()
+DeleteTab:AddButton("🔄 Sinkronkan Menu Jual In-Game (Biasa -> Rahasia)", function()
+    local allRarities = {"Common", "Rare", "Epic", "Mythic", "Legendary", "Divine", "Secret"}
     if AutoDelete and AutoDelete.SyncInGameRarityButtons then
-        AutoDelete.SyncInGameRarityButtons({"Common", "Rare", "Epic", "Mythic"})
+        AutoDelete.SyncInGameRarityButtons(allRarities)
     else
         pcall(function()
-            for _, r in ipairs({"Common", "Rare", "Epic", "Mythic"}) do
+            for _, r in ipairs(allRarities) do
                 Remotes.ChangeAutosellOptions:InvokeServer(r, true)
             end
         end)
     end
-    Notify("In-Game Menu", "Biasa, Aneh, Epik, dan Mistik Aktif di menu game!", 2.5)
+    Notify("In-Game Menu", "Biasa, Aneh, Epik, Mistik, Divine, dan Secret Aktif di menu game!", 2.5)
 end)
 
 DeleteTab:AddSection("Filter Rarity Cepat")
@@ -1293,6 +1294,9 @@ DeleteTab:AddButton("⚪ Common (Biasa)", function() selectRarity("Common", true
 DeleteTab:AddButton("🔵 Rare (Aneh)", function() selectRarity("Rare", true); Notify("Filter", "Rare dipilih!", 1.5) end)
 DeleteTab:AddButton("🟣 Epic (Epik)", function() selectRarity("Epic", true); Notify("Filter", "Epic dipilih!", 1.5) end)
 DeleteTab:AddButton("🔴 Mythic (Mistik)", function() selectRarity("Mythic", true); Notify("Filter", "Mythic dipilih!", 1.5) end)
+DeleteTab:AddButton("🟡 Legendary (Legendaris)", function() selectRarity("Legendary", true); Notify("Filter", "Legendary dipilih!", 1.5) end)
+DeleteTab:AddButton("🌸 Divine (Ilahi)", function() selectRarity("Divine", true); Notify("Filter", "Divine dipilih!", 1.5) end)
+DeleteTab:AddButton("👑 Secret (Rahasia)", function() selectRarity("Secret", true); Notify("Filter", "Secret dipilih!", 1.5) end)
 DeleteTab:AddButton("⬜ Kosongkan Pilihan (Uncheck All)", function()
     table.clear(CurrentConfig.SelectedPlants)
     for _, ref in pairs(plantCardRefs) do ref:SetChecked(false) end

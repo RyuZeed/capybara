@@ -87,7 +87,7 @@ AutoDeletePlant.REAL_PLANTS_CATALOG = {
 }
 
 AutoDeletePlant.Config = {
-    Enabled            = true,
+    Enabled            = false,
     ScanInterval       = 1.5,
     ProtectEquipped    = true,
     AutoEquipBestFirst = true,
@@ -98,6 +98,8 @@ AutoDeletePlant.Config = {
         Epic      = true,
         Mythic    = true,
         Legendary = false,
+        Divine    = false,
+        Secret    = false,
     },
     SelectedPlants = {
         ["carrot"]              = true,
@@ -223,6 +225,8 @@ function AutoDeletePlant.Start()
         if AutoDeletePlant.Config.Rarities.Epic then table.insert(syncList, "Epic") end
         if AutoDeletePlant.Config.Rarities.Mythic then table.insert(syncList, "Mythic") end
         if AutoDeletePlant.Config.Rarities.Legendary then table.insert(syncList, "Legendary") end
+        if AutoDeletePlant.Config.Rarities.Divine then table.insert(syncList, "Divine") end
+        if AutoDeletePlant.Config.Rarities.Secret then table.insert(syncList, "Secret") end
     end
 
     if #syncList > 0 then
