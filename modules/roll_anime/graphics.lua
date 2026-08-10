@@ -47,8 +47,32 @@ local syncCallback = nil
 local gcThread = nil
 
 -- =================================================================
--- 1. 🎯 FPS CONTROLLER (INDEPENDENT & PERSISTENT)
+-- 1. 🎯 FPS CONTROLLER (INDEPENDENT, WATCHDOG & SOFTWARE LIMITER)
 -- =================================================================
+local softwareLimiterConn = nil
+local lastRenderTime = os.clock()
+
+local function updateSoftwareLimiter()
+    if softwareLimiterConn then
+        softwareLimiterConn:Disconnect()
+        softwareLimiterConn = nil
+    end
+
+    if States.AntiLag or States.FarmMode then
+        local targetFps = SETTINGS.AFK_FPS_Cap or 5
+        local minFrameTime = 1 / targetFps
+        lastRenderTime = os.clock()
+        softwareLimiterConn = RunService.RenderStepped:Connect(function()
+            local now = os.clock()
+            local elapsed = now - lastRenderTime
+            if elapsed < minFrameTime then
+                task.wait(minFrameTime - elapsed)
+            end
+            lastRenderTime = os.clock()
+        end)
+    end
+end
+
 local function applyFpsCap(fps)
     States.CurrentFPSCap = fps
     pcall(function()
@@ -66,6 +90,7 @@ local function applyFpsCap(fps)
             SetFPSCap(fps)
         end
     end)
+    updateSoftwareLimiter()
 end
 
 -- FPS Watchdog: Memastikan FPS Cap tidak di-reset oleh Roblox saat Rejoin/Loading
@@ -74,7 +99,7 @@ local function startFpsWatchdog()
     if fpsWatchdog then return end
     fpsWatchdog = task.spawn(function()
         while true do
-            task.wait(1.5)
+            task.wait(2)
             local target = (States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap)
             applyFpsCap(target)
         end
@@ -118,16 +143,24 @@ local function cleanObject(v)
         if v:IsA("ParticleEmitter") then
             v.Enabled = false
             v.Rate = 0
+            v:Destroy()
         elseif v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") 
            or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Highlight") or v:IsA("Explosion") then
             v.Enabled = false
-        elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("SurfaceAppearance") or v:IsA("ShirtGraphic") then
+            v:Destroy()
+        elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("SurfaceAppearance") or v:IsA("ShirtGraphic") or v:IsA("PantsGraphic") then
             v.Transparency = 1
             v:Destroy()
         elseif v:IsA("BasePart") then
             v.Material = Enum.Material.SmoothPlastic
             v.Reflectance = 0
             v.CastShadow = false
+            if v:IsA("MeshPart") then
+                pcall(function() v.TextureID = "" end)
+                pcall(function() v.TextureId = "" end)
+            end
+        elseif v:IsA("SpecialMesh") then
+            pcall(function() v.TextureId = "" end)
         elseif v:IsA("Light") then
             v.Enabled = false
             v.Shadows = false
@@ -167,6 +200,12 @@ local function runSmoothBatchClean()
             end)
         end
 
+        local lightingDescendants = Lighting:GetDescendants()
+        for _, obj in ipairs(lightingDescendants) do
+            if not States.PotatoGraphics then break end
+            cleanObject(obj)
+        end
+
         local descendants = Workspace:GetDescendants()
         for i = 1, #descendants do
             if not States.PotatoGraphics then break end
@@ -201,7 +240,7 @@ function GraphicsModule.EnablePotato(enable)
                 local count = 0
                 while States.PotatoGraphics do
                     count += 1
-                    local interval = (count <= 6) and 3 or 10
+                    local interval = (count <= 10) and 2 or 6
                     task.wait(interval)
                     if not States.PotatoGraphics then break end
                     runSmoothBatchClean()

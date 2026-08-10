@@ -33,7 +33,17 @@ local player = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPla
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/roll_anime/"
 
 local function loadModule(name)
-    -- 1. Local path check
+    -- 1. Load from GitHub Cloud with Cache-Buster for instant updates
+    local cacheBuster = "?t=" .. tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999))
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(BASE_URL .. name .. ".lua" .. cacheBuster))()
+    end)
+    if success and result then
+        print("🌐 [Ritod Hub] Loaded cloud module: " .. name)
+        return result
+    end
+
+    -- 2. Fallback to local files if offline
     local localPaths = {
         "modules/roll_anime/" .. name .. ".lua",
         name .. ".lua",
@@ -42,28 +52,19 @@ local function loadModule(name)
     if typeof(readfile) == "function" and typeof(isfile) == "function" then
         for _, path in ipairs(localPaths) do
             if isfile(path) then
-                local success, result = pcall(function()
+                local s, r = pcall(function()
                     return loadstring(readfile(path))()
                 end)
-                if success and result then
-                    print("📁 [Ritod Hub] Loaded local module: " .. path)
-                    return result
+                if s and r then
+                    print("📁 [Ritod Hub] Loaded local fallback module: " .. path)
+                    return r
                 end
             end
         end
     end
 
-    -- 2. Fallback load from GitHub Cloud
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(BASE_URL .. name .. ".lua"))()
-    end)
-    if success and result then
-        print("🌐 [Ritod Hub] Loaded cloud module: " .. name)
-        return result
-    else
-        warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name .. " -> " .. tostring(result))
-        return nil
-    end
+    warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name .. " -> " .. tostring(result))
+    return nil
 end
 
 local AFKModule       = loadModule("anti_afk")
