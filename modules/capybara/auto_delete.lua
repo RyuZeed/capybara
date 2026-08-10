@@ -1281,12 +1281,14 @@ function AutoDeletePlant.OpenUI()
     return guiInstance
 end
 
--- ⚡ AUTO EXECUTE: LANGSUNG JALANKAN OTOMATIS SAAT SCRIPT DI-EXECUTE!
+-- ⚡ STANDALONE AUTO EXECUTE: Hanya jalankan GUI terpisah jika dipanggil standalone
 task.spawn(function()
     pcall(function()
-        guiInstance = buildUltraHDGui()
-        if AutoDeletePlant.Config.Enabled then
-            AutoDeletePlant.Start()
+        if not _G.RitodHubGui then
+            guiInstance = buildUltraHDGui()
+            if AutoDeletePlant.Config.Enabled then
+                AutoDeletePlant.Start()
+            end
         end
     end)
 end)
