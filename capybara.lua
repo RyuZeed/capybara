@@ -690,12 +690,32 @@ closeBtn.Activated:Connect(showUnloadModal)
 cancelBtn.Activated:Connect(hideUnloadModal)
 
 yesBtn.Activated:Connect(function()
-    if AutoTutorial then AutoTutorial.Stop() end
-    if AutoDelete then AutoDelete.Stop() end
-    if AutoClaim then AutoClaim.Stop() end
-    if AFKModule then AFKModule.Disable() end
-    if PinkRemover then PinkRemover.Stop() end
-    screenGui:Destroy()
+    print("🛑 [Ritod Hub] Meng-unload script dan menghentikan seluruh background worker...")
+    pcall(function()
+        if AutoTutorial and AutoTutorial.Stop then AutoTutorial.Stop() end
+        if AutoDelete and AutoDelete.Stop then AutoDelete.Stop() end
+        if AutoClaim and AutoClaim.Stop then AutoClaim.Stop() end
+        if AFKModule and AFKModule.Disable then AFKModule.Disable() end
+        if PinkRemover and PinkRemover.Stop then PinkRemover.Stop() end
+        if GraphicsModule then
+            if GraphicsModule.SetPotatoGraphics then GraphicsModule.SetPotatoGraphics(false) end
+            if GraphicsModule.SetFarmMode then GraphicsModule.SetFarmMode(false) end
+            if GraphicsModule.SetAntiLag then GraphicsModule.SetAntiLag(false) end
+            if GraphicsModule.ApplyFpsCap then GraphicsModule.ApplyFpsCap(60) end
+        end
+    end)
+    _G.RitodHubLoaded = false
+    _G.AutoTutorialRunning = false
+    _G.AutoDeletePlant = nil
+    pcall(function()
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        for _, name in ipairs({"CPU_RAM_Saver_GUI", "AFKScreenOff", "RitodHubLite", "RitodHubUltra", "RitodHubAutoDelete", "PerfectAutoClaimTester"}) do
+            if pg and pg:FindFirstChild(name) then pg[name]:Destroy() end
+            if CoreGui and CoreGui:FindFirstChild(name) then CoreGui[name]:Destroy() end
+        end
+    end)
+    if screenGui then screenGui:Destroy() end
+    print("✅ [Ritod Hub] Berhasil di-unload bersih 100%!")
 end)
 
 -- Floating Widget

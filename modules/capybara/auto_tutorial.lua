@@ -178,16 +178,14 @@ local function placeEggOnLane()
     end
 end
 
--- =================================================================
--- 🚀 AUTO TUTORIAL MAIN ENGINE (STEPS 1 - 12)
--- =================================================================
+local tutorialThread = nil
 
 local function runAutoTutorial()
     if _G.AutoTutorialRunning then return end
     _G.AutoTutorialRunning = true
     print("🚀 [Ritod Hub] Auto Tutorial Started...")
 
-    task.spawn(function()
+    tutorialThread = task.spawn(function()
         pcall(function()
             local HATCH_WAIT = 8
             local hrp = getHRP()
@@ -666,16 +664,18 @@ local function runAutoTutorial()
             _G.AutoDeletePlant.Start()
         end
 
-        -- 4. Loop terus setiap 1.5s
-        task.spawn(function()
-            while true do
-                executeBulkSell()
-                task.wait(1.5)
-            end
-        end)
-
         _G.AutoTutorialRunning = false
+        tutorialThread = nil
     end) -- ← end task.spawn
+end
+
+local function stopTutorial()
+    _G.AutoTutorialRunning = false
+    if tutorialThread then
+        task.cancel(tutorialThread)
+        tutorialThread = nil
+    end
+    print("🛑 [Ritod Hub] Auto Tutorial Dihentikan.")
 end
 
 local function toggleTutorial(state)
@@ -683,14 +683,14 @@ local function toggleTutorial(state)
     if state then
         task.spawn(runAutoTutorial)
     else
-        _G.AutoTutorialRunning = false
+        stopTutorial()
     end
     return _G.AutoTutorialRunning
 end
 
 return {
     Start = function() task.spawn(runAutoTutorial) end,
-    Stop = function() _G.AutoTutorialRunning = false end,
+    Stop = stopTutorial,
     Toggle = toggleTutorial,
     runAutoTutorial = runAutoTutorial,
 }

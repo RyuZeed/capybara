@@ -30,8 +30,9 @@ function PinkRemover.Start()
         pcall(checkAndHidePinkLabel, descendant)
     end)
 
+    local pinkPollThread = nil
     -- Polling backup every 1.5 seconds
-    task.spawn(function()
+    pinkPollThread = task.spawn(function()
         while running do
             pcall(function()
                 local pg = LocalPlayer:FindFirstChild("PlayerGui")
@@ -55,6 +56,10 @@ function PinkRemover.Stop()
     if descendantConn then
         descendantConn:Disconnect()
         descendantConn = nil
+    end
+    if pinkPollThread then
+        task.cancel(pinkPollThread)
+        pinkPollThread = nil
     end
     print("🛑 [Ritod Hub] Pink Notification Destroyer Dimatikan.")
 end

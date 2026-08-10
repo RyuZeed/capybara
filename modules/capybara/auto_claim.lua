@@ -212,54 +212,47 @@ local function processRewardBox(box, index, rewardType)
     end
 end
 
+local claimThread = nil
+
 function AutoClaim.Start()
     if running then return end
     running = true
-    print("🎁 [Ritod Hub] Smart Auto Claim Berjalan (Real-time Instant Claim)...")
+    print("🎁 [Ritod Hub] Smart Auto Claim (Playtime & Daily) Aktif!")
 
-    task.spawn(function()
+    claimThread = task.spawn(function()
         while running do
             pcall(function()
                 local mainGui = getMainGui()
-                if not mainGui or not mainGui:FindFirstChild("Root") or not mainGui.Root:FindFirstChild("Frames") then
-                    return
+                if not mainGui or not mainGui:FindFirstChild("Root") or not mainGui.Root:FindFirstChild("Frames") then return end
+
+                -- 1. SCAN PLAYTIME GIFTS
+                local playtimeFrame = mainGui.Root.Frames:FindFirstChild("PlaytimeGifts")
+                if playtimeFrame and playtimeFrame:FindFirstChild("Rewards") then
+                    local rewardsFolder = playtimeFrame.Rewards:FindFirstChild("Rewards") or playtimeFrame.Rewards
+                    for _, child in ipairs(rewardsFolder:GetChildren()) do
+                        if not running then break end
+                        if child:IsA("GuiObject") and child.Name:find("Reward") then
+                            processRewardBox(child, child.Name, "Playtime")
+                        end
+                    end
                 end
 
-                local ptFrame = mainGui.Root.Frames:FindFirstChild("PlaytimeRewards")
-                if not ptFrame then
-                    ptFrame = mainGui:FindFirstChild("PlaytimeRewards", true)
-                end
-
-                if ptFrame then
-                    -- 1. SCAN PLAYTIME REWARDS (Reward 1 - 12+)
-                    local rewardsFolder = ptFrame:FindFirstChild("RewardsFrame") or ptFrame:FindFirstChild("Rewards")
-                    if rewardsFolder then
-                        for i = 1, 15 do
-                            if not running then break end
-                            local rewardBox = rewardsFolder:FindFirstChild("Reward" .. tostring(i)) or rewardsFolder:FindFirstChild(tostring(i))
-                            if rewardBox then
-                                processRewardBox(rewardBox, i, "Playtime")
-                            end
+                -- 2. SCAN DAILY REWARDS
+                local dailyFrame = mainGui.Root.Frames:FindFirstChild("DailyRewards") or mainGui.Root.Frames:FindFirstChild("Daily")
+                if dailyFrame then
+                    local dailyFolder = dailyFrame:FindFirstChild("Days") or dailyFrame:FindFirstChild("Rewards") or dailyFrame
+                    for i = 1, 7 do
+                        if not running then break end
+                        local rewardBox = dailyFolder:FindFirstChild("Reward" .. tostring(i)) or dailyFolder:FindFirstChild(tostring(i))
+                        if rewardBox then
+                            processRewardBox(rewardBox, i, "Daily")
                         end
                     end
 
-                    -- 2. SCAN DAILY REWARDS (Reward 1 - 7)
-                    local dailyFrame = ptFrame:FindFirstChild("DailyFrame") or ptFrame:FindFirstChild("Daily")
-                    if dailyFrame then
-                        local dailyFolder = dailyFrame:FindFirstChild("DailyRewardsFrame") or dailyFrame:FindFirstChild("RewardsFrame") or dailyFrame
-                        for i = 1, 7 do
-                            if not running then break end
-                            local rewardBox = dailyFolder:FindFirstChild("Reward" .. tostring(i)) or dailyFolder:FindFirstChild(tostring(i))
-                            if rewardBox then
-                                processRewardBox(rewardBox, i, "Daily")
-                            end
-                        end
-
-                        -- Final Reward (Day 7 / Bonus)
-                        local finalBox = dailyFrame:FindFirstChild("FinalReward") or dailyFrame:FindFirstChild("Reward7")
-                        if finalBox then
-                            processRewardBox(finalBox, 7, "FinalDaily")
-                        end
+                    -- Final Reward (Day 7 / Bonus)
+                    local finalBox = dailyFrame:FindFirstChild("FinalReward") or dailyFrame:FindFirstChild("Reward7")
+                    if finalBox then
+                        processRewardBox(finalBox, 7, "FinalDaily")
                     end
                 end
 
@@ -282,6 +275,10 @@ end
 
 function AutoClaim.Stop()
     running = false
+    if claimThread then
+        task.cancel(claimThread)
+        claimThread = nil
+    end
     print("🛑 [Ritod Hub] Smart Auto Claim Dimatikan.")
 end
 
