@@ -536,10 +536,10 @@ local hubTitle = Instance.new("TextLabel")
 hubTitle.Position = UDim2.new(0, 18, 0, 0)
 hubTitle.Size = UDim2.new(0, 360, 1, 0)
 hubTitle.BackgroundTransparency = 1
-hubTitle.Text = "⚡ RITOD HUB <font color='#c47aff'>CAPYBARAS VS PLANTS v3.2</font>"
+hubTitle.Text = "⚡RITOD HUB⚡"
 hubTitle.RichText = true
 hubTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-hubTitle.TextSize = 15
+hubTitle.TextSize = 16
 hubTitle.Font = Enum.Font.GothamBlack
 hubTitle.TextXAlignment = Enum.TextXAlignment.Left
 hubTitle.ZIndex = 12

@@ -302,7 +302,7 @@ local hubTitle = Instance.new("TextLabel")
 hubTitle.Position = UDim2.new(0, 18, 0, 0)
 hubTitle.Size = UDim2.new(0, 320, 1, 0)
 hubTitle.BackgroundTransparency = 1
-hubTitle.Text = "⚡ RITOD HUB <font color='#c47aff'>ROLL ANIME v3.2</font>"
+hubTitle.Text = "⚡RITOD HUB⚡"
 hubTitle.RichText = true
 hubTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 hubTitle.TextSize = 16
@@ -1537,4 +1537,4 @@ if savedConfig.AutoHuntEnabled then
 end
 
 -- Pop up notifikasi awal
-Notify("RITOD Hub PRO v3.2", "Loaded! File Config: " .. cfgPath, 4)
+Notify("⚡RITOD HUB⚡", "Loaded! File Config: " .. cfgPath, 4)
