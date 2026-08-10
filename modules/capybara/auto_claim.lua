@@ -455,65 +455,6 @@ local function scanQuestsAndMissions()
 end
 
 -- =================================================================
--- ⚡ 4. BACKGROUND REMOTE DISCOVERY (SECURE SWEEPER)
--- =================================================================
-local function sweepDirectRemotes()
-    local now = tick()
-    if now - lastRemoteSweep < 10 then return end
-    lastRemoteSweep = now
-
-    pcall(function()
-        for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-                local oName = obj.Name:lower()
-                
-                -- Playtime Rewards Remote
-                if AutoClaim.Config.PlaytimeDaily and (oName:find("playtime") or oName:find("freegift") or oName:find("timereward")) then
-                    for i = 1, 12 do
-                        pcall(function()
-                            if obj:IsA("RemoteEvent") then
-                                obj:FireServer(i)
-                                obj:FireServer("Reward" .. tostring(i))
-                            elseif obj:IsA("RemoteFunction") then
-                                obj:InvokeServer(i)
-                            end
-                        end)
-                    end
-                end
-
-                -- Daily Login Remote
-                if AutoClaim.Config.PlaytimeDaily and (oName:find("daily") or oName:find("loginreward") or oName:find("dayreward")) then
-                    for i = 1, 7 do
-                        pcall(function()
-                            if obj:IsA("RemoteEvent") then
-                                obj:FireServer(i)
-                                obj:FireServer("Day" .. tostring(i))
-                            elseif obj:IsA("RemoteFunction") then
-                                obj:InvokeServer(i)
-                            end
-                        end)
-                    end
-                    pcall(function()
-                        if obj:IsA("RemoteEvent") then obj:FireServer("FinalReward") end
-                    end)
-                end
-
-                -- Quest Remotes
-                if AutoClaim.Config.Quest and (oName:find("quest") or oName:find("task") or oName:find("achievement")) then
-                    pcall(function()
-                        if obj:IsA("RemoteEvent") then
-                            obj:FireServer()
-                            obj:FireServer("All")
-                            obj:FireServer("Daily")
-                        end
-                    end)
-                end
-            end
-        end
-    end)
-end
-
--- =================================================================
 -- 🚀 MAIN LOOP CONTROLLER (PURE STATE-DRIVEN)
 -- =================================================================
 
@@ -533,9 +474,6 @@ function AutoClaim.Start()
                 if AutoClaim.Config.Quest then
                     scanQuestsAndMissions()
                 end
-
-                -- Sweep background remotes secara berkala
-                sweepDirectRemotes()
             end)
 
             task.wait(AutoClaim.Config.CheckInterval or 1.5)
