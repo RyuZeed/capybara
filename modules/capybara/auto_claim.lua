@@ -448,22 +448,47 @@ local function scanQuestsAndMissions()
                 end
             end
 
-            -- Klaim Bonus Harian jika semua 3 misi selesai
-            if (serverData.DailyClaimedCount or 0) >= 3 and daily.BonusClaimed == false and not claimedHistory["DailyBonus"] then
-                local lastClick = clickDebounce["DailyBonus"] or 0
-                if tick() - lastClick > 5 then
-                    clickDebounce["DailyBonus"] = tick()
-                    claimedHistory["DailyBonus"] = true
-                    print("🎁 [Auto Claim] Daily Bonus READY! Mengklaim...")
-                    task.spawn(function()
-                        pcall(function() claimQuest:InvokeServer("Bonus") end)
-                        pcall(function() claimQuest:InvokeServer("DailyBonus") end)
-                        pcall(function() claimQuest:InvokeServer("Daily", "Bonus") end)
-                    end)
+        -- 3. KLAIM FINAL REWARD PER TREE LEVEL (Magic Egg, dsb.)
+        if QuestData and typeof(QuestData.Lifetime) == "table" then
+            for _, levelObj in ipairs(QuestData.Lifetime) do
+                local lvl = levelObj.Level or 1
+                local allQuestsDone = true
+                if typeof(levelObj.Quests) == "table" and #levelObj.Quests > 0 then
+                    for _, q in ipairs(levelObj.Quests) do
+                        if not lifetimeClaimed[q.Id] then
+                            allQuestsDone = false
+                            break
+                        end
+                    end
+                else
+                    allQuestsDone = false
+                end
+
+                local lvlRewardKey = "LevelReward_" .. tostring(lvl)
+                local isRewardClaimed = false
+                if typeof(serverData.LevelRewardClaimed) == "table" then
+                    for _, rLvl in pairs(serverData.LevelRewardClaimed) do
+                        if rLvl == lvl or rLvl == tostring(lvl) then
+                            isRewardClaimed = true
+                        end
+                    end
+                end
+
+                if allQuestsDone and not isRewardClaimed and not claimedHistory[lvlRewardKey] then
+                    local lastClick = clickDebounce[lvlRewardKey] or 0
+                    if tick() - lastClick > 5 then
+                        clickDebounce[lvlRewardKey] = tick()
+                        claimedHistory[lvlRewardKey] = true
+                        print(string.format("🌟 [Auto Claim] Tree Level %d Final Reward READY! Mengklaim...", lvl))
+                        task.spawn(function()
+                            pcall(function() claimQuest:InvokeServer(lvl) end)
+                            pcall(function() claimQuest:InvokeServer("Level", lvl) end)
+                            pcall(function() claimQuest:InvokeServer("LevelReward", lvl) end)
+                        end)
+                    end
                 end
             end
         end
-    end)
 
     -- 3. UI Backup Simulator (Menekan tombol UI jika masih ada yang tersisa)
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
