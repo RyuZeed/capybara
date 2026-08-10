@@ -228,285 +228,110 @@ local function processRewardCard(card, cardType)
             clickButton(claimBtn)
             return true
         end
-    end
-
     return false
 end
 
 -- =================================================================
--- =================================================================
--- ⏳ 1. PLAYTIME REWARDS SCANNER (SERVER DATA + UI BACKUP)
+-- ⏳ 1. PLAYTIME REWARDS SCANNER (ONLINE GIFTS)
 -- =================================================================
 local function scanPlaytimeRewards()
-    -- 1. Direct Server Data
-    pcall(function()
-        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-        if remotes then
-            local reqPlay = remotes:FindFirstChild("RequestPlaytime")
-            local claimPlay = remotes:FindFirstChild("ClaimPlaytimeReward")
-            if reqPlay and reqPlay:IsA("RemoteFunction") and claimPlay and claimPlay:IsA("RemoteEvent") then
-                local playData = reqPlay:InvokeServer()
-                if typeof(playData) == "table" then
-                    for slotId, slotInfo in pairs(playData) do
-                        if typeof(slotInfo) == "table" then
-                            local isClaimed = slotInfo.Claimed or slotInfo.IsClaimed
-                            local isReady = (not isClaimed) and (slotInfo.Ready or (slotInfo.TimeLeft and slotInfo.TimeLeft <= 0))
-                            local cardKey = "RemotePlaytime_" .. tostring(slotId)
-                            if isReady and not claimedHistory[cardKey] then
-                                local lastClick = clickDebounce[cardKey] or 0
-                                if tick() - lastClick > 4 then
-                                    clickDebounce[cardKey] = tick()
-                                    claimedHistory[cardKey] = true
-                                    print(string.format("🎁 [Auto Claim] Playtime Gift READY (Slot %s)! Mengklaim...", tostring(slotId)))
-                                    claimPlay:FireServer(slotId)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end)
-
-    -- 2. UI Fallback
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return end
 
-    local processed = {}
-    for _, gui in ipairs(pg:GetChildren()) do
-        if gui:IsA("ScreenGui") and not gui.Name:lower():find("hub") then
-            for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("GuiObject") and not processed[desc] then
-                    local dName = desc.Name:lower()
-                    if (dName:find("playtime") or dName:find("online") or dName:find("timegift") or dName:find("freegift") or dName:find("gift")) then
-                        for _, item in ipairs(desc:GetDescendants()) do
-                            if item:IsA("GuiObject") and not processed[item] then
-                                local rName = item.Name:lower()
-                                if rName:find("reward") or tonumber(item.Name) ~= nil or rName:find("slot") or rName:find("gift") or rName:find("item") then
-                                    processed[item] = true
-                                    processRewardCard(item, "Playtime Gift")
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end
-
--- =================================================================
--- 📅 2. DAILY LOGIN REWARDS SCANNER (SERVER DATA + UI BACKUP)
--- =================================================================
-local function scanDailyLoginRewards()
-    -- 1. Direct Server Data
-    pcall(function()
-        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-        if remotes then
-            local reqDaily = remotes:FindFirstChild("RequestDailyRewards")
-            local claimDaily = remotes:FindFirstChild("ClaimDailyReward")
-            if reqDaily and reqDaily:IsA("RemoteFunction") and claimDaily and claimDaily:IsA("RemoteEvent") then
-                local dailyData = reqDaily:InvokeServer()
-                if typeof(dailyData) == "table" then
-                    for dayId, dayInfo in pairs(dailyData) do
-                        if typeof(dayInfo) == "table" then
-                            local isClaimed = dayInfo.Claimed or dayInfo.IsClaimed
-                            local isReady = (not isClaimed) and (dayInfo.Ready or dayInfo.CanClaim)
-                            local cardKey = "RemoteDaily_" .. tostring(dayId)
-                            if isReady and not claimedHistory[cardKey] then
-                                local lastClick = clickDebounce[cardKey] or 0
-                                if tick() - lastClick > 4 then
-                                    clickDebounce[cardKey] = tick()
-                                    claimedHistory[cardKey] = true
-                                    print(string.format("📅 [Auto Claim] Daily Login Reward READY (Day %s)! Mengklaim...", tostring(dayId)))
-                                    claimDaily:FireServer(dayId)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end)
-
-    -- 2. UI Fallback
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if not pg then return end
-
-    local processed = {}
-    for _, gui in ipairs(pg:GetChildren()) do
-        if gui:IsA("ScreenGui") and not gui.Name:lower():find("hub") then
-            for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("GuiObject") and not processed[desc] then
-                    local dName = desc.Name:lower()
-                    if (dName:find("daily") or dName:find("loginreward") or dName:find("7day") or dName:find("dayreward")) then
-                        for _, dayItem in ipairs(desc:GetDescendants()) do
-                            if dayItem:IsA("GuiObject") and not processed[dayItem] then
-                                local dyName = dayItem.Name:lower()
-                                if dyName:find("day") or dyName:find("reward") or tonumber(dayItem.Name) ~= nil or dyName:find("final") or dyName:find("item") then
-                                    processed[dayItem] = true
-                                    processRewardCard(dayItem, "Daily Login")
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end
-
--- =================================================================
--- 📜 3. QUESTS SCANNER & AUTO-CLAIMER (DIRECT QUESTDATA ENGINE)
--- =================================================================
-
-local function scanQuestsAndMissions()
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-    if not remotes then return end
-
-    local claimQuest = remotes:FindFirstChild("ClaimQuest")
-    local reqQuests = remotes:FindFirstChild("RequestQuests")
-    if not claimQuest or not reqQuests then return end
-
-    pcall(function()
-        local serverData = reqQuests:InvokeServer()
-        if typeof(serverData) ~= "table" then return end
-
-        local lifetimeStats = serverData.LifetimeStats or {}
-        local lifetimeClaimed = serverData.LifetimeClaimed or {}
-        local daily = serverData.Daily or {}
-        local dailyClaimed = daily.Claimed or {}
-        local dailyProgress = daily.Progress or {}
-        local dailyActive = daily.Active or {}
-
-        -- Muat database resmi QuestData dari game
-        local QuestData = nil
-        pcall(function()
-            local qdMod = ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("QuestData")
-            if qdMod then QuestData = require(qdMod) end
-        end)
-
-        -- 1. PROSES LIFETIME QUESTS
-        if QuestData and typeof(QuestData.Lifetime) == "table" then
-            for _, levelObj in ipairs(QuestData.Lifetime) do
-                if typeof(levelObj.Quests) == "table" then
-                    for _, q in ipairs(levelObj.Quests) do
-                        local qId = q.Id
-                        local statName = q.Stat
-                        local target = q.Target or 1
-                        local currentStat = lifetimeStats[statName] or 0
-
-                        -- Jika belum diklaim dan progress sudah mencapai target
-                        if qId and not lifetimeClaimed[qId] and not claimedHistory[qId] then
-                            if currentStat >= target then
-                                local lastClick = clickDebounce[qId] or 0
-                                if tick() - lastClick > 4 then
-                                    clickDebounce[qId] = tick()
-                                    claimedHistory[qId] = true
-                                    print(string.format("🏆 [Auto Claim] Lifetime Quest READY: %s (%s) [%d/%d]! Mengklaim...", tostring(q.Label), tostring(qId), currentStat, target))
-                                    
-                                    task.spawn(function()
-                                        pcall(function() claimQuest:InvokeServer(qId) end)
-                                        pcall(function() claimQuest:InvokeServer("Lifetime", qId) end)
-                                        pcall(function() claimQuest:InvokeServer(levelObj.Level or 1, qId) end)
-                                    end)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        -- 2. PROSES DAILY QUESTS
-        if QuestData and typeof(QuestData.Daily) == "table" then
-            -- Buat map target harian dari QuestData
-            local dailyMap = {}
-            for _, dq in ipairs(QuestData.Daily) do
-                if dq.Id then dailyMap[dq.Id] = dq end
-            end
-
-            for _, qId in ipairs(dailyActive) do
-                if not dailyClaimed[qId] and not claimedHistory[qId] then
-                    local dqInfo = dailyMap[qId]
-                    local target = (dqInfo and dqInfo.Target) or 1
-                    local curProg = dailyProgress[qId] or 0
-
-                    if curProg >= target then
-                        local lastClick = clickDebounce[qId] or 0
-                        if tick() - lastClick > 4 then
-                            clickDebounce[qId] = tick()
-                            claimedHistory[qId] = true
-                            print(string.format("📜 [Auto Claim] Daily Quest READY: %s (%s) [%d/%d]! Mengklaim...", tostring(dqInfo and dqInfo.Label or qId), tostring(qId), curProg, target))
-                            
-                            task.spawn(function()
-                                pcall(function() claimQuest:InvokeServer(qId) end)
-                                pcall(function() claimQuest:InvokeServer("Daily", qId) end)
-                            end)
-                        end
-                    end
-                end
-            end
-
-        -- 3. KLAIM FINAL REWARD PER TREE LEVEL (Magic Egg, dsb.)
-        if QuestData and typeof(QuestData.Lifetime) == "table" then
-            for _, levelObj in ipairs(QuestData.Lifetime) do
-                local lvl = levelObj.Level or 1
-                local allQuestsDone = true
-                if typeof(levelObj.Quests) == "table" and #levelObj.Quests > 0 then
-                    for _, q in ipairs(levelObj.Quests) do
-                        if not lifetimeClaimed[q.Id] then
-                            allQuestsDone = false
-                            break
-                        end
-                    end
-                else
-                    allQuestsDone = false
-                end
-
-                local lvlRewardKey = "LevelReward_" .. tostring(lvl)
-                local isRewardClaimed = false
-                if typeof(serverData.LevelRewardClaimed) == "table" then
-                    for _, rLvl in pairs(serverData.LevelRewardClaimed) do
-                        if rLvl == lvl or rLvl == tostring(lvl) then
-                            isRewardClaimed = true
-                        end
-                    end
-                end
-
-                if allQuestsDone and not isRewardClaimed and not claimedHistory[lvlRewardKey] then
-                    local lastClick = clickDebounce[lvlRewardKey] or 0
-                    if tick() - lastClick > 5 then
-                        clickDebounce[lvlRewardKey] = tick()
-                        claimedHistory[lvlRewardKey] = true
-                        print(string.format("🌟 [Auto Claim] Tree Level %d Final Reward READY! Mengklaim...", lvl))
-                        task.spawn(function()
-                            pcall(function() claimQuest:InvokeServer(lvl) end)
-                            pcall(function() claimQuest:InvokeServer("Level", lvl) end)
-                            pcall(function() claimQuest:InvokeServer("LevelReward", lvl) end)
-                        end)
-                    end
-                end
-            end
-        end
-
-    -- 3. UI Backup Simulator (Menekan tombol UI jika masih ada yang tersisa)
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if pg then
-        local mainGui = pg:FindFirstChild("MainGui")
-        local questsFrame = mainGui and mainGui:FindFirstChild("Root") and mainGui.Root:FindFirstChild("Frames") and mainGui.Root.Frames:FindFirstChild("Quests")
-        if questsFrame then
-            for _, desc in ipairs(questsFrame:GetDescendants()) do
-                if desc:IsA("GuiObject") and not desc:IsA("ScrollingFrame") then
-                    local state, btn = evaluateQuestCard(desc)
-                    if state == "READY" and btn then
+    for _, desc in ipairs(pg:GetDescendants()) do
+        if desc:IsA("ImageButton") or desc:IsA("TextButton") then
+            local pName = desc.Parent and desc.Parent.Name:lower() or ""
+            local gName = desc:GetFullName():lower()
+            if gName:find("playtime") or gName:find("online") or gName:find("gift") or gName:find("timegift") then
+                local lbl = desc:FindFirstChild("TextLabel") or (desc:IsA("TextButton") and desc)
+                if lbl then
+                    local cleanTxt = (lbl.Text or ""):upper():gsub("%s+", "")
+                    if cleanTxt == "CLAIM" then
                         local cardKey = desc:GetFullName()
                         local lastClick = clickDebounce[cardKey] or 0
-                        if tick() - lastClick > 4 then
+                        if tick() - lastClick > 3 then
                             clickDebounce[cardKey] = tick()
-                            claimedHistory[cardKey] = true
-                            print(string.format("🖱️ [Auto Claim] UI Quest READY (%s)! Menekan tombol...", tostring(desc.Name)))
-                            clickButton(btn)
+                            print(string.format("🎁 [Auto Claim] Playtime Gift READY! Mengklaim (%s)...", tostring(desc.Parent and desc.Parent.Name or desc.Name)))
+                            clickButton(desc)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- =================================================================
+-- 📅 2. DAILY LOGIN REWARDS SCANNER
+-- =================================================================
+local function scanDailyLoginRewards()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return end
+
+    for _, desc in ipairs(pg:GetDescendants()) do
+        if desc:IsA("ImageButton") or desc:IsA("TextButton") then
+            local gName = desc:GetFullName():lower()
+            if gName:find("daily") or gName:find("loginreward") or gName:find("7day") or gName:find("dayreward") then
+                local lbl = desc:FindFirstChild("TextLabel") or (desc:IsA("TextButton") and desc)
+                if lbl then
+                    local cleanTxt = (lbl.Text or ""):upper():gsub("%s+", "")
+                    if cleanTxt == "CLAIM" then
+                        local cardKey = desc:GetFullName()
+                        local lastClick = clickDebounce[cardKey] or 0
+                        if tick() - lastClick > 3 then
+                            clickDebounce[cardKey] = tick()
+                            print(string.format("📅 [Auto Claim] Daily Login READY! Mengklaim (%s)...", tostring(desc.Parent and desc.Parent.Name or desc.Name)))
+                            clickButton(desc)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- =================================================================
+-- 📜 3. QUESTS SCANNER & AUTO-CLAIMER (DAILY & LIFETIME ENGINE)
+-- =================================================================
+local function scanQuestsAndMissions()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return end
+
+    local mainGui = pg:FindFirstChild("MainGui")
+    local questsFrame = mainGui and mainGui:FindFirstChild("Root") and mainGui.Root:FindFirstChild("Frames") and mainGui.Root.Frames:FindFirstChild("Quests")
+    if questsFrame then
+        for _, desc in ipairs(questsFrame:GetDescendants()) do
+            if desc:IsA("ImageButton") or desc:IsA("TextButton") then
+                local lbl = desc:FindFirstChild("TextLabel") or (desc:IsA("TextButton") and desc)
+                if lbl then
+                    local cleanTxt = (lbl.Text or ""):upper():gsub("%s+", "")
+                    if cleanTxt == "CLAIM" then
+                        -- Cek apakah progress kartu misi belum selesai (contoh: 1/3 atau 5/15)
+                        local isLocked = false
+                        local card = desc.Parent
+                        if card then
+                            local pBar = card:FindFirstChild("ProgressBar")
+                            local pLbl = pBar and pBar:FindFirstChild("TextLabel")
+                            if pLbl then
+                                local cur, max = pLbl.Text:match("(%d+)%s*/%s*(%d+)")
+                                if cur and max then
+                                    local nCur = tonumber(cur)
+                                    local nMax = tonumber(max)
+                                    if nCur and nMax and nMax > 0 and nCur < nMax then
+                                        isLocked = true
+                                    end
+                                end
+                            end
+                        end
+
+                        if not isLocked then
+                            local cardKey = desc:GetFullName()
+                            local lastClick = clickDebounce[cardKey] or 0
+                            if tick() - lastClick > 3 then
+                                clickDebounce[cardKey] = tick()
+                                print(string.format("🏆 [Auto Claim] Mengklaim Quest (%s)...", tostring(card and card.Name or desc.Name)))
+                                clickButton(desc)
+                            end
                         end
                     end
                 end
