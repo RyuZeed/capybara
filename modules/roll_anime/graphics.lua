@@ -104,8 +104,6 @@ local function cleanObject(v)
             v.CastShadow = false
             if v:IsA("MeshPart") then
                 v.TextureID = ""
-                v.RenderFidelity = Enum.RenderFidelity.Performance
-                v.CollisionFidelity = Enum.CollisionFidelity.Box
             end
         elseif v:IsA("SpecialMesh") then
             v.TextureId = ""
