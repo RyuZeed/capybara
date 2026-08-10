@@ -27,7 +27,7 @@ local SETTINGS = {
     Normal_FPS_Cap         = 60,
     ChunkSize              = 350,
     AutoGCInterval         = 60,
-    AutoThrottleBackground = true,
+    AutoThrottleBackground = false, -- Disabled to prevent unexpected 5 FPS lock when window loses focus
 }
 
 local States = {
@@ -35,7 +35,8 @@ local States = {
     FarmMode         = false,  -- 3D Rendering Off + Black Screen
     AntiLag          = false,  -- FPS Capped to 5 & Shadows Off
     Is3DDisabled     = false,
-    CurrentFPSCap    = SETTINGS.TargetFPS,
+    BaseFPS          = SETTINGS.TargetFPS or 60,
+    CurrentFPSCap    = SETTINGS.TargetFPS or 60,
 }
 
 local Connections = {}
@@ -59,7 +60,11 @@ local function applyFpsCap(fps)
 end
 
 function GraphicsModule.ApplyFpsCap(fps)
-    applyFpsCap(fps or (States.FarmMode and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap)))
+    if fps and fps > 5 then
+        States.BaseFPS = fps
+    end
+    local target = fps or ((States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap))
+    applyFpsCap(target)
 end
 
 -- =================================================================
@@ -196,10 +201,18 @@ end
 -- =================================================================
 function GraphicsModule.SetAntiLag(enable, customFps)
     States.AntiLag = enable
-    local targetFps = enable and (customFps or SETTINGS.AFK_FPS_Cap) or SETTINGS.Normal_FPS_Cap
-    applyFpsCap(targetFps)
-    pcall(function() Lighting.GlobalShadows = not enable end)
-    print("❄️ [Ritod Hub] Anti-Lag (FPS Cap " .. tostring(targetFps) .. "): " .. (enable and "ON" or "OFF"))
+    if enable then
+        local targetFps = customFps or SETTINGS.AFK_FPS_Cap
+        applyFpsCap(targetFps)
+        pcall(function() Lighting.GlobalShadows = false end)
+        print("❄️ [Ritod Hub] Anti-Lag (FPS Cap " .. tostring(targetFps) .. "): ON")
+    else
+        -- Restore Shadows (if not potato mode) and restore FPS to normal
+        pcall(function() Lighting.GlobalShadows = not States.PotatoGraphics end)
+        local normalFps = States.FarmMode and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap)
+        applyFpsCap(normalFps)
+        print("❄️ [Ritod Hub] Anti-Lag: OFF (FPS Restored to " .. tostring(normalFps) .. ")")
+    end
 end
 
 -- =================================================================
@@ -313,23 +326,25 @@ function GraphicsModule.SetFarmMode(enable, onSync)
 
     set3DRendering(not enable)
 
-    local targetFps = enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or States.CurrentFPSCap)
+    local targetFps = enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap))
     applyFpsCap(targetFps)
 
     print("🚜 [Ritod Hub] Farm Mode (3D Render Off): " .. (enable and "ON" or "OFF"))
 end
 
 -- =================================================================
--- 8. 🪟 WINDOW FOCUS AUTO-THROTTLE
+-- 8. 🪟 WINDOW FOCUS CONTROLLER (SAFE)
 -- =================================================================
 if SETTINGS.AutoThrottleBackground then
     local blurConn = UserInputService.WindowFocusReleased:Connect(function()
-        applyFpsCap(SETTINGS.AFK_FPS_Cap)
+        if States.FarmMode or States.AntiLag then
+            applyFpsCap(SETTINGS.AFK_FPS_Cap)
+        end
     end)
     table.insert(Connections, blurConn)
 
     local focusConn = UserInputService.WindowFocused:Connect(function()
-        local currentTarget = (States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or States.CurrentFPSCap
+        local currentTarget = (States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap)
         applyFpsCap(currentTarget)
     end)
     table.insert(Connections, focusConn)

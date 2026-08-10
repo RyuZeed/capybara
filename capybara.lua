@@ -98,6 +98,10 @@ local DEFAULT_CONFIG = {
     AutoTutorial       = true,
     AutoDelete         = false,
     AutoClaim          = true,
+    AutoClaimQuest     = true,
+    WalkSpeed          = 16,
+    JumpPower          = 50,
+    InfJump            = false,
     AutoBuyEgg         = false,
     BuyAllStock        = true,
     AutoPlaceEgg       = false,
@@ -155,11 +159,16 @@ if typeof(USER_CFG) == "table" then
     if USER_CFG["Farm Mode"] ~= nil then CurrentConfig.FarmMode = USER_CFG["Farm Mode"] end
     if USER_CFG["Auto Tutorial"] ~= nil then CurrentConfig.AutoTutorial = USER_CFG["Auto Tutorial"] end
     if USER_CFG["Auto Claim"] ~= nil then CurrentConfig.AutoClaim = USER_CFG["Auto Claim"] end
+    if USER_CFG["Auto Claim Quest"] ~= nil then CurrentConfig.AutoClaimQuest = USER_CFG["Auto Claim Quest"] end
+    if USER_CFG["Auto Quest"] ~= nil then CurrentConfig.AutoClaimQuest = USER_CFG["Auto Quest"] end
     if USER_CFG["Auto Delete"] ~= nil then CurrentConfig.AutoDelete = USER_CFG["Auto Delete"] end
     if USER_CFG["Auto Buy Egg"] ~= nil then CurrentConfig.AutoBuyEgg = USER_CFG["Auto Buy Egg"] end
     if USER_CFG["Auto Place Egg"] ~= nil then CurrentConfig.AutoPlaceEgg = USER_CFG["Auto Place Egg"] end
     if USER_CFG["Auto Hatch Egg"] ~= nil then CurrentConfig.AutoHatchEgg = USER_CFG["Auto Hatch Egg"] end
     if USER_CFG["Selected Egg"] ~= nil then CurrentConfig.SelectedEgg = USER_CFG["Selected Egg"] end
+    if USER_CFG["WalkSpeed"] ~= nil then CurrentConfig.WalkSpeed = USER_CFG["WalkSpeed"] end
+    if USER_CFG["JumpPower"] ~= nil then CurrentConfig.JumpPower = USER_CFG["JumpPower"] end
+    if USER_CFG["InfJump"] ~= nil then CurrentConfig.InfJump = USER_CFG["InfJump"] end
     if USER_CFG["FPS Cap"] ~= nil and GraphicsModule then GraphicsModule.ApplyFpsCap(USER_CFG["FPS Cap"]) end
 end
 
@@ -1048,6 +1057,107 @@ local function CreateTab(name, icon)
         }
     end
 
+    function elements:AddSlider(text, min, max, default, callback)
+        local val = default or min
+        local sliderFrame = Instance.new("Frame")
+        sliderFrame.Size = UDim2.new(1, 0, 0, 54)
+        sliderFrame.BackgroundColor3 = Color3.fromRGB(26, 20, 34)
+        sliderFrame.BorderSizePixel = 0
+        sliderFrame.ZIndex = 14
+        sliderFrame.Parent = page
+
+        local sCorner = Instance.new("UICorner")
+        sCorner.CornerRadius = UDim.new(0, 8)
+        sCorner.Parent = sliderFrame
+
+        local sLabel = Instance.new("TextLabel")
+        sLabel.Position = UDim2.new(0, 12, 0, 8)
+        sLabel.Size = UDim2.new(1, -80, 0, 16)
+        sLabel.BackgroundTransparency = 1
+        sLabel.Text = text
+        sLabel.TextColor3 = Color3.fromRGB(235, 225, 245)
+        sLabel.TextSize = 12
+        sLabel.Font = Enum.Font.GothamMedium
+        sLabel.TextXAlignment = Enum.TextXAlignment.Left
+        sLabel.ZIndex = 15
+        sLabel.Parent = sliderFrame
+
+        local valLabel = Instance.new("TextLabel")
+        valLabel.Position = UDim2.new(1, -68, 0, 8)
+        valLabel.Size = UDim2.new(0, 56, 0, 16)
+        valLabel.BackgroundTransparency = 1
+        valLabel.Text = tostring(val)
+        valLabel.TextColor3 = Color3.fromRGB(205, 140, 255)
+        valLabel.TextSize = 12
+        valLabel.Font = Enum.Font.GothamBold
+        valLabel.TextXAlignment = Enum.TextXAlignment.Right
+        valLabel.ZIndex = 15
+        valLabel.Parent = sliderFrame
+
+        local barBack = Instance.new("Frame")
+        barBack.Position = UDim2.new(0, 12, 0, 32)
+        barBack.Size = UDim2.new(1, -24, 0, 8)
+        barBack.BackgroundColor3 = Color3.fromRGB(48, 38, 58)
+        barBack.BorderSizePixel = 0
+        barBack.ZIndex = 15
+        barBack.Parent = sliderFrame
+
+        local barCorner = Instance.new("UICorner")
+        barCorner.CornerRadius = UDim.new(1, 0)
+        barCorner.Parent = barBack
+
+        local barFill = Instance.new("Frame")
+        local initRatio = math.clamp((val - min) / math.max(max - min, 1), 0, 1)
+        barFill.Size = UDim2.new(initRatio, 0, 1, 0)
+        barFill.BackgroundColor3 = Color3.fromRGB(180, 85, 255)
+        barFill.BorderSizePixel = 0
+        barFill.ZIndex = 16
+        barFill.Parent = barBack
+
+        local fillCorner = Instance.new("UICorner")
+        fillCorner.CornerRadius = UDim.new(1, 0)
+        fillCorner.Parent = barFill
+
+        local sliding = false
+        local function setSlider(input)
+            local pos = UDim2.new(math.clamp((input.Position.X - barBack.AbsolutePosition.X) / barBack.AbsoluteSize.X, 0, 1), 0, 1, 0)
+            barFill.Size = pos
+            local current = math.floor(min + ((max - min) * pos.X.Scale))
+            valLabel.Text = tostring(current)
+            if callback then callback(current) end
+        end
+
+        barBack.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                sliding = true
+                setSlider(input)
+            end
+        end)
+
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                sliding = false
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                setSlider(input)
+            end
+        end)
+
+        return {
+            Set = function(self, newVal, fireCallback)
+                val = math.clamp(newVal or min, min, max)
+                local ratio = (val - min) / math.max(max - min, 1)
+                barFill.Size = UDim2.new(ratio, 0, 1, 0)
+                valLabel.Text = tostring(val)
+                if fireCallback and callback then callback(val) end
+            end,
+            Get = function(self) return val end
+        }
+    end
+
     function elements:AddPlantCard(plantName, plantRarity, onStateChanged)
         local pKey = cleanPlantName(plantName):lower()
         local card = Instance.new("Frame")
@@ -1218,22 +1328,6 @@ TutorialTab:AddButton("🥚 Teleport ke EggShop & Beli Egg", function()
         if eggShop and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             LocalPlayer.Character.HumanoidRootPart.CFrame = (eggShop:IsA("Model") and eggShop:GetPivot() or eggShop.CFrame) + Vector3.new(0, 3, 0)
             Notify("Teleport", "Berhasil teleport ke EggShop!", 2)
-        end
-    end)
-end)
-
-TutorialTab:AddButton("🏡 Teleport ke Plot Sendiri", function()
-    pcall(function()
-        local plots = workspace:FindFirstChild("Plots") or workspace:FindFirstChild("PlayerPlots")
-        if plots and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            for _, p in ipairs(plots:GetChildren()) do
-                local owner = p:GetAttribute("Owner") or (p:FindFirstChild("Owner") and p.Owner.Value)
-                if owner == LocalPlayer.Name or owner == LocalPlayer.UserId then
-                    LocalPlayer.Character.HumanoidRootPart.CFrame = p:GetPivot() + Vector3.new(0, 4, 0)
-                    Notify("Teleport", "Teleport ke Plot Anda!", 2)
-                    return
-                end
-            end
         end
     end)
 end)
@@ -1727,7 +1821,7 @@ local claimLabel = Instance.new("TextLabel")
 claimLabel.Position = UDim2.new(0, 12, 0, 0)
 claimLabel.Size = UDim2.new(1, -24, 1, 0)
 claimLabel.BackgroundTransparency = 1
-claimLabel.Text = "🎁 Smart Auto Claim: Playtime & Daily Ready"
+claimLabel.Text = "🎁 Auto Claim: Playtime, Daily & Quest Engine"
 claimLabel.TextColor3 = Color3.fromRGB(0, 230, 140)
 claimLabel.TextSize = 12
 claimLabel.Font = Enum.Font.GothamBold
@@ -1735,27 +1829,92 @@ claimLabel.TextXAlignment = Enum.TextXAlignment.Left
 claimLabel.ZIndex = 15
 claimLabel.Parent = claimCard
 
-ClaimTab:AddSection("Pengaturan Klaim Hadiah")
-local claimToggle = ClaimTab:AddToggle("Aktifkan Auto Claim Playtime & Daily", CurrentConfig.AutoClaim, function(state)
+ClaimTab:AddSection("Pengaturan Klaim Hadiah & Quest")
+local claimPlaytimeToggle = ClaimTab:AddToggle("🎁 Aktifkan Auto Claim Playtime & Daily", CurrentConfig.AutoClaim, function(state)
     CurrentConfig.AutoClaim = state
     if AutoClaim then
-        AutoClaim.Toggle(state)
+        AutoClaim.TogglePlaytimeDaily(state)
     end
-    Notify("Auto Claim", state and "Auto Claim hadiah aktif!" or "Auto Claim dimatikan.", 2.5)
+    Notify("Auto Claim", state and "Auto Claim Playtime & Daily aktif!" or "Auto Claim Playtime & Daily dimatikan.", 2.5)
 end)
 
-ClaimTab:AddSection("Aksi Manual")
-ClaimTab:AddButton("⚡ Scan & Klaim Semua Hadiah Sekarang", function()
-    if AutoClaim and AutoClaim.Start then
-        AutoClaim.Start()
-        Notify("Auto Claim", "Memindai hadiah yang siap diklaim...", 2.5)
+local claimQuestToggle = ClaimTab:AddToggle("📜 Aktifkan Auto Claim Quest (Daily & Mission)", CurrentConfig.AutoClaimQuest, function(state)
+    CurrentConfig.AutoClaimQuest = state
+    if AutoClaim then
+        AutoClaim.ToggleQuest(state)
     end
+    Notify("Auto Claim Quest", state and "Auto Claim Quest aktif!" or "Auto Claim Quest dimatikan.", 2.5)
 end)
 
 -- =========================================================================
 -- 📑 TAB 4: ❄️ GRAPHICS & UTILITIES
 -- =========================================================================
 local UtilTab = CreateTab("Utilities", "❄️")
+
+-- 🏃 PLAYER MOVEMENT CONTROLS (ROLL ANIME STYLE)
+UtilTab:AddSection("Player Movement (Speed, Jump & InfJump)")
+
+local function applyPlayerWalkSpeed(val)
+    CurrentConfig.WalkSpeed = val
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.WalkSpeed = val
+    end
+end
+
+local function applyPlayerJumpPower(val)
+    CurrentConfig.JumpPower = val
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.JumpPower = val
+    end
+end
+
+local function setInfiniteJump(state)
+    CurrentConfig.InfJump = state
+    _G.CapyInfJump = state
+    if state then
+        if not _G.CapyInfJumpConn then
+            _G.CapyInfJumpConn = UserInputService.JumpRequest:Connect(function()
+                if _G.CapyInfJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                    LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end)
+        end
+    else
+        if _G.CapyInfJumpConn then
+            _G.CapyInfJumpConn:Disconnect()
+            _G.CapyInfJumpConn = nil
+        end
+    end
+end
+
+local wsSlider = UtilTab:AddSlider("🏃 WalkSpeed", 16, 250, CurrentConfig.WalkSpeed or 16, function(val)
+    applyPlayerWalkSpeed(val)
+end)
+
+local jpSlider = UtilTab:AddSlider("🦘 JumpPower", 50, 350, CurrentConfig.JumpPower or 50, function(val)
+    applyPlayerJumpPower(val)
+end)
+
+local infJumpToggle = UtilTab:AddToggle("🚀 Infinite Jump", CurrentConfig.InfJump or false, function(state)
+    setInfiniteJump(state)
+    Notify("Infinite Jump", state and "Infinite Jump diaktifkan!" or "Infinite Jump dimatikan.", 2)
+end)
+
+-- Auto re-apply on respawn
+LocalPlayer.CharacterAdded:Connect(function(char)
+    local hum = char:WaitForChild("Humanoid", 10)
+    if hum then
+        task.wait(0.5)
+        if CurrentConfig.WalkSpeed and CurrentConfig.WalkSpeed ~= 16 then
+            hum.WalkSpeed = CurrentConfig.WalkSpeed
+        end
+        if CurrentConfig.JumpPower and CurrentConfig.JumpPower ~= 50 then
+            hum.JumpPower = CurrentConfig.JumpPower
+        end
+    end
+end)
 
 UtilTab:AddSection("Optimasi Grafis & FPS")
 local potatoToggle = UtilTab:AddToggle("🥔 Potato Graphics (Hapus Partikel & Tekstur)", CurrentConfig.PotatoGraphics, function(state)
@@ -1817,12 +1976,17 @@ SettingsTab:AddButton("🔄 Muat Ulang Config (Load Config)", function()
         placeEggToggle:Set(loaded.AutoPlaceEgg, false)
         hatchEggToggle:Set(loaded.AutoHatchEgg, false)
         deleteToggle:Set(loaded.AutoDelete, false)
-        claimToggle:Set(loaded.AutoClaim, false)
+        claimPlaytimeToggle:Set(loaded.AutoClaim ~= false, false)
+        claimQuestToggle:Set(loaded.AutoClaimQuest ~= false, false)
         potatoToggle:Set(loaded.PotatoGraphics, false)
         antiLagToggle:Set(loaded.AntiLag, false)
         farmModeToggle:Set(loaded.FarmMode, false)
         afkToggle:Set(loaded.AntiAFK, false)
         pinkToggle:Set(loaded.PinkRemover, false)
+
+        if wsSlider and loaded.WalkSpeed then wsSlider:Set(loaded.WalkSpeed, true) end
+        if jpSlider and loaded.JumpPower then jpSlider:Set(loaded.JumpPower, true) end
+        if infJumpToggle and loaded.InfJump ~= nil then infJumpToggle:Set(loaded.InfJump, true) end
 
         for _, plant in ipairs(REAL_PLANTS_CATALOG) do
             local pKey = plant.name:lower()
@@ -1853,12 +2017,17 @@ SettingsTab:AddButton("🗑️ Reset Config ke Default", function()
     placeEggToggle:Set(DEFAULT_CONFIG.AutoPlaceEgg, false)
     hatchEggToggle:Set(DEFAULT_CONFIG.AutoHatchEgg, false)
     deleteToggle:Set(DEFAULT_CONFIG.AutoDelete, false)
-    claimToggle:Set(DEFAULT_CONFIG.AutoClaim, false)
+    claimPlaytimeToggle:Set(DEFAULT_CONFIG.AutoClaim, false)
+    claimQuestToggle:Set(DEFAULT_CONFIG.AutoClaimQuest, false)
     potatoToggle:Set(DEFAULT_CONFIG.PotatoGraphics, false)
     antiLagToggle:Set(DEFAULT_CONFIG.AntiLag, false)
     farmModeToggle:Set(DEFAULT_CONFIG.FarmMode, false)
     afkToggle:Set(DEFAULT_CONFIG.AntiAFK, false)
     pinkToggle:Set(DEFAULT_CONFIG.PinkRemover, false)
+
+    if wsSlider then wsSlider:Set(DEFAULT_CONFIG.WalkSpeed, true) end
+    if jpSlider then jpSlider:Set(DEFAULT_CONFIG.JumpPower, true) end
+    if infJumpToggle then infJumpToggle:Set(DEFAULT_CONFIG.InfJump, true) end
 
     for _, plant in ipairs(REAL_PLANTS_CATALOG) do
         local pKey = plant.name:lower()
@@ -1895,7 +2064,20 @@ task.spawn(function()
     if CurrentConfig.FarmMode and GraphicsModule then GraphicsModule.SetFarmMode(true) end
     if CurrentConfig.AntiAFK and AFKModule then AFKModule.Enable() end
     if CurrentConfig.PinkRemover and PinkRemover then PinkRemover.Start() end
-    if CurrentConfig.AutoClaim and AutoClaim then AutoClaim.Start() end
+    if CurrentConfig.WalkSpeed and CurrentConfig.WalkSpeed ~= 16 then applyPlayerWalkSpeed(CurrentConfig.WalkSpeed) end
+    if CurrentConfig.JumpPower and CurrentConfig.JumpPower ~= 50 then applyPlayerJumpPower(CurrentConfig.JumpPower) end
+    if CurrentConfig.InfJump then setInfiniteJump(true) end
+
+    if AutoClaim then
+        if AutoClaim.Config then
+            AutoClaim.Config.PlaytimeDaily = (CurrentConfig.AutoClaim ~= false)
+            AutoClaim.Config.Quest = (CurrentConfig.AutoClaimQuest ~= false)
+        end
+        if CurrentConfig.AutoClaim or CurrentConfig.AutoClaimQuest then
+            AutoClaim.Start()
+        end
+    end
+
     if CurrentConfig.AutoBuyEgg and AutoBuyEgg then
         if AutoBuyEgg.Config then
             AutoBuyEgg.Config.SelectedEggs = CurrentConfig.SelectedEggs
