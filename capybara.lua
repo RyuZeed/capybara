@@ -94,6 +94,7 @@ local AutoClaim      = loadModule("auto_claim")
 local AutoTutorial   = loadModule("auto_tutorial")
 local AutoDelete     = loadModule("auto_delete")
 local AutoBuyEgg    = loadModule("auto_buy_egg") or loadModule("Auto buy Egg")
+local ModernSettings = loadModule("modern_settings")
 
 -- =================================================================
 -- 💾 CONFIG MANAGER (PER-USER JSON FILE PERSISTENCE)
@@ -1964,85 +1965,37 @@ local pinkToggle = UtilTab:AddToggle("🚫 Destroyer Notifikasi Pink (Pop-up Cle
 end)
 
 -- =========================================================================
--- 📑 TAB 5: ⚙️ SETTINGS & CONFIG MANAGER (ROLL ANIME STYLE)
+-- 📑 TAB 5: ⚙️ SETTINGS & CONFIG MANAGER (MODERN 3-CARD UI)
 -- =========================================================================
 local SettingsTab = CreateTab("Settings", "⚙️")
 
-SettingsTab:AddSection("💾 Simpan & Muat Config File")
-SettingsTab:AddButton("💾 Simpan Config (Save Config)", function()
-    local success = ConfigManager.Save(CurrentConfig)
-    if success then
-        Notify("Config Saved", "Pengaturan tersimpan di: " .. CONFIG_PATH, 3.0)
-    else
-        Notify("Config Error", "Gagal menyimpan file konfigurasi.", 2.5)
+local function applyLoadedConfig(loaded)
+    if not loaded then return end
+    for k, v in pairs(loaded) do
+        CurrentConfig[k] = v
     end
-end)
 
-SettingsTab:AddButton("🔄 Muat Ulang Config (Load Config)", function()
-    local loaded = ConfigManager.Load()
-    if loaded then
-        tutToggle:Set(loaded.AutoTutorial, false)
-        eggToggle:Set(loaded.AutoBuyEgg, false)
-        buyAllStockToggle:Set(loaded.BuyAllStock ~= false, false)
-        placeEggToggle:Set(loaded.AutoPlaceEgg, false)
-        hatchEggToggle:Set(loaded.AutoHatchEgg, false)
-        deleteToggle:Set(loaded.AutoDelete, false)
-        claimPlaytimeToggle:Set(loaded.AutoClaim ~= false, false)
-        claimQuestToggle:Set(loaded.AutoClaimQuest ~= false, false)
-        potatoToggle:Set(loaded.PotatoGraphics, false)
-        antiLagToggle:Set(loaded.AntiLag, false)
-        farmModeToggle:Set(loaded.FarmMode, false)
-        afkToggle:Set(loaded.AntiAFK, false)
-        pinkToggle:Set(loaded.PinkRemover, false)
+    if tutToggle and loaded.AutoTutorial ~= nil then tutToggle:Set(loaded.AutoTutorial, false) end
+    if eggToggle and loaded.AutoBuyEgg ~= nil then eggToggle:Set(loaded.AutoBuyEgg, false) end
+    if buyAllStockToggle and loaded.BuyAllStock ~= nil then buyAllStockToggle:Set(loaded.BuyAllStock ~= false, false) end
+    if placeEggToggle and loaded.AutoPlaceEgg ~= nil then placeEggToggle:Set(loaded.AutoPlaceEgg, false) end
+    if hatchEggToggle and loaded.AutoHatchEgg ~= nil then hatchEggToggle:Set(loaded.AutoHatchEgg, false) end
+    if deleteToggle and loaded.AutoDelete ~= nil then deleteToggle:Set(loaded.AutoDelete, false) end
+    if claimPlaytimeToggle and loaded.AutoClaim ~= nil then claimPlaytimeToggle:Set(loaded.AutoClaim ~= false, false) end
+    if claimQuestToggle and loaded.AutoClaimQuest ~= nil then claimQuestToggle:Set(loaded.AutoClaimQuest ~= false, false) end
+    if potatoToggle and loaded.PotatoGraphics ~= nil then potatoToggle:Set(loaded.PotatoGraphics, false) end
+    if antiLagToggle and loaded.AntiLag ~= nil then antiLagToggle:Set(loaded.AntiLag, false) end
+    if farmModeToggle and loaded.FarmMode ~= nil then farmModeToggle:Set(loaded.FarmMode, false) end
+    if afkToggle and loaded.AntiAFK ~= nil then afkToggle:Set(loaded.AntiAFK, false) end
+    if pinkToggle and loaded.PinkRemover ~= nil then pinkToggle:Set(loaded.PinkRemover, false) end
 
-        if wsSlider and loaded.WalkSpeed then wsSlider:Set(loaded.WalkSpeed, true) end
-        if jpSlider and loaded.JumpPower then jpSlider:Set(loaded.JumpPower, true) end
-        if infJumpToggle and loaded.InfJump ~= nil then infJumpToggle:Set(loaded.InfJump, true) end
-
-        for _, plant in ipairs(REAL_PLANTS_CATALOG) do
-            local pKey = plant.name:lower()
-            local isChk = (loaded.SelectedPlants and loaded.SelectedPlants[pKey] == true)
-            if plantCardRefs[pKey] then
-                plantCardRefs[pKey]:SetChecked(isChk)
-            end
-        end
-
-        for _, egg in ipairs(OFFICIAL_EGGS_CATALOG) do
-            local eKey = egg.name:lower()
-            local isChk = (loaded.SelectedEggs and loaded.SelectedEggs[eKey] == true)
-            if eggCardRefs[eKey] then
-                eggCardRefs[eKey]:SetChecked(isChk)
-            end
-        end
-        Notify("Config Loaded", "Pengaturan berhasil dimuat dari file JSON!", 2.5)
-    else
-        Notify("Config Error", "File konfigurasi belum ada atau rusak.", 2.5)
-    end
-end)
-
-SettingsTab:AddButton("🗑️ Reset Config ke Default", function()
-    ConfigManager.Reset()
-    tutToggle:Set(DEFAULT_CONFIG.AutoTutorial, false)
-    eggToggle:Set(DEFAULT_CONFIG.AutoBuyEgg, false)
-    buyAllStockToggle:Set(DEFAULT_CONFIG.BuyAllStock, false)
-    placeEggToggle:Set(DEFAULT_CONFIG.AutoPlaceEgg, false)
-    hatchEggToggle:Set(DEFAULT_CONFIG.AutoHatchEgg, false)
-    deleteToggle:Set(DEFAULT_CONFIG.AutoDelete, false)
-    claimPlaytimeToggle:Set(DEFAULT_CONFIG.AutoClaim, false)
-    claimQuestToggle:Set(DEFAULT_CONFIG.AutoClaimQuest, false)
-    potatoToggle:Set(DEFAULT_CONFIG.PotatoGraphics, false)
-    antiLagToggle:Set(DEFAULT_CONFIG.AntiLag, false)
-    farmModeToggle:Set(DEFAULT_CONFIG.FarmMode, false)
-    afkToggle:Set(DEFAULT_CONFIG.AntiAFK, false)
-    pinkToggle:Set(DEFAULT_CONFIG.PinkRemover, false)
-
-    if wsSlider then wsSlider:Set(DEFAULT_CONFIG.WalkSpeed, true) end
-    if jpSlider then jpSlider:Set(DEFAULT_CONFIG.JumpPower, true) end
-    if infJumpToggle then infJumpToggle:Set(DEFAULT_CONFIG.InfJump, true) end
+    if wsSlider and loaded.WalkSpeed then wsSlider:Set(loaded.WalkSpeed, true) end
+    if jpSlider and loaded.JumpPower then jpSlider:Set(loaded.JumpPower, true) end
+    if infJumpToggle and loaded.InfJump ~= nil then infJumpToggle:Set(loaded.InfJump, true) end
 
     for _, plant in ipairs(REAL_PLANTS_CATALOG) do
         local pKey = plant.name:lower()
-        local isChk = (DEFAULT_CONFIG.SelectedPlants and DEFAULT_CONFIG.SelectedPlants[pKey] == true)
+        local isChk = (loaded.SelectedPlants and loaded.SelectedPlants[pKey] == true)
         if plantCardRefs[pKey] then
             plantCardRefs[pKey]:SetChecked(isChk)
         end
@@ -2050,16 +2003,28 @@ SettingsTab:AddButton("🗑️ Reset Config ke Default", function()
 
     for _, egg in ipairs(OFFICIAL_EGGS_CATALOG) do
         local eKey = egg.name:lower()
-        local isChk = (DEFAULT_CONFIG.SelectedEggs and DEFAULT_CONFIG.SelectedEggs[eKey] == true)
+        local isChk = (loaded.SelectedEggs and loaded.SelectedEggs[eKey] == true)
         if eggCardRefs[eKey] then
             eggCardRefs[eKey]:SetChecked(isChk)
         end
     end
-    Notify("Config Reset", "Semua pengaturan dikembalikan ke default.", 2.5)
-end)
+end
 
-SettingsTab:AddSection("Informasi Sesi")
-SettingsTab:AddButton("Player: " .. LocalPlayer.Name, function() end)
+if ModernSettings then
+    local ProfileManager = ModernSettings.CreateProfileManager(
+        "RitodHub/Capybara",
+        DEFAULT_CONFIG,
+        function() return CurrentConfig end,
+        applyLoadedConfig,
+        Notify
+    )
+    ModernSettings.BuildUI(
+        SettingsTab.Page,
+        ProfileManager,
+        "https://raw.githubusercontent.com/RyuZeed/capybara/main/main.lua",
+        Notify
+    )
+end
 
 SettingsTab:AddSection("Kontrol GUI")
 SettingsTab:AddButton("➖ Minimize GUI", function() toggleHub() end)

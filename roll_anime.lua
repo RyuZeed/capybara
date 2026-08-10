@@ -71,6 +71,7 @@ local ConfigManager   = loadModule("config_manager")
 local CatalogModule   = loadModule("catalog")
 local AutoRollModule  = loadModule("auto_roll")
 local GraphicsModule  = loadModule("graphics")
+local ModernSettings  = loadModule("modern_settings")
 
 -- Auto-start Anti-AFK
 if AFKModule then
@@ -1422,50 +1423,80 @@ MiscTab:AddToggle("❄️ Anti-Lag (FPS Cap 5)", savedConfig.AntiLag or false, f
 	end
 end)
 
-MiscTab:AddSection("Config & Persistence")
-
-local cfgPath = ConfigManager and ConfigManager.ConfigPath or "RitodHub/RollAnimeForFight/" .. player.Name .. ".json"
-MiscTab:AddButton("📁 File: " .. cfgPath, function()
-	if setclipboard then setclipboard(cfgPath) end
-	Notify("Config Path", "Path disalin ke clipboard!", 2)
-end)
-
-MiscTab:AddButton("💾 Simpan Config Sekarang", function()
-	if ConfigManager then
-		ConfigManager.Save({
-			SelectedUnits = selectedUnits,
-			RollInterval = rollInterval,
-			AutoHuntEnabled = AutoRollModule and AutoRollModule.IsRunning() or false
-		})
+local function applyRollAnimeConfig(loaded)
+	if not loaded then return end
+	for k, v in pairs(loaded) do
+		savedConfig[k] = v
 	end
-	Notify("Config Manager", "Tersimpan ke " .. cfgPath, 2.5)
-end)
 
-MiscTab:AddButton("🔄 Muat Ulang Config dari File", function()
-	if ConfigManager then
-		savedConfig = ConfigManager.Load()
-		selectedUnits = savedConfig.SelectedUnits or selectedUnits
+	if loaded.SelectedUnits then
+		selectedUnits = {}
+		for name, val in pairs(loaded.SelectedUnits) do
+			if val then selectedUnits[name:lower()] = true end
+		end
 		for _, item in ipairs(unitCheckUpdaterCallbacks) do item.sync() end
 	end
-	Notify("Config Manager", "Konfigurasi dimuat ulang!", 2.5)
-end)
 
-MiscTab:AddButton("🗑️ Reset Config ke Default", function()
-	if ConfigManager then
-		savedConfig = ConfigManager.Reset()
+	if loaded.WalkSpeed and player.Character and player.Character:FindFirstChild("Humanoid") then
+		player.Character.Humanoid.WalkSpeed = loaded.WalkSpeed
 	end
-	selectedUnits = {}
-	if CatalogModule then
-		for _, u in ipairs(CatalogModule.UnitsByRarity["Secret"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
-		for _, u in ipairs(CatalogModule.UnitsByRarity["God"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
+	if loaded.JumpPower and player.Character and player.Character:FindFirstChild("Humanoid") then
+		player.Character.Humanoid.JumpPower = loaded.JumpPower
 	end
-	for _, item in ipairs(unitCheckUpdaterCallbacks) do item.sync() end
-	if ConfigManager then ConfigManager.Save({ SelectedUnits = selectedUnits }) end
-	Notify("Config Manager", "Config direset ke default (Secret & God)!", 2.5)
-end)
+	if loaded.InfJump ~= nil then
+		_G.InfJump = loaded.InfJump
+	end
 
-MiscTab:AddSection("Utilities")
+	if loaded.PotatoGraphics ~= nil and GraphicsModule then
+		GraphicsModule.EnablePotato(loaded.PotatoGraphics)
+	end
+	if loaded.AntiLag ~= nil and GraphicsModule then
+		GraphicsModule.SetAntiLag(loaded.AntiLag)
+	end
+	if loaded.FarmMode ~= nil and GraphicsModule then
+		GraphicsModule.SetFarmMode(loaded.FarmMode)
+	end
+end
 
+if ModernSettings then
+	local ProfileManager = ModernSettings.CreateProfileManager(
+		"RitodHub/RollAnimeForFight",
+		{
+			AutoHuntEnabled = false,
+			RollInterval = 2.5,
+			SelectedUnits = selectedUnits,
+			WalkSpeed = 16,
+			JumpPower = 50,
+			InfJump = false,
+			PotatoGraphics = false,
+			FarmMode = false,
+			AntiLag = false
+		},
+		function()
+			return {
+				AutoHuntEnabled = AutoRollModule and AutoRollModule.IsRunning() or false,
+				RollInterval = rollInterval or 2.5,
+				SelectedUnits = selectedUnits,
+				WalkSpeed = (player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.WalkSpeed) or 16,
+				JumpPower = (player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.JumpPower) or 50,
+				InfJump = _G.InfJump or false,
+				PotatoGraphics = savedConfig.PotatoGraphics or false,
+				FarmMode = savedConfig.FarmMode or false,
+				AntiLag = savedConfig.AntiLag or false
+			}
+		end,
+		applyRollAnimeConfig,
+		Notify
+	)
+	ModernSettings.BuildUI(
+		MiscTab.Page,
+		ProfileManager,
+		"https://raw.githubusercontent.com/RyuZeed/capybara/main/roll_anime.lua",
+		Notify
+	)
+end
+
+MiscTab:AddSection("Kontrol GUI")
 MiscTab:AddButton("Copy Discord Link", function()
 	if setclipboard then setclipboard("https://discord.gg/ritodhub") end
 	Notify("Discord", "Link copied to clipboard!", 3)
