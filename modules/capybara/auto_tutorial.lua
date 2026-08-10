@@ -311,7 +311,7 @@ local function runAutoTutorial()
             end
 
             if isCompleted then
-                print("✅ [Ritod Hub] Akun owner SUDAH SELESAI tutorial! Auto Tutorial dilewati (SKIP).")
+                print("✅ [Ritod Hub] Akun owner SUDAH SELESAI tutorial! Auto Tutorial dilewati (SKIP). Bulk Sell & Auto Delete tetap OFF / Default.")
                 _G.AutoTutorialRunning = false
                 return
             end
@@ -586,6 +586,46 @@ local function runAutoTutorial()
             task.wait(3)
 
             print("🏆 [Ritod Hub] AUTO TUTORIAL COMPLETE!")
+
+            -- 🎯 PEMBERSIHAN KHUSUS AKUN YANG BARU SELESAI TUTORIAL
+            task.wait(1)
+            print("⚡ [Ritod Hub] Tutorial Selesai: Mengaktifkan AutoSell & Bulk Sell...")
+
+            pcall(function()
+                local rarities = {"Common", "Rare", "Epic", "Legendary", "Mythic", "Divine", "Godly", "Secret"}
+                local mainGui = getMainGui()
+                if mainGui and mainGui:FindFirstChild("Root") and mainGui.Root:FindFirstChild("Frames") then
+                    local autoSellFrame = mainGui.Root.Frames:FindFirstChild("AutoSell")
+                    local rarityOptions = autoSellFrame and autoSellFrame:FindFirstChild("RarityOptions")
+                    if rarityOptions then
+                        for _, rName in ipairs(rarities) do
+                            local rFrame = rarityOptions:FindFirstChild(rName)
+                            if rFrame and rFrame:FindFirstChild("Button") then
+                                clickButton(rFrame.Button)
+                            end
+                        end
+                    end
+                end
+
+                if Remotes:FindFirstChild("ChangeAutosellOptions") then
+                    for _, rName in ipairs(rarities) do
+                        Remotes.ChangeAutosellOptions:InvokeServer(rName, true)
+                    end
+                end
+
+                if Remotes:FindFirstChild("EquipBestPlants") then
+                    Remotes.EquipBestPlants:FireServer()
+                    task.wait(0.1)
+                end
+                if Remotes:FindFirstChild("Sell") then
+                    Remotes.Sell:FireServer("bulkSell", "Plant")
+                end
+            end)
+
+            if _G.AutoDeletePlant and _G.AutoDeletePlant.Start then
+                _G.AutoDeletePlant.Start()
+            end
+            print("🗑️ [Ritod Hub] Tutorial Selesai: Bulk Sell & Auto Delete Berhasil Diaktifkan!")
         end) -- ← end pcall tutorial steps
 
         _G.AutoTutorialRunning = false
