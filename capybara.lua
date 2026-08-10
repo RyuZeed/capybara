@@ -13,6 +13,7 @@ local CONFIG = {
     AntiLag        = false,   -- ❄️ Batasi FPS ke 5 & Nonaktifkan Shadow
     PotatoGraphics = true,   -- 🥔 Hapus Tekstur, Partikel, & Efek Berat
     AutoClaim      = true,   -- 🎁 Otomatis klaim Hadiah Playtime & Daily
+    AutoDelete     = false,  -- 🗑️ Otomatis hapus tanaman Common / Sampah
 }
 
 task.wait(0.5)
@@ -74,6 +75,7 @@ local PinkRemover    = loadModule("pink_remover")
 local GraphicsModule = loadModule("graphics")
 local AutoClaim      = loadModule("auto_claim")
 local AutoTutorial   = loadModule("auto_tutorial")
+local AutoDelete     = loadModule("auto_delete") or loadModule("auto delate")
 
 -- Auto Start background utilities
 if AFKModule then AFKModule.Enable() end
@@ -240,6 +242,12 @@ end)
 createToggle("🎁 Auto Claim Rewards", CONFIG.AutoClaim, function(state)
     if AutoClaim then
         if state then AutoClaim.Start() else AutoClaim.Stop() end
+    end
+end)
+
+createToggle("🗑️ Auto Delete Plants", CONFIG.AutoDelete, function(state)
+    if AutoDelete then
+        if state then AutoDelete.Start() else AutoDelete.Stop() end
     end
 end)
 

@@ -43,6 +43,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/RyuZeed/capybara/main
     └── 📁 capybara/                <-- 🐾 Modul Mesin Capybara
         ├── 📄 anti_afk.lua         (Anti-AFK Capybara)
         ├── 📄 auto_claim.lua       (Klaim Playtime & Daily Rewards)
+        ├── 📄 auto delate.lua      (Smart Auto Delete & Filter Tanaman Sampah/Common)
         ├── 📄 auto_tutorial.lua    (12 Steps Full Auto Tutorial)
         ├── 📄 graphics.lua         (Potato Graphics, Farm Mode, Anti-Lag)
         └── 📄 pink_remover.lua     (Destroyer Notifikasi Pink)
@@ -60,6 +61,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/RyuZeed/capybara/main
 * **Stationary Safe Approach**: Karakter mendekat secara aman ke tombol roll tanpa resiko void/jatuh.
 
 #### 🐾 Capybaras vs Plants:
+* **Auto Delete Plant**: Otomatis membersihkan & menghapus tanaman Common/sampah dengan proteksi tanaman terbaik (Equipped Protection).
 * **Auto Tutorial 1-12**: Menyelesaikan tutorial awal game secara instan dari awal hingga boss Scarlet Carrot.
 * **Smart Auto Claim**: Otomatis mengklaim Playtime Rewards & Daily Rewards.
 * **Potato Engine & Farm Mode**: Layar redup + FPS cap ke 5 untuk menghemat daya GPU & CPU saat AFK.
