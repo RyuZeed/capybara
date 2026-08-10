@@ -1383,21 +1383,25 @@ local MiscTab = RitodLib:CreateTab("Settings", "⚙️")
 MiscTab:AddSection("Graphics & Performance")
 
 local updateFarmModeBtn
-updateFarmModeBtn = MiscTab:AddToggle("🚜 Farm Mode (3D Render Off)", false, function(state)
+updateFarmModeBtn = MiscTab:AddToggle("🚜 Farm Mode (3D Render Off)", savedConfig.FarmMode or false, function(state)
+	if ConfigManager then ConfigManager.Save({ FarmMode = state }) end
 	if GraphicsModule then
 		GraphicsModule.SetFarmMode(state, function(newState)
+			if ConfigManager then ConfigManager.Save({ FarmMode = newState }) end
 			if updateFarmModeBtn then updateFarmModeBtn:Set(newState, false) end
 		end)
 	end
 end)
 
-MiscTab:AddToggle("🥔 Low Graphics / Potato Mode", false, function(state)
+MiscTab:AddToggle("🥔 Low Graphics / Potato Mode", savedConfig.PotatoGraphics or false, function(state)
+	if ConfigManager then ConfigManager.Save({ PotatoGraphics = state }) end
 	if GraphicsModule then
 		GraphicsModule.EnablePotato(state)
 	end
 end)
 
-MiscTab:AddToggle("❄️ Anti-Lag (FPS Cap 5)", false, function(state)
+MiscTab:AddToggle("❄️ Anti-Lag (FPS Cap 5)", savedConfig.AntiLag or false, function(state)
+	if ConfigManager then ConfigManager.Save({ AntiLag = state }) end
 	if GraphicsModule then
 		GraphicsModule.SetAntiLag(state)
 	end
@@ -1461,8 +1465,23 @@ MiscTab:AddButton("Unload Script", function()
 end)
 
 -- ==========================================
--- 🚀 AUTO-RESUME JIKA TERAKHIR KALI AUTO-HUNT AKTIF
+-- 🚀 AUTO-RESUME JIKA TERAKHIR KALI AUTO-HUNT / GRAPHICS AKTIF
 -- ==========================================
+if savedConfig.PotatoGraphics and GraphicsModule then
+	GraphicsModule.EnablePotato(true)
+end
+
+if savedConfig.AntiLag and GraphicsModule then
+	GraphicsModule.SetAntiLag(true)
+end
+
+if savedConfig.FarmMode and GraphicsModule then
+	task.spawn(function()
+		task.wait(1)
+		GraphicsModule.SetFarmMode(true)
+	end)
+end
+
 if savedConfig.AutoHuntEnabled then
 	task.spawn(function()
 		task.wait(1.5)

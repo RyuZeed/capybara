@@ -22,7 +22,10 @@ ConfigManager.CurrentConfig = {
     SelectedUnits = {},
     WalkSpeed = 16,
     JumpPower = 50,
-    InfJump = false
+    InfJump = false,
+    PotatoGraphics = false,
+    FarmMode = false,
+    AntiLag = false
 }
 
 local function ensureFolders()
@@ -74,6 +77,9 @@ function ConfigManager.Load()
                     if data.WalkSpeed ~= nil then ConfigManager.CurrentConfig.WalkSpeed = data.WalkSpeed end
                     if data.JumpPower ~= nil then ConfigManager.CurrentConfig.JumpPower = data.JumpPower end
                     if data.InfJump ~= nil then ConfigManager.CurrentConfig.InfJump = data.InfJump end
+                    if data.PotatoGraphics ~= nil then ConfigManager.CurrentConfig.PotatoGraphics = data.PotatoGraphics end
+                    if data.FarmMode ~= nil then ConfigManager.CurrentConfig.FarmMode = data.FarmMode end
+                    if data.AntiLag ~= nil then ConfigManager.CurrentConfig.AntiLag = data.AntiLag end
                     
                     if typeof(data.SelectedUnits) == "table" then
                         ConfigManager.CurrentConfig.SelectedUnits = {}
