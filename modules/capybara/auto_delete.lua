@@ -194,14 +194,46 @@ function AutoDeletePlant.InstantSellAllPlants()
 
     -- 1. Pasang Tanaman Terbaik (Proteksi) jika aktif
     if AutoDeletePlant.Config.AutoEquipBestFirst and Remotes:FindFirstChild("EquipBestPlants") then
-        Remotes.EquipBestPlants:FireServer()
+        pcall(function() Remotes.EquipBestPlants:FireServer() end)
         task.wait(0.08)
     end
 
-    -- 2. EKSEKUSI ENGINE ASLI BULK SELL
-    if Remotes:FindFirstChild("Sell") then
-        Remotes.Sell:FireServer("bulkSell", "Plant")
+    -- 2. Scan Backpack & Lindungi Tanaman yang TIDAK dicentang (Treat as Favorite)
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    local char = LocalPlayer.Character
+    local selectedPlants = AutoDeletePlant.Config.SelectedPlants or {}
+
+    if backpack and Remotes:FindFirstChild("ChangeFavoriteStatus") then
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") then
+                local tKey = tool.Name:lower()
+                if selectedPlants[tKey] == true then
+                    -- Tanaman dicentang = MAU DIJUAL / DIBUANG
+                    pcall(function() Remotes.ChangeFavoriteStatus:FireServer(tool, false) end)
+                else
+                    -- Tanaman TIDAK dicentang = SIMPAN / LINDUNGI (FAVORITE)
+                    pcall(function() Remotes.ChangeFavoriteStatus:FireServer(tool, true) end)
+                end
+            end
+        end
     end
+
+    -- 3. Jual Tanaman
+    pcall(function()
+        if Remotes:FindFirstChild("Sell") then
+            -- Bulk sell server akan otomatis melewati item yang berstatus Favorite
+            Remotes.Sell:FireServer("bulkSell", "Plant")
+
+            -- Fallback single tool sell untuk item yang dicentang
+            if backpack then
+                for _, tool in ipairs(backpack:GetChildren()) do
+                    if tool:IsA("Tool") and selectedPlants[tool.Name:lower()] == true then
+                        Remotes.Sell:FireServer(tool)
+                    end
+                end
+            end
+        end
+    end)
 
     task.wait(0.3)
     local after = AutoDeletePlant.GetPlantCount()

@@ -1335,31 +1335,79 @@ local function selectRarity(rarityName, state)
     end
 end
 
-DeleteTab:AddButton("⚡ AUTO SELECT ALL: Biasa + Aneh + Epik + Mistik", function()
-    selectRarity("Common", true)
-    selectRarity("Rare", true)
-    selectRarity("Epic", true)
-    selectRarity("Mythic", true)
-    Notify("Auto Select All", "Biasa, Aneh, Epik, & Mistik Terpilih!", 2.5)
+DeleteTab:AddButton("⚡ AUTO SYNC ALL: Biasa + Aneh + Epik + Mistik", function()
+    local rarities = {"Common", "Rare", "Epic", "Mythic"}
+    if AutoDelete and AutoDelete.SyncInGameRarityButtons then
+        AutoDelete.SyncInGameRarityButtons(rarities)
+    else
+        pcall(function()
+            for _, r in ipairs(rarities) do
+                Remotes.ChangeAutosellOptions:InvokeServer(r, true)
+            end
+        end)
+    end
+    Notify("Rarity AutoSell", "Biasa, Aneh, Epik, & Mistik di-sinkronkan ke menu game!", 2.5)
 end)
 
-DeleteTab:AddButton("⚪ Common (Biasa)", function() selectRarity("Common", true); Notify("Filter", "Common dipilih!", 1.5) end)
-DeleteTab:AddButton("🔵 Rare (Aneh)", function() selectRarity("Rare", true); Notify("Filter", "Rare dipilih!", 1.5) end)
-DeleteTab:AddButton("🟣 Epic (Epik)", function() selectRarity("Epic", true); Notify("Filter", "Epic dipilih!", 1.5) end)
-DeleteTab:AddButton("🔴 Mythic (Mistik)", function() selectRarity("Mythic", true); Notify("Filter", "Mythic dipilih!", 1.5) end)
-DeleteTab:AddButton("🟡 Legendary (Legendaris)", function() selectRarity("Legendary", true); Notify("Filter", "Legendary dipilih!", 1.5) end)
-DeleteTab:AddButton("🌸 Divine (Ilahi)", function() selectRarity("Divine", true); Notify("Filter", "Divine dipilih!", 1.5) end)
-DeleteTab:AddButton("✨ Godly (Dewa)", function() selectRarity("Godly", true); Notify("Filter", "Godly dipilih!", 1.5) end)
-DeleteTab:AddButton("👑 Secret (Rahasia)", function() selectRarity("Secret", true); Notify("Filter", "Secret dipilih!", 1.5) end)
-DeleteTab:AddButton("⬜ Kosongkan Pilihan (Uncheck All)", function()
+DeleteTab:AddButton("⚪ Common (Biasa)", function()
+    if AutoDelete and AutoDelete.SyncInGameRarityButtons then AutoDelete.SyncInGameRarityButtons({"Common"}) end
+    Notify("Rarity Filter", "In-game AutoSell: Common diaktifkan!", 1.5)
+end)
+DeleteTab:AddButton("🔵 Rare (Aneh)", function()
+    if AutoDelete and AutoDelete.SyncInGameRarityButtons then AutoDelete.SyncInGameRarityButtons({"Rare"}) end
+    Notify("Rarity Filter", "In-game AutoSell: Rare diaktifkan!", 1.5)
+end)
+DeleteTab:AddButton("🟣 Epic (Epik)", function()
+    if AutoDelete and AutoDelete.SyncInGameRarityButtons then AutoDelete.SyncInGameRarityButtons({"Epic"}) end
+    Notify("Rarity Filter", "In-game AutoSell: Epic diaktifkan!", 1.5)
+end)
+DeleteTab:AddButton("🔴 Mythic (Mistik)", function()
+    if AutoDelete and AutoDelete.SyncInGameRarityButtons then AutoDelete.SyncInGameRarityButtons({"Mythic"}) end
+    Notify("Rarity Filter", "In-game AutoSell: Mythic diaktifkan!", 1.5)
+end)
+DeleteTab:AddButton("🟡 Legendary (Legendaris)", function()
+    if AutoDelete and AutoDelete.SyncInGameRarityButtons then AutoDelete.SyncInGameRarityButtons({"Legendary"}) end
+    Notify("Rarity Filter", "In-game AutoSell: Legendary diaktifkan!", 1.5)
+end)
+DeleteTab:AddButton("🌸 Divine (Ilahi)", function()
+    if AutoDelete and AutoDelete.SyncInGameRarityButtons then AutoDelete.SyncInGameRarityButtons({"Divine"}) end
+    Notify("Rarity Filter", "In-game AutoSell: Divine diaktifkan!", 1.5)
+end)
+DeleteTab:AddButton("✨ Godly (Dewa)", function()
+    if AutoDelete and AutoDelete.SyncInGameRarityButtons then AutoDelete.SyncInGameRarityButtons({"Godly"}) end
+    Notify("Rarity Filter", "In-game AutoSell: Godly diaktifkan!", 1.5)
+end)
+DeleteTab:AddButton("👑 Secret (Rahasia)", function()
+    if AutoDelete and AutoDelete.SyncInGameRarityButtons then AutoDelete.SyncInGameRarityButtons({"Secret"}) end
+    Notify("Rarity Filter", "In-game AutoSell: Secret diaktifkan!", 1.5)
+end)
+
+DeleteTab:AddSection("Checklist Tanaman In-Game (Filter Buang / Simpan)")
+
+DeleteTab:AddButton("✅ Centang Semua Tanaman (Buang Semua)", function()
+    if not CurrentConfig.SelectedPlants then CurrentConfig.SelectedPlants = {} end
+    for _, plant in ipairs(REAL_PLANTS_CATALOG) do
+        local pKey = plant.name:lower()
+        CurrentConfig.SelectedPlants[pKey] = true
+        if plantCardRefs[pKey] then plantCardRefs[pKey]:SetChecked(true) end
+    end
+    if AutoDelete and AutoDelete.Config then AutoDelete.Config.SelectedPlants = CurrentConfig.SelectedPlants end
+    Notify("Checklist Tanaman", "Semua tanaman dicentang (akan dibuang saat Auto Delete aktif).", 2.5)
+end)
+
+DeleteTab:AddButton("🔒 Kosongkan Pilihan (Lindungi / Simpan Semua Tanaman)", function()
     table.clear(CurrentConfig.SelectedPlants)
     for _, ref in pairs(plantCardRefs) do ref:SetChecked(false) end
-    Notify("Deselect All", "Semua pilihan tanaman dikosongkan.", 2)
+    if AutoDelete and AutoDelete.Config then AutoDelete.Config.SelectedPlants = CurrentConfig.SelectedPlants end
+    Notify("Checklist Tanaman", "Semua tanaman tidak dicentang (disimpan sebagai favorit).", 2.5)
 end)
 
-DeleteTab:AddSection("Checklist Tanaman In-Game")
 for _, plant in ipairs(REAL_PLANTS_CATALOG) do
-    local ref = DeleteTab:AddPlantCard(plant.name, plant.rarity)
+    local ref = DeleteTab:AddPlantCard(plant.name, plant.rarity, function(state)
+        if AutoDelete and AutoDelete.Config then
+            AutoDelete.Config.SelectedPlants = CurrentConfig.SelectedPlants
+        end
+    end)
     plantCardRefs[plant.name:lower()] = ref
 end
 
