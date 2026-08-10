@@ -633,9 +633,6 @@ local function runAutoTutorial()
     end) -- ← end task.spawn
 end
 
--- Langsung jalankan saat di-execute
-task.spawn(runAutoTutorial)
-
 local function toggleTutorial(state)
     if state == nil then state = not _G.AutoTutorialRunning end
     if state then
