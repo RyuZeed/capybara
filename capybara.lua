@@ -134,12 +134,20 @@ end
 
 local CurrentConfig = deepCopy(DEFAULT_CONFIG)
 
--- Override with getgenv().Config if provided
-local USER_CFG = (typeof(getgenv) == "function" and getgenv().Config) or _G.Config
+-- Override with getgenv().RitodConfig / getgenv().UserConfig / getgenv().Config
+local USER_CFG = (typeof(getgenv) == "function" and (getgenv().RitodConfig or getgenv().UserConfig or getgenv().Config)) or _G.Config
 if typeof(USER_CFG) == "table" then
     for k, v in pairs(USER_CFG) do
         CurrentConfig[k] = v
     end
+    if USER_CFG["Potato Graphics"] ~= nil then CurrentConfig.PotatoGraphics = USER_CFG["Potato Graphics"] end
+    if USER_CFG["Low Graphics"] ~= nil then CurrentConfig.PotatoGraphics = USER_CFG["Low Graphics"] end
+    if USER_CFG["Anti Lag"] ~= nil then CurrentConfig.AntiLag = USER_CFG["Anti Lag"] end
+    if USER_CFG["Farm Mode"] ~= nil then CurrentConfig.FarmMode = USER_CFG["Farm Mode"] end
+    if USER_CFG["Auto Tutorial"] ~= nil then CurrentConfig.AutoTutorial = USER_CFG["Auto Tutorial"] end
+    if USER_CFG["Auto Claim"] ~= nil then CurrentConfig.AutoClaim = USER_CFG["Auto Claim"] end
+    if USER_CFG["Auto Delete"] ~= nil then CurrentConfig.AutoDelete = USER_CFG["Auto Delete"] end
+    if USER_CFG["FPS Cap"] ~= nil and GraphicsModule then GraphicsModule.ApplyFpsCap(USER_CFG["FPS Cap"]) end
 end
 
 local function ensureFolders()

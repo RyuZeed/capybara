@@ -80,6 +80,21 @@ end
 -- Muat config tersimpan
 local savedConfig = ConfigManager and ConfigManager.Load() or {}
 
+-- ⚙️ getgenv().RitodConfig / getgenv().UserConfig Override Support
+local userGenConfig = (getgenv and (getgenv().RitodConfig or getgenv().UserConfig)) or {}
+if userGenConfig["Potato Graphics"] ~= nil then savedConfig.PotatoGraphics = userGenConfig["Potato Graphics"] end
+if userGenConfig["PotatoGraphics"] ~= nil then savedConfig.PotatoGraphics = userGenConfig["PotatoGraphics"] end
+if userGenConfig["Low Graphics"] ~= nil then savedConfig.PotatoGraphics = userGenConfig["Low Graphics"] end
+if userGenConfig["Anti Lag"] ~= nil then savedConfig.AntiLag = userGenConfig["Anti Lag"] end
+if userGenConfig["AntiLag"] ~= nil then savedConfig.AntiLag = userGenConfig["AntiLag"] end
+if userGenConfig["Farm Mode"] ~= nil then savedConfig.FarmMode = userGenConfig["Farm Mode"] end
+if userGenConfig["FarmMode"] ~= nil then savedConfig.FarmMode = userGenConfig["FarmMode"] end
+if userGenConfig["Auto Roll"] ~= nil then savedConfig.AutoHuntEnabled = userGenConfig["Auto Roll"] end
+if userGenConfig["Auto Hunt"] ~= nil then savedConfig.AutoHuntEnabled = userGenConfig["Auto Hunt"] end
+if userGenConfig["AutoHunt"] ~= nil then savedConfig.AutoHuntEnabled = userGenConfig["AutoHunt"] end
+if userGenConfig["Roll Delay"] ~= nil then savedConfig.RollInterval = userGenConfig["Roll Delay"] end
+if userGenConfig["FPS Cap"] ~= nil and GraphicsModule then GraphicsModule.ApplyFpsCap(userGenConfig["FPS Cap"]) end
+
 -- =================================================================
 -- 🎨 GUI INITIALIZATION (ULTRA HD 700x460)
 -- =================================================================

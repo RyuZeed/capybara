@@ -1,7 +1,8 @@
 -- =================================================================
--- 🚀 RITOD HUB | ULTIMATE HYBRID CPU REDUCER & POTATO GRAPHICS (V4.1)
--- Pure UI Toggle Controlled (No Keyboard Shortcuts)
+-- 🚀 RITOD HUB | ULTIMATE HYBRID CPU REDUCER & POTATO GRAPHICS (V4.2)
+-- Independent Modular Control: Potato Graphics vs Anti-Lag (FPS Cap) vs Farm Mode
 -- Game: Roll Anime For Fight / Anime Auto Roll
+-- Supports getgenv().RitodConfig / getgenv().UserConfig Auto-Execute Setup
 -- =================================================================
 
 local GraphicsModule = {}
@@ -15,22 +16,27 @@ local CoreGui           = game:GetService("CoreGui")
 
 local LocalPlayer       = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
+-- Ambil UserConfig dari getgenv() jika tersedia
+local userConfig = (getgenv and (getgenv().RitodConfig or getgenv().UserConfig)) or {}
+
 -- =================================================================
 -- ⚙️ CONFIGURATION SETTINGS
 -- =================================================================
 local SETTINGS = {
+    TargetFPS              = userConfig["FPS Cap"] or 60,
     AFK_FPS_Cap            = 5,
     Normal_FPS_Cap         = 60,
-    ChunkSize              = 350,   -- Objek per frame saat batch cleaning (Zero Freeze)
-    AutoGCInterval         = 60,    -- Bersihkan memory Lua setiap 60 detik
-    AutoThrottleBackground = true,  -- Turun ke 5 FPS saat Roblox di-minimize / Alt-Tab
+    ChunkSize              = 350,
+    AutoGCInterval         = 60,
+    AutoThrottleBackground = true,
 }
 
 local States = {
     PotatoGraphics   = false,
-    FarmMode         = false,  -- Pure Black Screen + 3D Rendering Disabled
-    AntiLag          = false,  -- FPS Capped + Shadows Off
+    FarmMode         = false,  -- 3D Rendering Off + Black Screen
+    AntiLag          = false,  -- FPS Capped to 5 & Shadows Off
     Is3DDisabled     = false,
+    CurrentFPSCap    = SETTINGS.TargetFPS,
 }
 
 local Connections = {}
@@ -40,9 +46,10 @@ local syncCallback = nil
 local gcThread = nil
 
 -- =================================================================
--- 1. 🎯 FPS CONTROLLER
+-- 1. 🎯 FPS CONTROLLER (INDEPENDENT)
 -- =================================================================
 local function applyFpsCap(fps)
+    States.CurrentFPSCap = fps
     if typeof(setfpscap) == "function" then
         pcall(setfpscap, fps)
     elseif typeof(set_fps_cap) == "function" then
@@ -53,11 +60,11 @@ local function applyFpsCap(fps)
 end
 
 function GraphicsModule.ApplyFpsCap(fps)
-    applyFpsCap(fps or (States.FarmMode and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap))
+    applyFpsCap(fps or (States.FarmMode and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap)))
 end
 
 -- =================================================================
--- 2. 🌑 ENGINE LEVEL 3D RENDERING CONTROLLER (CORE CPU/GPU SAVER)
+-- 2. 🌑 ENGINE LEVEL 3D RENDERING CONTROLLER (FARM MODE)
 -- =================================================================
 local function set3DRendering(enabled)
     States.Is3DDisabled = not enabled
@@ -78,7 +85,7 @@ end
 
 local function cleanObject(v)
     if not States.PotatoGraphics or not v or not v.Parent then return end
-    if isLocalCharacterItem(v) then return end -- Lindungi avatar player sendiri agar tidak rusak
+    if isLocalCharacterItem(v) then return end
 
     pcall(function()
         if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") 
@@ -109,7 +116,7 @@ local function cleanObject(v)
 end
 
 -- =================================================================
--- 4. ⚡ CHUNKED BATCH CLEANER (ZERO-FREEZE ENGINE)
+-- 4. ⚡ CHUNKED BATCH CLEANER (ZERO-FREEZE POTATO)
 -- =================================================================
 local function runSmoothBatchClean()
     task.spawn(function()
@@ -156,14 +163,13 @@ local function runSmoothBatchClean()
 end
 
 -- =================================================================
--- 5. 🥔 POTATO GRAPHICS CONTROLLER (LOW GRAPHICS)
+-- 5. 🥔 POTATO GRAPHICS CONTROLLER (TERPISAH DARI ANTI-LAG)
 -- =================================================================
 function GraphicsModule.EnablePotato(enable)
     States.PotatoGraphics = enable
     if enable then
         runSmoothBatchClean()
 
-        -- Queue Listener untuk objek baru
         if not potatoConnection then
             potatoConnection = Workspace.DescendantAdded:Connect(function(v)
                 if States.PotatoGraphics then
@@ -171,7 +177,7 @@ function GraphicsModule.EnablePotato(enable)
                 end
             end)
         end
-        print("🥔 [Ritod Hub] Low / Potato Graphics: ON (Engine-Level Throttled)")
+        print("🥔 [Ritod Hub] Low / Potato Graphics: ON")
     else
         if potatoConnection then
             potatoConnection:Disconnect()
@@ -187,7 +193,18 @@ function GraphicsModule.EnablePotato(enable)
 end
 
 -- =================================================================
--- 6. 🚜 FARM MODE & BLACK SCREEN OVERLAY (PURE 3D DISABLE)
+-- 6. ❄️ ANTI-LAG CONTROLLER (FPS CAP 5 & SHADOWS OFF)
+-- =================================================================
+function GraphicsModule.SetAntiLag(enable, customFps)
+    States.AntiLag = enable
+    local targetFps = enable and (customFps or SETTINGS.AFK_FPS_Cap) or SETTINGS.Normal_FPS_Cap
+    applyFpsCap(targetFps)
+    pcall(function() Lighting.GlobalShadows = not enable end)
+    print("❄️ [Ritod Hub] Anti-Lag (FPS Cap " .. tostring(targetFps) .. "): " .. (enable and "ON" or "OFF"))
+end
+
+-- =================================================================
+-- 7. 🚜 FARM MODE (PURE 3D RENDER OFF)
 -- =================================================================
 local function initScreenOffGui()
     if screenOffGui then return end
@@ -297,24 +314,15 @@ function GraphicsModule.SetFarmMode(enable, onSync)
 
     set3DRendering(not enable)
 
-    local targetFps = enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap)
+    local targetFps = enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or States.CurrentFPSCap)
     applyFpsCap(targetFps)
 
     print("🚜 [Ritod Hub] Farm Mode (3D Render Off): " .. (enable and "ON" or "OFF"))
 end
 
 -- =================================================================
--- 7. ❄️ ANTI-LAG & AUTO FOCUS THROTTLING
+-- 8. 🪟 WINDOW FOCUS AUTO-THROTTLE
 -- =================================================================
-function GraphicsModule.SetAntiLag(enable)
-    States.AntiLag = enable
-    local targetFps = (enable or States.FarmMode) and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap
-    applyFpsCap(targetFps)
-    pcall(function() Lighting.GlobalShadows = not enable end)
-    print("❄️ [Ritod Hub] Anti-Lag (FPS Cap 5): " .. (enable and "ON" or "OFF"))
-end
-
--- Background / Minimize Auto Throttle
 if SETTINGS.AutoThrottleBackground then
     local blurConn = UserInputService.WindowFocusReleased:Connect(function()
         applyFpsCap(SETTINGS.AFK_FPS_Cap)
@@ -322,14 +330,14 @@ if SETTINGS.AutoThrottleBackground then
     table.insert(Connections, blurConn)
 
     local focusConn = UserInputService.WindowFocused:Connect(function()
-        local currentTarget = (States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap
+        local currentTarget = (States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or States.CurrentFPSCap
         applyFpsCap(currentTarget)
     end)
     table.insert(Connections, focusConn)
 end
 
 -- =================================================================
--- 8. ♻️ PERIODIC RAM GARBAGE COLLECTOR
+-- 9. ♻️ PERIODIC RAM GARBAGE COLLECTOR
 -- =================================================================
 if not gcThread then
     gcThread = task.spawn(function()
