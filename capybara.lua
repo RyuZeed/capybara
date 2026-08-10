@@ -1250,7 +1250,7 @@ DeleteTab:AddButton("⚡ Hapus & Bersihkan Sampah Sekarang (Manual)", function()
 end)
 
 DeleteTab:AddButton("🔄 Sinkronkan Menu Jual In-Game (Biasa -> Rahasia)", function()
-    local allRarities = {"Common", "Rare", "Epic", "Mythic", "Legendary", "Divine", "Secret"}
+    local allRarities = {"Common", "Rare", "Epic", "Mythic", "Legendary", "Divine", "Godly", "Secret"}
     if AutoDelete and AutoDelete.SyncInGameRarityButtons then
         AutoDelete.SyncInGameRarityButtons(allRarities)
     else
@@ -1260,7 +1260,7 @@ DeleteTab:AddButton("🔄 Sinkronkan Menu Jual In-Game (Biasa -> Rahasia)", func
             end
         end)
     end
-    Notify("In-Game Menu", "Biasa, Aneh, Epik, Mistik, Divine, dan Secret Aktif di menu game!", 2.5)
+    Notify("In-Game Menu", "Biasa, Aneh, Epik, Mistik, Divine, Godly, dan Secret Aktif di menu game!", 2.5)
 end)
 
 DeleteTab:AddSection("Filter Rarity Cepat")
@@ -1296,6 +1296,7 @@ DeleteTab:AddButton("🟣 Epic (Epik)", function() selectRarity("Epic", true); N
 DeleteTab:AddButton("🔴 Mythic (Mistik)", function() selectRarity("Mythic", true); Notify("Filter", "Mythic dipilih!", 1.5) end)
 DeleteTab:AddButton("🟡 Legendary (Legendaris)", function() selectRarity("Legendary", true); Notify("Filter", "Legendary dipilih!", 1.5) end)
 DeleteTab:AddButton("🌸 Divine (Ilahi)", function() selectRarity("Divine", true); Notify("Filter", "Divine dipilih!", 1.5) end)
+DeleteTab:AddButton("✨ Godly (Dewa)", function() selectRarity("Godly", true); Notify("Filter", "Godly dipilih!", 1.5) end)
 DeleteTab:AddButton("👑 Secret (Rahasia)", function() selectRarity("Secret", true); Notify("Filter", "Secret dipilih!", 1.5) end)
 DeleteTab:AddButton("⬜ Kosongkan Pilihan (Uncheck All)", function()
     table.clear(CurrentConfig.SelectedPlants)

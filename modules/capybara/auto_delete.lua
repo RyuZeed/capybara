@@ -99,6 +99,7 @@ AutoDeletePlant.Config = {
         Mythic    = true,
         Legendary = false,
         Divine    = false,
+        Godly     = false,
         Secret    = false,
     },
     SelectedPlants = {
@@ -226,6 +227,7 @@ function AutoDeletePlant.Start()
         if AutoDeletePlant.Config.Rarities.Mythic then table.insert(syncList, "Mythic") end
         if AutoDeletePlant.Config.Rarities.Legendary then table.insert(syncList, "Legendary") end
         if AutoDeletePlant.Config.Rarities.Divine then table.insert(syncList, "Divine") end
+        if AutoDeletePlant.Config.Rarities.Godly then table.insert(syncList, "Godly") end
         if AutoDeletePlant.Config.Rarities.Secret then table.insert(syncList, "Secret") end
     end
 

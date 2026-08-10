@@ -616,7 +616,7 @@ local function runAutoTutorial()
         end
 
         -- 3. Jalankan sinkronisasi dan bulk sell selesai tutorial
-        syncAutoSellButtons({"Common", "Rare", "Epic", "Legendary", "Mythic", "Divine", "Secret"})
+        syncAutoSellButtons({"Common", "Rare", "Epic", "Legendary", "Mythic", "Divine", "Godly", "Secret"})
         task.wait(0.5)
         executeBulkSell()
         print("🗑️ [Ritod Hub] Tutorial Selesai: Bulk Sell & Auto Delete Diaktifkan!")
