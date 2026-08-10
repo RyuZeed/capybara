@@ -70,6 +70,7 @@ local AFKModule       = loadModule("anti_afk")
 local ConfigManager   = loadModule("config_manager")
 local CatalogModule   = loadModule("catalog")
 local AutoRollModule  = loadModule("auto_roll")
+local GraphicsModule  = loadModule("graphics")
 
 -- Auto-start Anti-AFK
 if AFKModule then
@@ -1378,6 +1379,30 @@ end)
 
 -- 4. TAB ⚙️ SETTINGS & CONFIG
 local MiscTab = RitodLib:CreateTab("Settings", "⚙️")
+
+MiscTab:AddSection("Graphics & Performance")
+
+local updateFarmModeBtn
+updateFarmModeBtn = MiscTab:AddToggle("🚜 Farm Mode (3D Render Off)", false, function(state)
+	if GraphicsModule then
+		GraphicsModule.SetFarmMode(state, function(newState)
+			if updateFarmModeBtn then updateFarmModeBtn:Set(newState, false) end
+		end)
+	end
+end)
+
+MiscTab:AddToggle("🥔 Low Graphics / Potato Mode", false, function(state)
+	if GraphicsModule then
+		GraphicsModule.EnablePotato(state)
+	end
+end)
+
+MiscTab:AddToggle("❄️ Anti-Lag (FPS Cap 5)", false, function(state)
+	if GraphicsModule then
+		GraphicsModule.SetAntiLag(state)
+	end
+end)
+
 MiscTab:AddSection("Config & Persistence")
 
 local cfgPath = ConfigManager and ConfigManager.ConfigPath or "RitodHub/RollAnimeForFight/" .. player.Name .. ".json"

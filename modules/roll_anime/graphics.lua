@@ -1,8 +1,7 @@
 -- =================================================================
 -- 🚀 RITOD HUB | ULTIMATE HYBRID CPU REDUCER & POTATO GRAPHICS (V4.1)
 -- Pure UI Toggle Controlled (No Keyboard Shortcuts)
--- Combines: Engine 3D Rendering Disabling + Smooth Chunked Potato + 
---           Window Focus Auto-Throttle + RAM Garbage Purge + Character Safety
+-- Game: Roll Anime For Fight / Anime Auto Roll
 -- =================================================================
 
 local GraphicsModule = {}
@@ -296,10 +295,8 @@ function GraphicsModule.SetFarmMode(enable, onSync)
     initScreenOffGui()
     if screenOffGui then screenOffGui.Enabled = enable end
 
-    -- Matikan 3D Rendering (Hemat CPU/GPU drastis)
     set3DRendering(not enable)
 
-    -- Set FPS
     local targetFps = enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or SETTINGS.Normal_FPS_Cap)
     applyFpsCap(targetFps)
 
