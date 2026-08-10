@@ -1,5 +1,5 @@
 -- =================================================================
--- 🛡️ RITOD HUB | MODULAR ANTI-AFK 24/7 (MULTI-LAYER BYPASS)
+-- 🛡️ RITOD HUB | MODULAR ANTI-AFK 24/7 (MULTI-LAYER BULLETPROOF)
 -- Game: Roll Anime For Fight / Anime Auto Roll
 -- =================================================================
 
@@ -7,14 +7,45 @@ local AFKModule = {}
 
 local Players = game:GetService("Players")
 local VirtualUser = game:GetService("VirtualUser")
-local VIM = game:GetService("VirtualInputManager")
+local Workspace = game:GetService("Workspace")
+local VIM = nil
+pcall(function() VIM = game:GetService("VirtualInputManager") end)
+
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
+local isEnabled = false
+local afkThread = nil
 local idledConn = nil
-local heartbeatRunning = false
 
-function AFKModule.Enable()
-    -- 1. Disable native Idled connections
+local function simulateActivity()
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0, 0))
+    end)
+
+    pcall(function()
+        local cam = Workspace.CurrentCamera
+        local cf = cam and cam.CFrame or CFrame.new()
+        VirtualUser:Button2Down(Vector2.new(0, 0), cf)
+        task.wait(0.05)
+        VirtualUser:Button2Up(Vector2.new(0, 0), cf)
+    end)
+
+    if VIM then
+        pcall(function()
+            VIM:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
+            task.wait(0.03)
+            VIM:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
+        end)
+        pcall(function()
+            VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+            task.wait(0.03)
+            VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+        end)
+    end
+end
+
+local function disableIdledConnections()
     pcall(function()
         if typeof(getconnections) == "function" then
             for _, conn in ipairs(getconnections(LocalPlayer.Idled)) do
@@ -26,60 +57,66 @@ function AFKModule.Enable()
             end
         end
     end)
+end
 
-    -- 2. Intercept Idled event
-    if not idledConn then
-        idledConn = LocalPlayer.Idled:Connect(function()
-            pcall(function()
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton2(Vector2.new(0, 0))
-            end)
-        end)
-    end
+function AFKModule.Enable()
+    if isEnabled then return end
+    isEnabled = true
 
-    -- 3. Periodic Hardware Virtual Pulse (Every 45 seconds)
-    if not heartbeatRunning then
-        heartbeatRunning = true
-        task.spawn(function()
-            while heartbeatRunning do
-                task.wait(45)
-                if not heartbeatRunning then break end
-                pcall(function()
-                    VIM:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
-                    task.wait(0.05)
-                    VIM:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
-                end)
-                pcall(function()
-                    VirtualUser:CaptureController()
-                    VirtualUser:ClickButton2(Vector2.new(0, 0))
-                end)
+    -- 1. Segera bersihkan koneksi idled bawaan
+    disableIdledConnections()
+
+    -- 2. Intercept event Idled secara langsung jika terpanggil
+    if idledConn then idledConn:Disconnect() end
+    idledConn = LocalPlayer.Idled:Connect(function()
+        simulateActivity()
+    end)
+
+    -- 3. Loop terus-menerus: Disable koneksi CoreScript baru & kirim pulsa aktivitas tiap 15 detik
+    if not afkThread then
+        afkThread = task.spawn(function()
+            while isEnabled do
+                disableIdledConnections()
+                simulateActivity()
+                task.wait(15)
             end
         end)
     end
 
     -- 4. Anti-Kick Metatable Hook
     pcall(function()
-        local oldKick
-        oldKick = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if tostring(method):lower() == "kick" and self == LocalPlayer then
-                print("🛡️ [Ritod Anti-AFK] Blocked Kick attempt!")
-                return nil
-            end
-            return oldKick(self, ...)
-        end)
+        if typeof(hookmetamethod) == "function" and not _G.RitodAntiKickHooked then
+            _G.RitodAntiKickHooked = true
+            local oldKick
+            oldKick = hookmetamethod(game, "__namecall", function(self, ...)
+                local method = getnamecallmethod()
+                if tostring(method):lower() == "kick" and self == LocalPlayer then
+                    print("🛡️ [Ritod Anti-AFK] Blocked Kick attempt!")
+                    return nil
+                end
+                return oldKick(self, ...)
+            end)
+        end
     end)
 
     print("🛡️ [Ritod Hub] Bulletproof Anti-AFK 24/7 Aktif!")
 end
 
 function AFKModule.Disable()
-    heartbeatRunning = false
+    isEnabled = false
+    if afkThread then
+        task.cancel(afkThread)
+        afkThread = nil
+    end
     if idledConn then
         idledConn:Disconnect()
         idledConn = nil
     end
     print("🛑 [Ritod Hub] Anti-AFK Dimatikan.")
+end
+
+function AFKModule.IsEnabled()
+    return isEnabled
 end
 
 return AFKModule

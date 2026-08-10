@@ -47,18 +47,40 @@ local syncCallback = nil
 local gcThread = nil
 
 -- =================================================================
--- 1. 🎯 FPS CONTROLLER (INDEPENDENT)
+-- 1. 🎯 FPS CONTROLLER (INDEPENDENT & PERSISTENT)
 -- =================================================================
 local function applyFpsCap(fps)
     States.CurrentFPSCap = fps
-    if typeof(setfpscap) == "function" then
-        pcall(setfpscap, fps)
-    elseif typeof(set_fps_cap) == "function" then
-        pcall(set_fps_cap, fps)
-    elseif typeof(setfps) == "function" then
-        pcall(setfps, fps)
-    end
+    pcall(function()
+        if typeof(setfpscap) == "function" then
+            setfpscap(fps)
+        elseif typeof(set_fps_cap) == "function" then
+            set_fps_cap(fps)
+        elseif typeof(setfps) == "function" then
+            setfps(fps)
+        elseif typeof(set_fps) == "function" then
+            set_fps(fps)
+        elseif typeof(SetFpsCap) == "function" then
+            SetFpsCap(fps)
+        elseif typeof(SetFPSCap) == "function" then
+            SetFPSCap(fps)
+        end
+    end)
 end
+
+-- FPS Watchdog: Memastikan FPS Cap tidak di-reset oleh Roblox saat Rejoin/Loading
+local fpsWatchdog = nil
+local function startFpsWatchdog()
+    if fpsWatchdog then return end
+    fpsWatchdog = task.spawn(function()
+        while true do
+            task.wait(1.5)
+            local target = (States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap)
+            applyFpsCap(target)
+        end
+    end)
+end
+startFpsWatchdog()
 
 function GraphicsModule.ApplyFpsCap(fps)
     if fps and fps > 5 then
@@ -93,21 +115,21 @@ local function cleanObject(v)
     if isLocalCharacterItem(v) then return end
 
     pcall(function()
-        if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") 
+        if v:IsA("ParticleEmitter") then
+            v.Enabled = false
+            v.Rate = 0
+        elseif v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") 
            or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Highlight") or v:IsA("Explosion") then
             v.Enabled = false
         elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("SurfaceAppearance") or v:IsA("ShirtGraphic") then
+            v.Transparency = 1
             v:Destroy()
         elseif v:IsA("BasePart") then
             v.Material = Enum.Material.SmoothPlastic
             v.Reflectance = 0
             v.CastShadow = false
-            if v:IsA("MeshPart") then
-                v.TextureID = ""
-            end
-        elseif v:IsA("SpecialMesh") then
-            v.TextureId = ""
         elseif v:IsA("Light") then
+            v.Enabled = false
             v.Shadows = false
         elseif v:IsA("Sky") or v:IsA("Atmosphere") or v:IsA("Clouds") then
             v:Destroy()
@@ -119,8 +141,10 @@ local function cleanObject(v)
 end
 
 -- =================================================================
--- 4. ⚡ CHUNKED BATCH CLEANER (ZERO-FREEZE POTATO)
+-- 4. ⚡ CHUNKED BATCH CLEANER & PERIODIC SWEEPER (ZERO-FREEZE POTATO)
 -- =================================================================
+local potatoSweeperThread = nil
+
 local function runSmoothBatchClean()
     task.spawn(function()
         pcall(function()
@@ -144,24 +168,13 @@ local function runSmoothBatchClean()
         end
 
         local descendants = Workspace:GetDescendants()
-        local n = #descendants
-        local i = 0
-
-        local conn
-        conn = RunService.Heartbeat:Connect(function()
-            if not States.PotatoGraphics then
-                conn:Disconnect()
-                return
+        for i = 1, #descendants do
+            if not States.PotatoGraphics then break end
+            cleanObject(descendants[i])
+            if i % SETTINGS.ChunkSize == 0 then
+                task.wait()
             end
-            for _ = 1, SETTINGS.ChunkSize do
-                i += 1
-                if i > n then
-                    conn:Disconnect()
-                    break
-                end
-                cleanObject(descendants[i])
-            end
-        end)
+        end
     end)
 end
 
@@ -173,6 +186,7 @@ function GraphicsModule.EnablePotato(enable)
     if enable then
         runSmoothBatchClean()
 
+        -- Listener untuk objek baru yang di-stream/spawn server
         if not potatoConnection then
             potatoConnection = Workspace.DescendantAdded:Connect(function(v)
                 if States.PotatoGraphics then
@@ -180,11 +194,31 @@ function GraphicsModule.EnablePotato(enable)
                 end
             end)
         end
+
+        -- Periodic Sweeper: Menyapu ulang setiap beberapa detik jika ada chunk map baru selesai load
+        if not potatoSweeperThread then
+            potatoSweeperThread = task.spawn(function()
+                local count = 0
+                while States.PotatoGraphics do
+                    count += 1
+                    local interval = (count <= 6) and 3 or 10
+                    task.wait(interval)
+                    if not States.PotatoGraphics then break end
+                    runSmoothBatchClean()
+                end
+                potatoSweeperThread = nil
+            end)
+        end
+
         print("🥔 [Ritod Hub] Low / Potato Graphics: ON")
     else
         if potatoConnection then
             potatoConnection:Disconnect()
             potatoConnection = nil
+        end
+        if potatoSweeperThread then
+            task.cancel(potatoSweeperThread)
+            potatoSweeperThread = nil
         end
         pcall(function()
             settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
@@ -206,7 +240,6 @@ function GraphicsModule.SetAntiLag(enable, customFps)
         pcall(function() Lighting.GlobalShadows = false end)
         print("❄️ [Ritod Hub] Anti-Lag (FPS Cap " .. tostring(targetFps) .. "): ON")
     else
-        -- Restore Shadows (if not potato mode) and restore FPS to normal
         pcall(function() Lighting.GlobalShadows = not States.PotatoGraphics end)
         local normalFps = States.FarmMode and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap)
         applyFpsCap(normalFps)

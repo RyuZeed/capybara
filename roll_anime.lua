@@ -1516,11 +1516,17 @@ end)
 -- 🚀 AUTO-RESUME JIKA TERAKHIR KALI AUTO-HUNT / GRAPHICS AKTIF
 -- ==========================================
 if savedConfig.PotatoGraphics and GraphicsModule then
-	GraphicsModule.EnablePotato(true)
+	task.spawn(function()
+		task.wait(0.5)
+		GraphicsModule.EnablePotato(true)
+	end)
 end
 
 if savedConfig.AntiLag and GraphicsModule then
-	GraphicsModule.SetAntiLag(true)
+	task.spawn(function()
+		task.wait(0.5)
+		GraphicsModule.SetAntiLag(true)
+	end)
 end
 
 if savedConfig.FarmMode and GraphicsModule then
