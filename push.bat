@@ -23,6 +23,7 @@ git commit -m "%msg%"
 echo.
 echo [3/3] Menyelaraskan branch dan mengunggah ke GitHub...
 git branch -M main
+git pull --rebase origin main
 git push -u origin main
 
 echo.
