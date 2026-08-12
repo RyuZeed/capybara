@@ -6,17 +6,17 @@
 	===============================================================
 	🎯 UPGRADES & FIXES:
 	- 🛑 100% TEMPLATE IMMUNITY: Memblokir total DailyQuestTemplate & RewardTemplate agar tidak spam!
-	- 🚀 DUAL-ENGINE ARCHITECTURE: Direct Remote Invocation + Smart UI Clicker
-	- 🔒 SESSION CLAIM CACHING: Setiap item hanya diklaim 1x dan tidak akan spam terminal!
+	- 🚀 DUAL-ENGINE ARCHITECTURE: Direct Remote Invocation + Deep Universal UI Scanner
+	- 🔄 RETRY COOLDOWN SYSTEM: Cooldown 3.5 detik per item tanpa lockout permanen prematur!
 	- 🟢 STATE-DRIVEN EVALUATION:
-	  • "READY"   -> Eksekusi klaim 1x saat hadiah/misi sudah selesai (progress >= max atau timer 00:00).
-	  • "CLAIMED" -> Dicatat di sesi permanen agar tidak membuang CPU/resource.
+	  • "READY"   -> Eksekusi klaim saat hadiah/misi selesai (progress >= max, timer 00:00, atau teks "Claim").
+	  • "CLAIMED" -> Dicatat jika visual/teks "Claimed" aktif agar tidak membuang resource.
 	  • "LOCKED"  -> Dilewati saat timer countdown masih berjalan atau progress belum lengkap.
-	- 🎁 Playtime Rewards & Online Gifts Tracker (00:00 Countdown Detector)
+	- 🎁 Playtime Rewards & Online Gifts Tracker (12 Slots + 00:00 Countdown Detector)
 	- 📅 Daily Login Rewards Tracker (7-Day Calendar)
 	- 📜 Daily Quests, Lifetime Quests & Missions Tracker
 	- ✨ Smart "Claim All" Auto-Detector
-	- 🖱️ Multi-Vector Hardware/Event Click Dispatcher (firesignal + getconnections + VIM + VirtualUser)
+	- 🖱️ Multi-Vector Hardware/Event Click Dispatcher (firesignal + getconnections + VIM + VirtualUser + Activate)
 	===============================================================
 ]]
 
@@ -38,8 +38,8 @@ AutoClaim.Config = {
 
 local isRunning        = false
 local loopThread       = nil
-local claimedHistory   = {} -- [key] = true
-local clickDebounce    = {} -- [key] = timestamp
+local claimedHistory   = {} -- [key] = true (hanya jika visualnya terkonfirmasi CLAIMED)
+local clickDebounce    = {} -- [key] = timestamp (cooldown antar klik)
 local lastRemoteSweep  = 0
 
 -- =================================================================
@@ -56,6 +56,7 @@ local function clickButton(btn)
             if btn.MouseButton1Click then pcall(function() firesignal(btn.MouseButton1Click) end) end
             if btn.MouseButton1Down then pcall(function() firesignal(btn.MouseButton1Down) end) end
             if btn.MouseButton1Up then pcall(function() firesignal(btn.MouseButton1Up) end) end
+            if btn.TouchTap then pcall(function() firesignal(btn.TouchTap) end) end
         end
     end
 
@@ -123,15 +124,15 @@ local function clickButton(btn)
 end
 
 -- =================================================================
--- 🔍 HELPER: VISIBILITAS & FILTER TEMPLATE (ANTI-SPAM)
+-- 🔍 HELPER: FILTER TEMPLATE & STRING CLEANER
 -- =================================================================
 
--- Cek apakah object merupakan template murni yang tidak aktif
+-- Cek apakah object merupakan template murni yang tidak boleh diklaim
 local function isTemplateObject(obj)
     if not obj then return true end
     local name = obj.Name:lower()
 
-    -- 🛑 Blokir total semua frame yang bernama template / sample / placeholder
+    -- 🛑 Blokir total semua frame template / sample / placeholder
     if name:find("template") or name:find("sample") or name:find("placeholder") or name:find("dummy") or name:find("mockup") then
         return true
     end
@@ -179,7 +180,8 @@ local function isClaimReadyKeyword(txt)
     local upper = txt:upper():gsub("%s+", "")
     if upper == "CLAIM" or upper == "COLLECT" or upper == "CLAIMALL" or upper == "REDEEM"
        or upper == "FREE" or upper == "GET" or upper == "TAKE" or upper == "READY"
-       or upper == "CLAIMREWARD" or upper == "COLLECTREWARD" or upper == "CLAIMNOW" then
+       or upper == "CLAIMREWARD" or upper == "COLLECTREWARD" or upper == "CLAIMNOW"
+       or upper == "00:00" or upper == "0:00" then
         return true
     end
 
@@ -235,28 +237,40 @@ local function evaluateRewardCard(card)
         end
     end
 
-    -- 2. Cek apakah ada countdown timer aktif (misal "04:15", "1h 30m", "45s")
+    -- 2. Cek apakah ada status READY eksplisit di kartu (Claim / 00:00)
+    local cardHasReadyLabel = false
     for _, desc in ipairs(card:GetDescendants()) do
-        if desc:IsA("TextLabel") then
-            local txt = cleanString(desc.Text)
-            local min, sec = txt:match("(%d+)%s*:%s*(%d+)")
-            if min and sec then
-                local nMin, nSec = tonumber(min), tonumber(sec)
-                if (nMin and nMin > 0) or (nSec and nSec > 0) then
-                    return "LOCKED", nil, "" -- Timer masih berjalan
-                end
+        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+            local txt = extractButtonText(desc)
+            if isClaimReadyKeyword(txt) then
+                cardHasReadyLabel = true
+                break
             end
+        end
+    end
 
-            -- Format Xm Ys atau Xs
-            if txt:match("%d+%s*m") or txt:match("%d+%s*s") or txt:match("%d+%s*h") then
-                if not (txt:find("0s") or txt:find("00:00") or txt:lower():find("ready") or txt:lower():find("claim")) then
+    -- 3. Cek apakah ada countdown timer yang AKTIF (dan kartu TIDAK memiliki label Ready/Claim)
+    if not cardHasReadyLabel then
+        for _, desc in ipairs(card:GetDescendants()) do
+            if desc:IsA("TextLabel") then
+                local txt = cleanString(desc.Text)
+                local min, sec = txt:match("(%d+)%s*:%s*(%d+)")
+                if min and sec then
+                    local nMin, nSec = tonumber(min), tonumber(sec)
+                    if (nMin and nMin > 0) or (nSec and nSec > 0) then
+                        return "LOCKED", nil, "" -- Timer masih berjalan
+                    end
+                end
+
+                -- Format Xm Ys atau Xs (kecuali 0s / 00:00)
+                if (txt:match("%d+%s*m") or txt:match("%d+%s*s") or txt:match("%d+%s*h")) and not (txt:find("0s") or txt:find("00:00") or txt:lower():find("ready") or txt:lower():find("claim")) then
                     return "LOCKED", nil, ""
                 end
             end
         end
     end
 
-    -- 3. Cari tombol klik di dalam card
+    -- 4. Cari tombol klik di dalam card
     local targetBtn = nil
 
     -- A. Cari GuiButton langsung
@@ -286,7 +300,7 @@ local function evaluateRewardCard(card)
         end
     end
 
-    -- C. Fallback: Cari button apa saja yang bukan template jika ada label "CLAIM"
+    -- C. Fallback: Cari button apa saja yang bukan template jika ada label "CLAIM" / Ready
     if not targetBtn then
         for _, desc in ipairs(card:GetDescendants()) do
             if desc:IsA("TextLabel") and isClaimReadyKeyword(cleanString(desc.Text)) then
@@ -417,7 +431,7 @@ local function evaluateQuestCard(questCard)
         return "READY", btn, qTitle
     end
 
-    if not hasFraction and (btn:IsA("GuiButton") or btn:IsA("ImageButton") or btn:IsA("TextButton")) and btn.Visible then
+    if not hasFraction and (btn:IsA("GuiButton") or btn:IsA("ImageButton") or btn:IsA("TextButton")) then
         return "READY", btn, qTitle
     end
 
@@ -425,7 +439,7 @@ local function evaluateQuestCard(questCard)
 end
 
 -- =================================================================
--- 🚀 EKSEKUTOR KLAIM DENGAN DEBOUNCE & ANTI-SPAM LOG
+-- 🚀 EKSEKUTOR KLAIM DENGAN COOLDOWN
 -- =================================================================
 
 local function tryClaim(btn, label, itemKey)
@@ -433,9 +447,8 @@ local function tryClaim(btn, label, itemKey)
     if claimedHistory[key] then return false end
 
     local now = tick()
-    if now - (clickDebounce[key] or 0) > 4 then -- 4 detik cooldown per item
+    if now - (clickDebounce[key] or 0) > 3.5 then -- Cooldown 3.5 detik antar percobaan
         clickDebounce[key] = now
-        claimedHistory[key] = true -- Kunci status claimed agar tidak spam console!
         print(string.format("🎁 [Auto Claim] %s! Mengklaim...", tostring(label)))
         clickButton(btn)
         return true
@@ -449,7 +462,7 @@ end
 
 local function sweepRemoteClaims()
     local now = tick()
-    if now - lastRemoteSweep < 5 then return end
+    if now - lastRemoteSweep < 4 then return end
     lastRemoteSweep = now
 
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -461,10 +474,13 @@ local function sweepRemoteClaims()
     -- A. Claim Playtime via Remote
     if AutoClaim.Config.PlaytimeDaily then
         pcall(function()
-            local reqPlay = remotes:FindFirstChild("RequestPlaytime") or remotes:FindFirstChild("RequestPlaytimeRewards")
             local claimPlay = remotes:FindFirstChild("ClaimPlaytimeReward")
                 or remotes:FindFirstChild("ClaimPlaytime")
                 or remotes:FindFirstChild("ClaimGift")
+                or remotes:FindFirstChild("ClaimTimeReward")
+                or remotes:FindFirstChild("ClaimPlaytimeGift")
+
+            local reqPlay = remotes:FindFirstChild("RequestPlaytime") or remotes:FindFirstChild("RequestPlaytimeRewards")
 
             if reqPlay and reqPlay:IsA("RemoteFunction") and claimPlay then
                 local data = reqPlay:InvokeServer()
@@ -475,9 +491,8 @@ local function sweepRemoteClaims()
                             local isReady = (not isClaimed) and (slotInfo.Ready or (slotInfo.TimeLeft and slotInfo.TimeLeft <= 0))
                             local rKey = "RemotePlaytime_" .. tostring(slotId)
                             if isReady and not claimedHistory[rKey] then
-                                if tick() - (clickDebounce[rKey] or 0) > 4 then
+                                if tick() - (clickDebounce[rKey] or 0) > 3.5 then
                                     clickDebounce[rKey] = tick()
-                                    claimedHistory[rKey] = true
                                     print(string.format("🎁 [Auto Claim] Playtime Gift READY (Slot %s)! Mengklaim via Remote...", tostring(slotId)))
                                     if claimPlay:IsA("RemoteEvent") then
                                         claimPlay:FireServer(slotId)
@@ -489,15 +504,31 @@ local function sweepRemoteClaims()
                         end
                     end
                 end
+            elseif claimPlay then
+                -- Blind sweep untuk 12 slot playtime jika tidak ada RequestPlaytime
+                for slot = 1, 12 do
+                    local rKey = "BlindPlaytime_" .. tostring(slot)
+                    if not claimedHistory[rKey] and tick() - (clickDebounce[rKey] or 0) > 10 then
+                        clickDebounce[rKey] = tick()
+                        if claimPlay:IsA("RemoteEvent") then
+                            claimPlay:FireServer(slot)
+                        elseif claimPlay:IsA("RemoteFunction") then
+                            claimPlay:InvokeServer(slot)
+                        end
+                    end
+                end
             end
         end)
 
         -- B. Claim Daily Login via Remote
         pcall(function()
-            local reqDaily = remotes:FindFirstChild("RequestDailyRewards") or remotes:FindFirstChild("RequestDailyLogin")
             local claimDaily = remotes:FindFirstChild("ClaimDailyReward")
                 or remotes:FindFirstChild("ClaimDaily")
                 or remotes:FindFirstChild("ClaimLoginReward")
+                or remotes:FindFirstChild("ClaimDailyLogin")
+                or remotes:FindFirstChild("Claim7Day")
+
+            local reqDaily = remotes:FindFirstChild("RequestDailyRewards") or remotes:FindFirstChild("RequestDailyLogin")
 
             if reqDaily and reqDaily:IsA("RemoteFunction") and claimDaily then
                 local data = reqDaily:InvokeServer()
@@ -508,9 +539,8 @@ local function sweepRemoteClaims()
                             local isReady = (not isClaimed) and (dayInfo.Ready or dayInfo.Available)
                             local rKey = "RemoteDaily_" .. tostring(dayId)
                             if isReady and not claimedHistory[rKey] then
-                                if tick() - (clickDebounce[rKey] or 0) > 4 then
+                                if tick() - (clickDebounce[rKey] or 0) > 3.5 then
                                     clickDebounce[rKey] = tick()
-                                    claimedHistory[rKey] = true
                                     print(string.format("📅 [Auto Claim] Daily Login READY (Day %s)! Mengklaim via Remote...", tostring(dayId)))
                                     if claimDaily:IsA("RemoteEvent") then
                                         claimDaily:FireServer(dayId)
@@ -522,6 +552,19 @@ local function sweepRemoteClaims()
                         end
                     end
                 end
+            elseif claimDaily then
+                -- Blind sweep untuk 7 hari
+                for day = 1, 7 do
+                    local rKey = "BlindDaily_" .. tostring(day)
+                    if not claimedHistory[rKey] and tick() - (clickDebounce[rKey] or 0) > 10 then
+                        clickDebounce[rKey] = tick()
+                        if claimDaily:IsA("RemoteEvent") then
+                            claimDaily:FireServer(day)
+                        elseif claimDaily:IsA("RemoteFunction") then
+                            claimDaily:InvokeServer(day)
+                        end
+                    end
+                end
             end
         end)
     end
@@ -529,10 +572,17 @@ local function sweepRemoteClaims()
     -- C. Claim Quests via Remote
     if AutoClaim.Config.Quest then
         pcall(function()
+            local claimAll = remotes:FindFirstChild("ClaimAllQuests") or remotes:FindFirstChild("ClaimAll")
+            if claimAll and claimAll:IsA("RemoteEvent") then
+                claimAll:FireServer()
+            end
+
             local reqQuests = remotes:FindFirstChild("RequestQuests")
             local claimQuest = remotes:FindFirstChild("ClaimQuest")
                 or remotes:FindFirstChild("ClaimDailyQuest")
                 or remotes:FindFirstChild("ClaimLifetimeQuest")
+                or remotes:FindFirstChild("ClaimMission")
+                or remotes:FindFirstChild("ClaimAchievement")
 
             if reqQuests and reqQuests:IsA("RemoteFunction") and claimQuest then
                 local qData = reqQuests:InvokeServer()
@@ -545,9 +595,8 @@ local function sweepRemoteClaims()
                                     local isReady = (not isClaimed) and ((qInfo.Progress and qInfo.Max and qInfo.Progress >= qInfo.Max) or qInfo.Completed == true or qInfo.Ready == true)
                                     local rKey = "RemoteQuest_" .. tostring(qId)
                                     if isReady and not claimedHistory[rKey] then
-                                        if tick() - (clickDebounce[rKey] or 0) > 4 then
+                                        if tick() - (clickDebounce[rKey] or 0) > 3.5 then
                                             clickDebounce[rKey] = tick()
-                                            claimedHistory[rKey] = true
                                             print(string.format("📜 [Auto Claim] Quest READY (%s: %s)! Mengklaim via Remote...", tostring(category), tostring(qId)))
                                             if claimQuest:IsA("RemoteEvent") then
                                                 claimQuest:FireServer(qId)
@@ -578,7 +627,7 @@ local function scanPlaytimeRewards()
 
     local scannedPanels = {}
 
-    -- 1. Cari Frame Playtime di MainGui.Root.Frames
+    -- 1. Scan seluruh frame di MainGui.Root.Frames
     local mainGui = pg:FindFirstChild("MainGui")
     if mainGui then
         local root = mainGui:FindFirstChild("Root")
@@ -586,28 +635,32 @@ local function scanPlaytimeRewards()
         if frames then
             for _, f in ipairs(frames:GetChildren()) do
                 local fName = f.Name:lower()
-                if f:IsA("GuiObject") and not isTemplateObject(f) and (fName:find("playtime") or fName:find("gift") or fName:find("online") or fName:find("timereward") or fName:find("freegift")) then
-                    table.insert(scannedPanels, f)
+                if f:IsA("GuiObject") and not isTemplateObject(f) then
+                    if fName:find("play") or fName:find("gift") or fName:find("online") or fName:find("time") or fName:find("reward") or fName:find("free") then
+                        table.insert(scannedPanels, f)
+                    end
                 end
             end
         end
 
-        -- Cari juga di MainGui.Root langsung (Floating icon / Gift bar)
+        -- Cari juga di MainGui.Root langsung (Floating gift icon / notification bar)
         if root then
             for _, f in ipairs(root:GetChildren()) do
                 local fName = f.Name:lower()
-                if f:IsA("GuiObject") and not isTemplateObject(f) and (fName:find("playtime") or fName:find("gift") or fName:find("online")) and f ~= frames then
-                    table.insert(scannedPanels, f)
+                if f:IsA("GuiObject") and not isTemplateObject(f) and f ~= frames then
+                    if fName:find("play") or fName:find("gift") or fName:find("online") or fName:find("reward") then
+                        table.insert(scannedPanels, f)
+                    end
                 end
             end
         end
     end
 
-    -- 2. Scan ScreenGui lain di PlayerGui (misal PlaytimeGui, GiftGui)
+    -- 2. Scan ScreenGui lain di PlayerGui
     for _, gui in ipairs(pg:GetChildren()) do
         if gui:IsA("ScreenGui") and gui ~= mainGui and not gui.Name:lower():find("ritod") and not gui.Name:lower():find("core") then
             local gName = gui.Name:lower()
-            if gName:find("playtime") or gName:find("gift") or gName:find("online") or gName:find("timereward") then
+            if gName:find("play") or gName:find("gift") or gName:find("online") or gName:find("time") or gName:find("reward") then
                 table.insert(scannedPanels, gui)
             end
         end
@@ -615,7 +668,7 @@ local function scanPlaytimeRewards()
 
     -- 3. Evaluasi setiap slot hadiah Playtime di panel yang ditemukan
     for _, panel in ipairs(scannedPanels) do
-        -- Cari tombol "Claim All" di panel playtime jika ada
+        -- Cari tombol "Claim All" jika ada
         for _, desc in ipairs(panel:GetDescendants()) do
             if desc:IsA("GuiButton") and not isTemplateObject(desc) then
                 local bTxt = extractButtonText(desc):upper():gsub("%s+", "")
@@ -629,7 +682,7 @@ local function scanPlaytimeRewards()
         for _, child in ipairs(panel:GetDescendants()) do
             if child:IsA("GuiObject") and not child:IsA("UIListLayout") and not child:IsA("UIGridLayout") and not child:IsA("UIPadding") and not isTemplateObject(child) then
                 local cName = child.Name:lower()
-                if cName:find("slot") or cName:find("gift") or cName:find("reward") or cName:find("card") or tonumber(child.Name) ~= nil or cName:find("item") then
+                if cName:find("slot") or cName:find("gift") or cName:find("reward") or cName:find("card") or tonumber(child.Name) ~= nil or cName:find("item") or cName:find("box") then
                     local state, btn, itemName = evaluateRewardCard(child)
                     if state == "READY" and btn then
                         tryClaim(btn, "Playtime Gift [" .. (itemName ~= "" and itemName or child.Name) .. "]", child:GetFullName())
@@ -658,8 +711,10 @@ local function scanDailyLoginRewards()
         if frames then
             for _, f in ipairs(frames:GetChildren()) do
                 local fName = f.Name:lower()
-                if f:IsA("GuiObject") and not isTemplateObject(f) and (fName:find("daily") or fName:find("loginreward") or fName:find("7day") or fName:find("calendar") or fName:find("dayreward")) then
-                    table.insert(scannedPanels, f)
+                if f:IsA("GuiObject") and not isTemplateObject(f) then
+                    if fName:find("daily") or fName:find("login") or fName:find("7day") or fName:find("calendar") or fName:find("day") then
+                        table.insert(scannedPanels, f)
+                    end
                 end
             end
         end
@@ -669,7 +724,7 @@ local function scanDailyLoginRewards()
     for _, gui in ipairs(pg:GetChildren()) do
         if gui:IsA("ScreenGui") and gui ~= mainGui and not gui.Name:lower():find("ritod") and not gui.Name:lower():find("core") then
             local gName = gui.Name:lower()
-            if gName:find("daily") or gName:find("loginreward") or gName:find("7day") or gName:find("calendar") then
+            if gName:find("daily") or gName:find("login") or gName:find("7day") or gName:find("calendar") then
                 table.insert(scannedPanels, gui)
             end
         end
@@ -883,6 +938,16 @@ function AutoClaim.ResetHistory()
     clickDebounce   = {}
     lastRemoteSweep = 0
     print("🔄 [Auto Claim] Riwayat status klaim & debounce berhasil direset.")
+end
+
+-- Otomatis aktifkan jika script dieksekusi secara mandiri (Standalone di executor)
+if not _G.RitodHubLoaded and not isRunning then
+    task.spawn(function()
+        task.wait(0.5)
+        if not isRunning then
+            AutoClaim.Start()
+        end
+    end)
 end
 
 return AutoClaim
