@@ -1447,18 +1447,107 @@ end)
 TutorialTab:AddSection("Aksi Cepat & Navigasi")
 
 local collectMoneyThread = nil
+
+local function getMyPlot()
+    local plots = workspace:FindFirstChild("Plots") 
+        or (workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map") and workspace.World.Map:FindFirstChild("Plots"))
+        or (workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Plots"))
+
+    if not plots then return nil end
+
+    local myUserId = tostring(LocalPlayer.UserId)
+    local myName = LocalPlayer.Name:lower()
+
+    -- 1. Cek attribute Owner / UserId / PlayerId di setiap plot
+    for _, plot in ipairs(plots:GetChildren()) do
+        for _, attrName in ipairs({"Owner", "UserId", "PlayerId", "OwnerId", "Player"}) do
+            local val = plot:GetAttribute(attrName)
+            if val then
+                local s = tostring(val):lower()
+                if s == myUserId or s == myName then
+                    return plot
+                end
+            end
+        end
+    end
+
+    -- 2. Cek ValueBase object di dalam plot
+    for _, plot in ipairs(plots:GetChildren()) do
+        for _, child in ipairs(plot:GetChildren()) do
+            if child:IsA("ValueBase") then
+                local v = child.Value
+                if tostring(v):lower() == myUserId or tostring(v):lower() == myName or v == LocalPlayer then
+                    return plot
+                end
+            end
+        end
+    end
+
+    -- 3. Cek TextLabel di dalam plot (misal: "Rio's Farm")
+    for _, plot in ipairs(plots:GetChildren()) do
+        for _, desc in ipairs(plot:GetDescendants()) do
+            if desc:IsA("TextLabel") then
+                local t = desc.Text:lower()
+                if t:find(myName, 1, true) then
+                    return plot
+                end
+            end
+        end
+    end
+
+    -- 4. Fallback ke plot terdekat dengan posisi karakter
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local myPos = hrp.Position
+        local closestPlot = nil
+        local minDist = math.huge
+        for _, plot in ipairs(plots:GetChildren()) do
+            local ok, pivot = pcall(function() return plot:GetPivot() end)
+            if ok then
+                local dist = (pivot.Position - myPos).Magnitude
+                if dist < minDist then
+                    minDist = dist
+                    closestPlot = plot
+                end
+            end
+        end
+        return closestPlot
+    end
+
+    return nil
+end
+
 local function triggerCollectAllMoney()
     local collected = false
 
-    -- 1. Cari objek model Collection Machine secara langsung di plot / workspace
+    -- 1. Cari CollectionMachine HANYA di dalam plot milik sendiri
     pcall(function()
+        local myPlot = getMyPlot()
         local colMachine = nil
-        local plots = workspace:FindFirstChild("Plots") or (workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map") and workspace.World.Map:FindFirstChild("Plots"))
-        if plots then
-            colMachine = plots:FindFirstChild("CollectionMachine", true)
+
+        if myPlot then
+            colMachine = myPlot:FindFirstChild("CollectionMachine") or myPlot:FindFirstChild("Collection Machine") or myPlot:FindFirstChild("CollectionMachine", true)
         end
+
+        -- Fallback: Jika myPlot tidak ditemukan, cari CollectionMachine terdekat dalam radius 45 stud
         if not colMachine then
-            colMachine = workspace:FindFirstChild("CollectionMachine", true)
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local myPos = hrp.Position
+                local minDist = 45 -- Maksimal jarak di plot sendiri
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if (obj.Name == "CollectionMachine" or obj.Name == "Collection Machine") and (obj:IsA("Model") or obj:IsA("BasePart")) then
+                        local ok, pivot = pcall(function() return obj:GetPivot() end)
+                        if ok then
+                            local dist = (pivot.Position - myPos).Magnitude
+                            if dist < minDist then
+                                minDist = dist
+                                colMachine = obj
+                            end
+                        end
+                    end
+                end
+            end
         end
 
         if colMachine then
@@ -1467,7 +1556,6 @@ local function triggerCollectAllMoney()
                     pcall(function()
                         prompt.Enabled = true
                         prompt.RequiresLineOfSight = false
-                        prompt.MaxActivationDistance = 999999
                         if typeof(fireproximityprompt) == "function" then
                             fireproximityprompt(prompt, 0)
                             fireproximityprompt(prompt)
