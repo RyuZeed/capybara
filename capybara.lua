@@ -127,6 +127,7 @@ ConfigManager.ConfigPath = CONFIG_PATH
 
 local DEFAULT_CONFIG = {
     AutoTutorial       = true,
+    AutoEquipBest      = false,
     AutoDelete         = false,
     AutoClaim          = true,
     AutoClaimQuest     = true,
@@ -1440,6 +1441,60 @@ local tutToggle = TutorialTab:AddToggle("Jalankan Auto Tutorial (Step 1 - 12)", 
 end)
 
 TutorialTab:AddSection("Aksi Cepat & Navigasi")
+
+local equipBestThread = nil
+local function triggerEquipBestPlants()
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:FindFirstChild("Remotes", true) or ReplicatedStorage
+    local eqRemote = remotes and (remotes:FindFirstChild("EquipBestPlants") or remotes:FindFirstChild("EquipBest") or remotes:FindFirstChild("EquipBestPlant"))
+    if eqRemote then
+        if eqRemote:IsA("RemoteEvent") then
+            eqRemote:FireServer()
+        elseif eqRemote:IsA("RemoteFunction") then
+            eqRemote:InvokeServer()
+        end
+        print("👑 [Ritod Hub] Equip Best Plants dieksekusi!")
+        return true
+    end
+    return false
+end
+
+local function setAutoEquipBestLoop(enabled)
+    CurrentConfig.AutoEquipBest = enabled
+    ConfigManager.Save()
+
+    if equipBestThread then
+        task.cancel(equipBestThread)
+        equipBestThread = nil
+    end
+
+    if enabled then
+        triggerEquipBestPlants()
+        Notify("Auto Equip Best", "Auto Equip Best AKTIF (Ulangi tiap 5 Menit)!", 3)
+        print("👑 [Ritod Hub] Auto Equip Best Plants Aktif (Repeat setiap 5 menit).")
+
+        equipBestThread = task.spawn(function()
+            while CurrentConfig.AutoEquipBest do
+                task.wait(300) -- 5 menit (300 detik)
+                if not CurrentConfig.AutoEquipBest then break end
+                triggerEquipBestPlants()
+                print("👑 [Ritod Hub] Auto Equip Best Plants (Interval 5 Menit) dieksekusi!")
+            end
+        end)
+    else
+        Notify("Auto Equip Best", "Auto Equip Best DIMATIKAN.", 2)
+        print("🛑 [Ritod Hub] Auto Equip Best Plants Dimatikan.")
+    end
+end
+
+local equipBestToggle = TutorialTab:AddToggle("Auto Equip Best (Ulangi Tiap 5 Menit)", CurrentConfig.AutoEquipBest or false, function(state)
+    setAutoEquipBestLoop(state)
+end)
+
+TutorialTab:AddButton("👑 Equip Best Plants Sekarang", function()
+    triggerEquipBestPlants()
+    Notify("Equip Best", "Tanaman terbaik berhasil dipasang!", 2)
+end)
+
 TutorialTab:AddButton("🥚 Teleport ke EggShop & Beli Egg", function()
     pcall(function()
         local eggShop = workspace:FindFirstChild("EggShop", true)
@@ -1448,13 +1503,6 @@ TutorialTab:AddButton("🥚 Teleport ke EggShop & Beli Egg", function()
             Notify("Teleport", "Berhasil teleport ke EggShop!", 2)
         end
     end)
-end)
-
-TutorialTab:AddButton("👑 Equip Best Plants Sekarang", function()
-    if Remotes:FindFirstChild("EquipBestPlants") then
-        Remotes.EquipBestPlants:FireServer()
-        Notify("Equip Best", "Tanaman terbaik berhasil dipasang!", 2)
-    end
 end)
 
 -- =========================================================================
@@ -2549,6 +2597,7 @@ local function applyLoadedConfig(loaded)
     end
 
     if tutToggle and loaded.AutoTutorial ~= nil then tutToggle:Set(loaded.AutoTutorial, false) end
+    if equipBestToggle and loaded.AutoEquipBest ~= nil then equipBestToggle:Set(loaded.AutoEquipBest, false) end
     if eggToggle and loaded.AutoBuyEgg ~= nil then eggToggle:Set(loaded.AutoBuyEgg, false) end
     if buyGearToggle and loaded.AutoBuyGear ~= nil then buyGearToggle:Set(loaded.AutoBuyGear, false) end
     if buyAllGearToggle and loaded.BuyAllGear ~= nil then buyAllGearToggle:Set(loaded.BuyAllGear ~= false, false) end
@@ -2677,6 +2726,7 @@ task.spawn(function()
     end
 
     if CurrentConfig.AutoTutorial and AutoTutorial then AutoTutorial.Start() end
+    if CurrentConfig.AutoEquipBest then setAutoEquipBestLoop(true) end
 end)
 
 print("👑 [RITOD HUB] Capybaras vs Plants Ultra HD Loaded successfully with Config!")
