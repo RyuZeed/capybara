@@ -912,6 +912,28 @@ function AutoBuyGearAndMerchant.ToggleMerchant(state)
 end
 
 -- =================================================================
+-- 🚀 UNIFIED SHOP CONTROL: START / STOP / TOGGLE (GEAR + MERCHANT)
+-- =================================================================
+
+function AutoBuyGearAndMerchant.Start()
+	AutoBuyGearAndMerchant.Config.BuyAllGear = true
+	AutoBuyGearAndMerchant.Config.BuyAllMerchant = true
+	AutoBuyGearAndMerchant.StartGear()
+	AutoBuyGearAndMerchant.StartMerchant()
+end
+
+function AutoBuyGearAndMerchant.Stop()
+	AutoBuyGearAndMerchant.StopGear()
+	AutoBuyGearAndMerchant.StopMerchant()
+end
+
+function AutoBuyGearAndMerchant.Toggle(state)
+	if state == nil then state = not (isGearRunning or isMerchantRunning) end
+	if state then AutoBuyGearAndMerchant.Start() else AutoBuyGearAndMerchant.Stop() end
+	return isGearRunning or isMerchantRunning
+end
+
+-- =================================================================
 -- 🔧 CONFIG UTILITIES
 -- =================================================================
 
