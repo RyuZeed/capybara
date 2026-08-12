@@ -989,4 +989,7 @@ end
 function AutoBuyGearAndMerchant.IsGearRunning() return isGearRunning end
 function AutoBuyGearAndMerchant.IsMerchantRunning() return isMerchantRunning end
 
+_G.AutoBuyGearAndMerchant = AutoBuyGearAndMerchant
+_G.AutoBuyGear = AutoBuyGearAndMerchant
+
 return AutoBuyGearAndMerchant

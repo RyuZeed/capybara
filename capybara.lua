@@ -69,7 +69,7 @@ local function loadModule(name)
         ["auto_buy_gear_and_merchant"] = _G.AutoBuyGearAndMerchant or _G.AutoBuyGear,
         ["modern_settings"] = _G.ModernSettings,
     }
-    if globalMaps[name] and typeof(globalMaps[name]) == "table" then
+    if globalMaps[name] and typeof(globalMaps[name]) == "table" and (name ~= "auto_buy_gear_and_merchant" or typeof(globalMaps[name].Toggle) == "function") then
         print("⚡ [Ritod Hub] Loaded memory module: " .. name)
         return globalMaps[name]
     end
@@ -444,70 +444,75 @@ notifList.Padding = UDim.new(0, 10)
 notifList.Parent = notifHolder
 
 local function Notify(title, desc, duration)
-    duration = duration or 3.0
-    local n = Instance.new("Frame")
-    n.Size = UDim2.new(1, 0, 0, 64)
-    n.BackgroundColor3 = Color3.fromRGB(18, 14, 24)
-    n.BackgroundTransparency = 0.1
-    n.BorderSizePixel = 0
-    n.Position = UDim2.new(1, 100, 0, 0)
-    n.ZIndex = 201
-    n.Parent = notifHolder
+    pcall(function()
+        if not notifHolder or not notifHolder.Parent then return end
+        duration = duration or 3.0
+        local n = Instance.new("Frame")
+        n.Size = UDim2.new(1, 0, 0, 64)
+        n.BackgroundColor3 = Color3.fromRGB(18, 14, 24)
+        n.BackgroundTransparency = 0.1
+        n.BorderSizePixel = 0
+        n.Position = UDim2.new(1, 100, 0, 0)
+        n.ZIndex = 201
+        n.Parent = notifHolder
 
-    local nCorner = Instance.new("UICorner")
-    nCorner.CornerRadius = UDim.new(0, 12)
-    nCorner.Parent = n
+        local nCorner = Instance.new("UICorner")
+        nCorner.CornerRadius = UDim.new(0, 12)
+        nCorner.Parent = n
 
-    local nStroke = Instance.new("UIStroke")
-    nStroke.Thickness = 1.4
-    nStroke.Color = Color3.fromRGB(185, 90, 255)
-    nStroke.Parent = n
+        local nStroke = Instance.new("UIStroke")
+        nStroke.Thickness = 1.4
+        nStroke.Color = Color3.fromRGB(185, 90, 255)
+        nStroke.Parent = n
 
-    local nGlow = Instance.new("Frame")
-    nGlow.Size = UDim2.new(0, 4, 1, -16)
-    nGlow.Position = UDim2.new(0, 8, 0, 8)
-    nGlow.BackgroundColor3 = Color3.fromRGB(185, 90, 255)
-    nGlow.BorderSizePixel = 0
-    nGlow.ZIndex = 202
-    nGlow.Parent = n
+        local nGlow = Instance.new("Frame")
+        nGlow.Size = UDim2.new(0, 4, 1, -16)
+        nGlow.Position = UDim2.new(0, 8, 0, 8)
+        nGlow.BackgroundColor3 = Color3.fromRGB(185, 90, 255)
+        nGlow.BorderSizePixel = 0
+        nGlow.ZIndex = 202
+        nGlow.Parent = n
 
-    local ngCorner = Instance.new("UICorner")
-    ngCorner.CornerRadius = UDim.new(1, 0)
-    ngCorner.Parent = nGlow
+        local ngCorner = Instance.new("UICorner")
+        ngCorner.CornerRadius = UDim.new(1, 0)
+        ngCorner.Parent = nGlow
 
-    local nTitle = Instance.new("TextLabel")
-    nTitle.Position = UDim2.new(0, 22, 0, 10)
-    nTitle.Size = UDim2.new(1, -30, 0, 18)
-    nTitle.BackgroundTransparency = 1
-    nTitle.Text = title
-    nTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nTitle.TextSize = 13
-    nTitle.Font = Enum.Font.GothamBold
-    nTitle.TextXAlignment = Enum.TextXAlignment.Left
-    nTitle.ZIndex = 202
-    nTitle.Parent = n
+        local nTitle = Instance.new("TextLabel")
+        nTitle.Position = UDim2.new(0, 22, 0, 10)
+        nTitle.Size = UDim2.new(1, -30, 0, 18)
+        nTitle.BackgroundTransparency = 1
+        nTitle.Text = title
+        nTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+        nTitle.TextSize = 13
+        nTitle.Font = Enum.Font.GothamBold
+        nTitle.TextXAlignment = Enum.TextXAlignment.Left
+        nTitle.ZIndex = 202
+        nTitle.Parent = n
 
-    local nDesc = Instance.new("TextLabel")
-    nDesc.Position = UDim2.new(0, 22, 0, 30)
-    nDesc.Size = UDim2.new(1, -30, 0, 24)
-    nDesc.BackgroundTransparency = 1
-    nDesc.Text = desc
-    nDesc.TextColor3 = Color3.fromRGB(190, 175, 205)
-    nDesc.TextSize = 11
-    nDesc.Font = Enum.Font.GothamMedium
-    nDesc.TextXAlignment = Enum.TextXAlignment.Left
-    nDesc.TextWrapped = true
-    nDesc.ZIndex = 202
-    nDesc.Parent = n
+        local nDesc = Instance.new("TextLabel")
+        nDesc.Position = UDim2.new(0, 22, 0, 30)
+        nDesc.Size = UDim2.new(1, -30, 0, 24)
+        nDesc.BackgroundTransparency = 1
+        nDesc.Text = desc
+        nDesc.TextColor3 = Color3.fromRGB(190, 175, 205)
+        nDesc.TextSize = 11
+        nDesc.Font = Enum.Font.GothamMedium
+        nDesc.TextXAlignment = Enum.TextXAlignment.Left
+        nDesc.TextWrapped = true
+        nDesc.ZIndex = 202
+        nDesc.Parent = n
 
-    TweenService:Create(n, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+        TweenService:Create(n, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
 
-    task.delay(duration, function()
-        if n and n.Parent then
-            local out = TweenService:Create(n, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(1, 150, 0, 0)})
-            out:Play()
-            out.Completed:Connect(function() n:Destroy() end)
-        end
+        task.delay(duration, function()
+            pcall(function()
+                if n and n.Parent then
+                    local out = TweenService:Create(n, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(1, 150, 0, 0)})
+                    out:Play()
+                    out.Completed:Connect(function() pcall(function() n:Destroy() end) end)
+                end
+            end)
+        end)
     end)
 end
 
@@ -1901,7 +1906,14 @@ local buyShopToggle = ShopTab:AddToggle("🛒 Auto Buy All (Gear Shop & Travelin
             AutoBuyGear.Config.BuyAllGear = true
             AutoBuyGear.Config.BuyAllMerchant = true
         end
-        AutoBuyGear.Toggle(state)
+        if typeof(AutoBuyGear.Toggle) == "function" then
+            AutoBuyGear.Toggle(state)
+        elseif typeof(AutoBuyGear.ToggleGear) == "function" and typeof(AutoBuyGear.ToggleMerchant) == "function" then
+            AutoBuyGear.ToggleGear(state)
+            AutoBuyGear.ToggleMerchant(state)
+        elseif typeof(AutoBuyGear.Start) == "function" and typeof(AutoBuyGear.Stop) == "function" then
+            if state then AutoBuyGear.Start() else AutoBuyGear.Stop() end
+        end
     end
     Notify("Auto Shop", state and "Auto Buy Gear & Merchant AKTIF (Membeli saat ada stok)!" or "Auto Buy Shop DIMATIKAN.", 2.5)
 end)
