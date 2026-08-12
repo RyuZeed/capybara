@@ -1450,63 +1450,61 @@ local collectMoneyThread = nil
 local function triggerCollectAllMoney()
     local collected = false
 
-    -- 1. Direct ProximityPrompt search HANYA untuk "Collect All Money" / "Collection Machine"
+    -- 1. Cari objek model Collection Machine secara langsung di plot / workspace
     pcall(function()
-        for _, prompt in ipairs(workspace:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
-                local actText = (prompt.ActionText or ""):lower()
-                local objText = (prompt.ObjectText or ""):lower()
-                local parentName = prompt.Parent and prompt.Parent.Name:lower() or ""
+        local colMachine = nil
+        local plots = workspace:FindFirstChild("Plots") or (workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map") and workspace.World.Map:FindFirstChild("Plots"))
+        if plots then
+            colMachine = plots:FindFirstChild("CollectionMachine", true)
+        end
+        if not colMachine then
+            colMachine = workspace:FindFirstChild("CollectionMachine", true)
+        end
 
-                -- 🛑 Blacklist mutlak untuk mesin/toko lain (Fuse, Egg, Shop, Gear, Merchant, Craft)
-                local isForbidden = actText:find("fuse") or objText:find("fuse") or parentName:find("fuse")
-                    or actText:find("egg") or objText:find("egg") or parentName:find("egg")
-                    or actText:find("shop") or objText:find("shop") or parentName:find("shop")
-                    or actText:find("gear") or objText:find("gear")
-                    or actText:find("merchant") or objText:find("merchant")
-                    or actText:find("craft") or objText:find("craft")
-                    or actText:find("spin") or objText:find("spin")
-                    or actText:find("upgrade") or objText:find("tree")
-
-                if not isForbidden then
-                    -- 🟢 Target spesifik: Collect All Money pada Collection Machine
-                    local isMoneyPrompt = (actText:find("collect all money") or (actText:find("collect") and actText:find("money")))
-                        or (objText == "collection machine" and actText:find("collect"))
-                        or (parentName:find("collection machine") and actText:find("collect"))
-
-                    if isMoneyPrompt then
-                        pcall(function()
-                            prompt.Enabled = true
-                            prompt.RequiresLineOfSight = false
-                            prompt.MaxActivationDistance = 999999
-                            if typeof(fireproximityprompt) == "function" then
-                                fireproximityprompt(prompt, 0)
-                                fireproximityprompt(prompt)
-                            end
-                            collected = true
-                        end)
-                    end
+        if colMachine then
+            for _, prompt in ipairs(colMachine:GetDescendants()) do
+                if prompt:IsA("ProximityPrompt") then
+                    pcall(function()
+                        prompt.Enabled = true
+                        prompt.RequiresLineOfSight = false
+                        prompt.MaxActivationDistance = 999999
+                        if typeof(fireproximityprompt) == "function" then
+                            fireproximityprompt(prompt, 0)
+                            fireproximityprompt(prompt)
+                        end
+                        collected = true
+                    end)
                 end
             end
         end
     end)
 
-    -- 2. Direct Remotes Dispatcher (Khusus Money Collection)
+    -- 2. Direct Remotes Dispatcher resmi: CollectMoneyFromPlant & CollectAllMoney
     pcall(function()
         local remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:FindFirstChild("Remotes", true) or ReplicatedStorage
         if remotes then
-            local possibleRemotes = {
-                "CollectAllMoney", "CollectMoney", "ClaimCollectionMachine", "CollectCollectionMachine"
-            }
-            for _, rName in ipairs(possibleRemotes) do
-                local rem = remotes:FindFirstChild(rName)
-                if rem then
-                    if rem:IsA("RemoteEvent") then
-                        rem:FireServer()
-                    elseif rem:IsA("RemoteFunction") then
-                        rem:InvokeServer()
-                    end
-                    collected = true
+            local r = remotes:FindFirstChild("CollectMoneyFromPlant") or remotes:FindFirstChild("CollectAllMoney") or remotes:FindFirstChild("CollectMoney")
+            if r then
+                if r:IsA("RemoteEvent") then
+                    r:FireServer()
+                elseif r:IsA("RemoteFunction") then
+                    r:InvokeServer()
+                end
+                collected = true
+            end
+        end
+    end)
+
+    -- 3. Auto-close Fuse / Craft UI jika terbuka
+    pcall(function()
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        local mainGui = pg and pg:FindFirstChild("MainGui")
+        local frames = mainGui and mainGui:FindFirstChild("Root") and mainGui.Root:FindFirstChild("Frames")
+        if frames then
+            for _, f in ipairs(frames:GetChildren()) do
+                local fName = f.Name:lower()
+                if f:IsA("GuiObject") and (fName:find("fuse") or fName:find("fusing") or fName:find("craft")) then
+                    f.Visible = false
                 end
             end
         end
