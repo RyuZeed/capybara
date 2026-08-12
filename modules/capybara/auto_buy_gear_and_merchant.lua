@@ -280,9 +280,8 @@ local lastKnownMerchant = nil
 
 function AutoBuyGearAndMerchant.IsMerchantPresent(merchantName)
 	local found = false
-	local merchantNames = {"king capybara", "martian", "timbles", "jester"}
 
-	-- 1. Cek apakah ada NPC Traveling Merchant spesifik di Workspace
+	-- 1. Cek apakah ada NPC / Model Traveling Merchant spesifik di Workspace
 	pcall(function()
 		local searchFolders = {
 			workspace,
@@ -297,15 +296,11 @@ function AutoBuyGearAndMerchant.IsMerchantPresent(merchantName)
 				for _, obj in ipairs(folder:GetChildren()) do
 					if obj:IsA("Model") or obj:IsA("Folder") then
 						local oName = obj.Name:lower()
-						if oName:find("traveling") or oName:find("travelling") then
+						if oName:find("traveling") or oName:find("travelling")
+							or oName:find("king capybara") or oName:find("martian")
+							or oName:find("timbles") or oName:find("jester") then
 							found = true
 							return
-						end
-						for _, mName in ipairs(merchantNames) do
-							if oName:find(mName) then
-								found = true
-								return
-							end
 						end
 					end
 				end
@@ -315,24 +310,33 @@ function AutoBuyGearAndMerchant.IsMerchantPresent(merchantName)
 
 	if found then return true end
 
-	-- 2. Cek apakah UI MerchantShop aktif dan benar-benar Visible
-	local frames = getFramesRoot()
-	local merchantShop = frames and frames:FindFirstChild("MerchantShop")
-	if merchantShop and merchantShop:IsA("GuiObject") and merchantShop.Visible then
-		local list = merchantShop:FindFirstChild("List")
-		if list then
-			for _, itemFrame in ipairs(list:GetChildren()) do
-				if itemFrame:IsA("GuiObject") and itemFrame.Visible and not itemFrame.Name:find("Layout") then
-					local sLbl = itemFrame:FindFirstChild("Stock", true)
-					if sLbl and sLbl:IsA("TextLabel") and sLbl.Text then
-						local cnt = tonumber(sLbl.Text:match("(%d+)"))
-						if cnt and cnt > 0 then
-							return true
-						end
-					end
+	-- 2. Cek apakah ada ProximityPrompt Traveling Merchant di Workspace
+	pcall(function()
+		for _, prompt in ipairs(workspace:GetDescendants()) do
+			if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+				local actText = (prompt.ActionText or ""):lower()
+				local objText = (prompt.ObjectText or ""):lower()
+				local pName = prompt.Parent and prompt.Parent.Name:lower() or ""
+
+				if actText:find("traveling") or objText:find("traveling") or pName:find("traveling")
+					or actText:find("king capybara") or objText:find("king capybara")
+					or actText:find("martian") or objText:find("martian")
+					or actText:find("timbles") or objText:find("timbles")
+					or actText:find("jester") or objText:find("jester") then
+					found = true
+					return
 				end
 			end
 		end
+	end)
+
+	if found then return true end
+
+	-- 3. Cek apakah UI MerchantShop sedang Visible di PlayerGui
+	local frames = getFramesRoot()
+	local merchantShop = frames and frames:FindFirstChild("MerchantShop")
+	if merchantShop and merchantShop:IsA("GuiObject") and merchantShop.Visible then
+		return true
 	end
 
 	return false
@@ -380,7 +384,7 @@ function AutoBuyGearAndMerchant.HasGearStock(gearName)
 			if count > 0 then
 				return true, count
 			else
-				return false, 0 -- STOK 0 -> LANGSUNG RETURN FALSE
+				return false, 0
 			end
 		end
 		if txt:find("in stock") then
@@ -398,58 +402,52 @@ function AutoBuyGearAndMerchant.HasGearStock(gearName)
 end
 
 function AutoBuyGearAndMerchant.HasMerchantStock(itemName)
-	-- Pastikan merchant sedang aktif terlebih dahulu
+	-- Pastikan merchant sedang aktif di map terlebih dahulu
 	if not AutoBuyGearAndMerchant.IsMerchantPresent() then
 		return false, 0
 	end
 
 	local frames = getFramesRoot()
 	local merchantShop = frames and frames:FindFirstChild("MerchantShop")
-	if not merchantShop or not merchantShop.Visible then
-		return false, 0
-	end
+	local list = merchantShop and merchantShop:FindFirstChild("List")
 
-	local list = merchantShop:FindFirstChild("List")
-	if not list then return false, 0 end
-
-	local itemFrame = list:FindFirstChild(itemName)
-	if not itemFrame or not itemFrame:IsA("GuiObject") or not itemFrame.Visible then
-		return false, 0
-	end
-
-	-- 1. Cek attribute OutOfStock
-	if itemFrame:GetAttribute("OutOfStock") == true then
-		return false, 0
-	end
-
-	-- 2. Cek attribute Stock / Count
-	local attrStock = itemFrame:GetAttribute("Stock") or itemFrame:GetAttribute("Count")
-	if typeof(attrStock) == "number" then
-		if attrStock <= 0 then return false, 0 end
-		return true, attrStock
-	end
-
-	-- 3. Cek label Stock
-	local stockLabel = itemFrame:FindFirstChild("Stock", true)
-	if stockLabel and stockLabel.Text then
-		local txt = stockLabel.Text:lower()
-		if txt:find("no stock") or txt:find("out of stock") or txt:find("sold out") or txt:find("habis") then
-			return false, 0
-		end
-		local count = tonumber(txt:match("(%d+)"))
-		if count ~= nil then
-			if count > 0 then
-				return true, count
-			else
+	-- Jika frame item ada di GUI, lakukan pengecekan detail
+	if list then
+		local itemFrame = list:FindFirstChild(itemName)
+		if itemFrame then
+			-- 1. Cek attribute OutOfStock
+			if itemFrame:GetAttribute("OutOfStock") == true then
 				return false, 0
 			end
-		end
-		if txt:find("in stock") then
-			return true, 1
+
+			-- 2. Cek attribute Stock / Count
+			local attrStock = itemFrame:GetAttribute("Stock") or itemFrame:GetAttribute("Count")
+			if typeof(attrStock) == "number" then
+				if attrStock <= 0 then return false, 0 end
+				return true, attrStock
+			end
+
+			-- 3. Cek label Stock
+			local stockLabel = itemFrame:FindFirstChild("Stock", true)
+			if stockLabel and stockLabel.Text then
+				local txt = stockLabel.Text:lower()
+				if txt:find("no stock") or txt:find("out of stock") or txt:find("sold out") or txt:find("habis") then
+					return false, 0
+				end
+				local count = tonumber(txt:match("(%d+)"))
+				if count ~= nil then
+					if count > 0 then
+						return true, count
+					else
+						return false, 0
+					end
+				end
+			end
 		end
 	end
 
-	return false, 0
+	-- Jika Merchant terkonfirmasi ada di server, return true agar remote pembelian dijalankan
+	return true, 1
 end
 
 -- =================================================================
