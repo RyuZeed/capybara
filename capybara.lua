@@ -94,6 +94,7 @@ local AutoClaim      = loadModule("auto_claim")
 local AutoTutorial   = loadModule("auto_tutorial")
 local AutoDelete     = loadModule("auto_delete")
 local AutoBuyEgg    = loadModule("auto_buy_egg") or loadModule("Auto buy Egg")
+local AutoBuyGear   = loadModule("auto_buy_gear_and_merchant")
 local ModernSettings = loadModule("modern_settings")
 
 -- =================================================================
@@ -120,6 +121,40 @@ local DEFAULT_CONFIG = {
     AutoHatchEgg       = false,
     SelectedEggs       = {
         ["capybara egg"] = true,
+    },
+    AutoBuyGear        = false,
+    BuyAllGear         = true,
+    SelectedGear       = {
+        ["hatch hammer"]      = true,
+        ["nametag"]           = true,
+        ["mutation sponge"]   = true,
+        ["boombox"]           = true,
+        ["bizarre stopwatch"] = true,
+    },
+    AutoBuyMerchant    = false,
+    BuyAllMerchant     = true,
+    SelectedMerchant   = {
+        ["gilded hatch hammer"] = true,
+        ["gold scroll"]         = true,
+        ["totem of status"]     = true,
+        ["raygun"]              = true,
+        ["alien tesla"]         = true,
+        ["totem of stars"]      = true,
+        ["totem of might"]      = true,
+        ["totem of marrow"]     = true,
+        ["rainbow scroll"]      = true,
+        ["moonlit scroll"]      = true,
+        ["chilly scroll"]       = true,
+        ["toasty scroll"]       = true,
+        ["tranquil scroll"]     = true,
+        ["shocked scroll"]      = true,
+        ["glitched scroll"]     = true,
+    },
+    MerchantGroups     = {
+        ["King Capybara"] = true,
+        ["Martian"]       = true,
+        ["Timbles"]       = true,
+        ["Jester"]        = true,
     },
     HatchWait          = 8,
     FarmMode           = false,
@@ -175,6 +210,8 @@ if typeof(USER_CFG) == "table" then
     if USER_CFG["Auto Quest"] ~= nil then CurrentConfig.AutoClaimQuest = USER_CFG["Auto Quest"] end
     if USER_CFG["Auto Delete"] ~= nil then CurrentConfig.AutoDelete = USER_CFG["Auto Delete"] end
     if USER_CFG["Auto Buy Egg"] ~= nil then CurrentConfig.AutoBuyEgg = USER_CFG["Auto Buy Egg"] end
+    if USER_CFG["Auto Buy Gear"] ~= nil then CurrentConfig.AutoBuyGear = USER_CFG["Auto Buy Gear"] end
+    if USER_CFG["Auto Buy Merchant"] ~= nil then CurrentConfig.AutoBuyMerchant = USER_CFG["Auto Buy Merchant"] end
     if USER_CFG["Auto Place Egg"] ~= nil then CurrentConfig.AutoPlaceEgg = USER_CFG["Auto Place Egg"] end
     if USER_CFG["Auto Hatch Egg"] ~= nil then CurrentConfig.AutoHatchEgg = USER_CFG["Auto Hatch Egg"] end
     if USER_CFG["Selected Egg"] ~= nil then CurrentConfig.SelectedEgg = USER_CFG["Selected Egg"] end
@@ -737,6 +774,10 @@ yesBtn.Activated:Connect(function()
         if AutoTutorial and AutoTutorial.Stop then AutoTutorial.Stop() end
         if AutoDelete and AutoDelete.Stop then AutoDelete.Stop() end
         if AutoClaim and AutoClaim.Stop then AutoClaim.Stop() end
+        if AutoBuyGear then
+            if AutoBuyGear.StopGear then AutoBuyGear.StopGear() end
+            if AutoBuyGear.StopMerchant then AutoBuyGear.StopMerchant() end
+        end
         if AFKModule and AFKModule.Disable then AFKModule.Disable() end
         if PinkRemover and PinkRemover.Stop then PinkRemover.Stop() end
         if GraphicsModule then
@@ -1674,6 +1715,473 @@ EggTab:AddButton("🏡 Teleport ke Tower Lane Plot Sendiri", function()
 end)
 
 -- =========================================================================
+-- 📑 TAB 2B: 🛒 AUTO GEAR & TRAVELING MERCHANTS
+-- =========================================================================
+local ShopTab = CreateTab("Auto Shop", "🛒")
+
+local OFFICIAL_GEAR_CATALOG = {
+    { name = "Hatch Hammer",       rarity = "Common",    price = "$1k" },
+    { name = "Nametag",            rarity = "Rare",      price = "$5k" },
+    { name = "Mutation Sponge",    rarity = "Rare",      price = "$10k" },
+    { name = "Boombox",            rarity = "Legendary", price = "$50k" },
+    { name = "Bizarre Stopwatch",  rarity = "Mythic",    price = "$750k" },
+}
+
+local MERCHANTS_DATA = {
+    ["King Capybara"] = {
+        name = "King Capybara", icon = "👑",
+        items = {
+            { name = "Gilded Hatch Hammer", rarity = "Divine", price = "1M$" },
+            { name = "Gold Scroll",         rarity = "Divine", price = "7.7M$" },
+            { name = "Totem Of Status",     rarity = "Godly",  price = "8.5M$" },
+        }
+    },
+    ["Martian"] = {
+        name = "Martian", icon = "👽",
+        items = {
+            { name = "Raygun",          rarity = "Epic",   price = "Coins" },
+            { name = "Alien Tesla",     rarity = "Divine", price = "Coins" },
+            { name = "Totem Of Stars",  rarity = "Godly",  price = "Coins" },
+        }
+    },
+    ["Timbles"] = {
+        name = "Timbles", icon = "🐿️",
+        items = {
+            { name = "Totem Of Might",   rarity = "Divine", price = "Coins" },
+            { name = "Totem Of Marrow",  rarity = "Godly",  price = "Coins" },
+            { name = "Rainbow Scroll",   rarity = "Divine", price = "Coins" },
+        }
+    },
+    ["Jester"] = {
+        name = "Jester", icon = "🃏",
+        items = {
+            { name = "Moonlit Scroll",   rarity = "Rare",      price = "Coins" },
+            { name = "Chilly Scroll",    rarity = "Epic",      price = "Coins" },
+            { name = "Toasty Scroll",    rarity = "Epic",      price = "Coins" },
+            { name = "Tranquil Scroll",  rarity = "Legendary", price = "Coins" },
+            { name = "Shocked Scroll",   rarity = "Legendary", price = "Coins" },
+            { name = "Glitched Scroll",  rarity = "Divine",    price = "Coins" },
+        }
+    }
+}
+
+local shopCard = Instance.new("Frame")
+shopCard.Size = UDim2.new(1, 0, 0, 52)
+shopCard.BackgroundColor3 = Color3.fromRGB(24, 18, 32)
+shopCard.BorderSizePixel = 0
+shopCard.ZIndex = 14
+shopCard.Parent = ShopTab.Page
+
+local scCorner = Instance.new("UICorner")
+scCorner.CornerRadius = UDim.new(0, 10)
+scCorner.Parent = shopCard
+
+local shopStatus = Instance.new("TextLabel")
+shopStatus.Position = UDim2.new(0, 12, 0, 6)
+shopStatus.Size = UDim2.new(1, -24, 0, 20)
+shopStatus.BackgroundTransparency = 1
+shopStatus.Text = "🛒 Auto Shop Status: Siap (Idle)"
+shopStatus.TextColor3 = Color3.fromRGB(255, 200, 50)
+shopStatus.TextSize = 12
+shopStatus.Font = Enum.Font.GothamBold
+shopStatus.TextXAlignment = Enum.TextXAlignment.Left
+shopStatus.ZIndex = 15
+shopStatus.Parent = shopCard
+
+local shopStatsDetail = Instance.new("TextLabel")
+shopStatsDetail.Position = UDim2.new(0, 12, 0, 26)
+shopStatsDetail.Size = UDim2.new(1, -24, 0, 18)
+shopStatsDetail.BackgroundTransparency = 1
+shopStatsDetail.Text = "⚙️ Total Gear: 0 | 🏪 Total Merchant: 0"
+shopStatsDetail.TextColor3 = Color3.fromRGB(180, 165, 195)
+shopStatsDetail.TextSize = 11
+shopStatsDetail.Font = Enum.Font.GothamMedium
+shopStatsDetail.TextXAlignment = Enum.TextXAlignment.Left
+shopStatsDetail.ZIndex = 15
+shopStatsDetail.Parent = shopCard
+
+task.spawn(function()
+    while shopCard and shopCard.Parent do
+        if AutoBuyGear and AutoBuyGear.GetStats then
+            local stats = AutoBuyGear.GetStats()
+            if stats.IsGearRunning or stats.IsMerchantRunning then
+                shopStatus.Text = string.format("🚀 Auto Shop Berjalan (Gear: %s | Merchant: %s)", stats.IsGearRunning and "ON" or "OFF", stats.IsMerchantRunning and "ON" or "OFF")
+                shopStatus.TextColor3 = Color3.fromRGB(0, 230, 140)
+            else
+                shopStatus.Text = "🛒 Auto Shop Status: Siap (Idle)"
+                shopStatus.TextColor3 = Color3.fromRGB(255, 200, 50)
+            end
+            shopStatsDetail.Text = string.format("⚙️ Total Gear: %d | 🏪 Total Merchant: %d", stats.GearBought or 0, stats.MerchantBought or 0)
+        end
+        task.wait(1)
+    end
+end)
+
+-- ⚙️ 1. GEAR SHOP CONTROLS
+ShopTab:AddSection("Kontrol Auto Buy Gear Shop")
+
+local buyGearToggle = ShopTab:AddToggle("⚙️ Jalankan Auto Buy Gear (Toko Tetap)", CurrentConfig.AutoBuyGear, function(state)
+    CurrentConfig.AutoBuyGear = state
+    if AutoBuyGear then
+        if AutoBuyGear.Config then
+            AutoBuyGear.Config.SelectedGear = CurrentConfig.SelectedGear
+            AutoBuyGear.Config.BuyAllGear = CurrentConfig.BuyAllGear
+        end
+        AutoBuyGear.ToggleGear(state)
+    end
+    Notify("Auto Buy Gear", state and "Auto Buy Gear Aktif!" or "Auto Buy Gear Dimatikan.", 2.0)
+end)
+
+local buyAllGearToggle = ShopTab:AddToggle("⚡ Borong Semua Gear yang Ada Stok", CurrentConfig.BuyAllGear, function(val)
+    CurrentConfig.BuyAllGear = val
+    if AutoBuyGear and AutoBuyGear.Config then AutoBuyGear.Config.BuyAllGear = val end
+end)
+
+local gearCardRefs = {}
+
+ShopTab:AddButton("✅ Centang Semua Gear", function()
+    if not CurrentConfig.SelectedGear then CurrentConfig.SelectedGear = {} end
+    for _, g in ipairs(OFFICIAL_GEAR_CATALOG) do
+        local gKey = g.name:lower()
+        CurrentConfig.SelectedGear[gKey] = true
+        if gearCardRefs[gKey] then gearCardRefs[gKey]:SetChecked(true) end
+    end
+    if AutoBuyGear and AutoBuyGear.Config then AutoBuyGear.Config.SelectedGear = CurrentConfig.SelectedGear end
+    Notify("Gear Checklist", "Semua gear dicentang untuk dibeli.", 2.0)
+end)
+
+ShopTab:AddButton("🔒 Kosongkan Pilihan Gear", function()
+    if CurrentConfig.SelectedGear then table.clear(CurrentConfig.SelectedGear) end
+    for _, ref in pairs(gearCardRefs) do ref:SetChecked(false) end
+    if AutoBuyGear and AutoBuyGear.Config then AutoBuyGear.Config.SelectedGear = CurrentConfig.SelectedGear end
+    Notify("Gear Checklist", "Pilihan gear dikosongkan.", 2.0)
+end)
+
+local function addGearChecklistCard(gearName, gearRarity, gearPrice)
+    local gKey = gearName:lower()
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 38)
+    card.BackgroundColor3 = Color3.fromRGB(24, 18, 30)
+    card.BorderSizePixel = 0
+    card.ZIndex = 14
+    card.Parent = ShopTab.Page
+
+    local cCorner = Instance.new("UICorner")
+    cCorner.CornerRadius = UDim.new(0, 8)
+    cCorner.Parent = card
+
+    local cStroke = Instance.new("UIStroke")
+    cStroke.Thickness = 1
+    cStroke.Color = Color3.fromRGB(55, 42, 68)
+    cStroke.Parent = card
+
+    local isChecked = (CurrentConfig.SelectedGear and CurrentConfig.SelectedGear[gKey] == true)
+
+    local checkBtn = Instance.new("TextButton")
+    checkBtn.Size = UDim2.new(0, 20, 0, 20)
+    checkBtn.Position = UDim2.new(0, 8, 0.5, -10)
+    checkBtn.BackgroundColor3 = isChecked and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
+    checkBtn.Text = isChecked and "✓" or ""
+    checkBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    checkBtn.Font = Enum.Font.GothamBold
+    checkBtn.TextSize = 12
+    checkBtn.ZIndex = 15
+    checkBtn.Parent = card
+
+    local chkCorner = Instance.new("UICorner")
+    chkCorner.CornerRadius = UDim.new(0, 4)
+    chkCorner.Parent = checkBtn
+
+    local rBadge = Instance.new("TextLabel")
+    rBadge.Position = UDim2.new(0, 34, 0.5, -9)
+    rBadge.Size = UDim2.new(0, 75, 0, 18)
+    rBadge.BackgroundColor3 = Color3.fromRGB(40, 30, 52)
+    rBadge.BackgroundTransparency = 0.4
+    rBadge.Text = tostring(gearRarity)
+    rBadge.TextColor3 = Color3.fromRGB(210, 190, 235)
+    rBadge.Font = Enum.Font.GothamBold
+    rBadge.TextSize = 10
+    rBadge.ZIndex = 15
+    rBadge.Parent = card
+
+    local rbCorner = Instance.new("UICorner")
+    rbCorner.CornerRadius = UDim.new(0, 4)
+    rbCorner.Parent = rBadge
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, -125, 1, 0)
+    nameLabel.Position = UDim2.new(0, 115, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = string.format("%s (%s)", gearName, gearPrice or "")
+    nameLabel.TextColor3 = Color3.fromRGB(240, 235, 250)
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 12
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.ZIndex = 15
+    nameLabel.Parent = card
+
+    local function toggle()
+        local newState = not (CurrentConfig.SelectedGear and CurrentConfig.SelectedGear[gKey] == true)
+        if not CurrentConfig.SelectedGear then CurrentConfig.SelectedGear = {} end
+        CurrentConfig.SelectedGear[gKey] = newState and true or nil
+        checkBtn.BackgroundColor3 = newState and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
+        checkBtn.Text = newState and "✓" or ""
+        cStroke.Color = newState and Color3.fromRGB(180, 90, 255) or Color3.fromRGB(55, 42, 68)
+        if AutoBuyGear and AutoBuyGear.Config then
+            AutoBuyGear.Config.SelectedGear = CurrentConfig.SelectedGear
+        end
+    end
+
+    checkBtn.MouseButton1Click:Connect(toggle)
+
+    local fullClick = Instance.new("TextButton")
+    fullClick.Size = UDim2.new(1, 0, 1, 0)
+    fullClick.BackgroundTransparency = 1
+    fullClick.Text = ""
+    fullClick.ZIndex = 14
+    fullClick.Parent = card
+    fullClick.MouseButton1Click:Connect(toggle)
+
+    return {
+        SetChecked = function(self, val)
+            if not CurrentConfig.SelectedGear then CurrentConfig.SelectedGear = {} end
+            CurrentConfig.SelectedGear[gKey] = val and true or nil
+            checkBtn.BackgroundColor3 = val and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
+            checkBtn.Text = val and "✓" or ""
+            cStroke.Color = val and Color3.fromRGB(180, 90, 255) or Color3.fromRGB(55, 42, 68)
+        end,
+        Card = card
+    }
+end
+
+for _, g in ipairs(OFFICIAL_GEAR_CATALOG) do
+    local ref = addGearChecklistCard(g.name, g.rarity, g.price)
+    gearCardRefs[g.name:lower()] = ref
+end
+
+-- 🏪 2. TRAVELING MERCHANT CONTROLS
+ShopTab:AddSection("Kontrol Auto Buy Traveling Merchants")
+
+local buyMerchantToggle = ShopTab:AddToggle("🏪 Jalankan Auto Buy Traveling Merchants", CurrentConfig.AutoBuyMerchant, function(state)
+    CurrentConfig.AutoBuyMerchant = state
+    if AutoBuyGear then
+        if AutoBuyGear.Config then
+            AutoBuyGear.Config.SelectedMerchant = CurrentConfig.SelectedMerchant
+            AutoBuyGear.Config.BuyAllMerchant = CurrentConfig.BuyAllMerchant
+            AutoBuyGear.Config.MerchantGroups = CurrentConfig.MerchantGroups
+        end
+        AutoBuyGear.ToggleMerchant(state)
+    end
+    Notify("Traveling Merchants", state and "Auto Buy Traveling Merchants Aktif!" or "Auto Buy Merchant Dimatikan.", 2.0)
+end)
+
+local buyAllMerchantToggle = ShopTab:AddToggle("⚡ Borong Semua Item Merchant yang Muncul", CurrentConfig.BuyAllMerchant, function(val)
+    CurrentConfig.BuyAllMerchant = val
+    if AutoBuyGear and AutoBuyGear.Config then AutoBuyGear.Config.BuyAllMerchant = val end
+end)
+
+local merchantCardRefs = {}
+
+ShopTab:AddSection("Filter Cepat Grup Merchant")
+
+local function toggleMerchantGroup(mName, state)
+    if not CurrentConfig.MerchantGroups then CurrentConfig.MerchantGroups = {} end
+    CurrentConfig.MerchantGroups[mName] = state
+    local mData = MERCHANTS_DATA[mName]
+    if mData then
+        for _, item in ipairs(mData.items) do
+            local iKey = item.name:lower()
+            if not CurrentConfig.SelectedMerchant then CurrentConfig.SelectedMerchant = {} end
+            CurrentConfig.SelectedMerchant[iKey] = state and true or nil
+            if merchantCardRefs[iKey] then merchantCardRefs[iKey]:SetChecked(state) end
+        end
+    end
+    if AutoBuyGear and AutoBuyGear.Config then
+        AutoBuyGear.Config.MerchantGroups = CurrentConfig.MerchantGroups
+        AutoBuyGear.Config.SelectedMerchant = CurrentConfig.SelectedMerchant
+    end
+    Notify(mName, state and ("Semua item " .. mName .. " dicentang!") or (mName .. " dinonaktifkan."), 1.5)
+end
+
+ShopTab:AddButton("👑 King Capybara (Gilded Hammer, Gold Scroll, Status)", function()
+    local cur = CurrentConfig.MerchantGroups and CurrentConfig.MerchantGroups["King Capybara"] == true
+    toggleMerchantGroup("King Capybara", not cur)
+end)
+
+ShopTab:AddButton("👽 Martian (Raygun, Tesla, Stars Totem)", function()
+    local cur = CurrentConfig.MerchantGroups and CurrentConfig.MerchantGroups["Martian"] == true
+    toggleMerchantGroup("Martian", not cur)
+end)
+
+ShopTab:AddButton("🐿️ Timbles (Might, Marrow Totem, Rainbow Scroll)", function()
+    local cur = CurrentConfig.MerchantGroups and CurrentConfig.MerchantGroups["Timbles"] == true
+    toggleMerchantGroup("Timbles", not cur)
+end)
+
+ShopTab:AddButton("🃏 Jester (6 Element Scrolls)", function()
+    local cur = CurrentConfig.MerchantGroups and CurrentConfig.MerchantGroups["Jester"] == true
+    toggleMerchantGroup("Jester", not cur)
+end)
+
+ShopTab:AddSection("Checklist Item Merchant")
+
+ShopTab:AddButton("✅ Centang Semua 15 Item Merchant", function()
+    if not CurrentConfig.SelectedMerchant then CurrentConfig.SelectedMerchant = {} end
+    for mName, mData in pairs(MERCHANTS_DATA) do
+        CurrentConfig.MerchantGroups[mName] = true
+        for _, item in ipairs(mData.items) do
+            local iKey = item.name:lower()
+            CurrentConfig.SelectedMerchant[iKey] = true
+            if merchantCardRefs[iKey] then merchantCardRefs[iKey]:SetChecked(true) end
+        end
+    end
+    if AutoBuyGear and AutoBuyGear.Config then
+        AutoBuyGear.Config.SelectedMerchant = CurrentConfig.SelectedMerchant
+        AutoBuyGear.Config.MerchantGroups = CurrentConfig.MerchantGroups
+    end
+    Notify("Merchant Checklist", "Semua 15 item merchant dicentang.", 2.0)
+end)
+
+ShopTab:AddButton("🔒 Kosongkan Pilihan Merchant", function()
+    if CurrentConfig.SelectedMerchant then table.clear(CurrentConfig.SelectedMerchant) end
+    if CurrentConfig.MerchantGroups then table.clear(CurrentConfig.MerchantGroups) end
+    for _, ref in pairs(merchantCardRefs) do ref:SetChecked(false) end
+    if AutoBuyGear and AutoBuyGear.Config then
+        AutoBuyGear.Config.SelectedMerchant = CurrentConfig.SelectedMerchant
+        AutoBuyGear.Config.MerchantGroups = CurrentConfig.MerchantGroups
+    end
+    Notify("Merchant Checklist", "Pilihan merchant dikosongkan.", 2.0)
+end)
+
+local function addMerchantChecklistCard(itemName, itemRarity, merchantOwner)
+    local iKey = itemName:lower()
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 38)
+    card.BackgroundColor3 = Color3.fromRGB(24, 18, 30)
+    card.BorderSizePixel = 0
+    card.ZIndex = 14
+    card.Parent = ShopTab.Page
+
+    local cCorner = Instance.new("UICorner")
+    cCorner.CornerRadius = UDim.new(0, 8)
+    cCorner.Parent = card
+
+    local cStroke = Instance.new("UIStroke")
+    cStroke.Thickness = 1
+    cStroke.Color = Color3.fromRGB(55, 42, 68)
+    cStroke.Parent = card
+
+    local isChecked = (CurrentConfig.SelectedMerchant and CurrentConfig.SelectedMerchant[iKey] == true)
+
+    local checkBtn = Instance.new("TextButton")
+    checkBtn.Size = UDim2.new(0, 20, 0, 20)
+    checkBtn.Position = UDim2.new(0, 8, 0.5, -10)
+    checkBtn.BackgroundColor3 = isChecked and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
+    checkBtn.Text = isChecked and "✓" or ""
+    checkBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    checkBtn.Font = Enum.Font.GothamBold
+    checkBtn.TextSize = 12
+    checkBtn.ZIndex = 15
+    checkBtn.Parent = card
+
+    local chkCorner = Instance.new("UICorner")
+    chkCorner.CornerRadius = UDim.new(0, 4)
+    chkCorner.Parent = checkBtn
+
+    local rBadge = Instance.new("TextLabel")
+    rBadge.Position = UDim2.new(0, 34, 0.5, -9)
+    rBadge.Size = UDim2.new(0, 75, 0, 18)
+    rBadge.BackgroundColor3 = Color3.fromRGB(40, 30, 52)
+    rBadge.BackgroundTransparency = 0.4
+    rBadge.Text = tostring(itemRarity)
+    rBadge.TextColor3 = Color3.fromRGB(210, 190, 235)
+    rBadge.Font = Enum.Font.GothamBold
+    rBadge.TextSize = 10
+    rBadge.ZIndex = 15
+    rBadge.Parent = card
+
+    local rbCorner = Instance.new("UICorner")
+    rbCorner.CornerRadius = UDim.new(0, 4)
+    rbCorner.Parent = rBadge
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, -125, 1, 0)
+    nameLabel.Position = UDim2.new(0, 115, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = string.format("%s [%s]", itemName, merchantOwner or "")
+    nameLabel.TextColor3 = Color3.fromRGB(240, 235, 250)
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 12
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.ZIndex = 15
+    nameLabel.Parent = card
+
+    local function toggle()
+        local newState = not (CurrentConfig.SelectedMerchant and CurrentConfig.SelectedMerchant[iKey] == true)
+        if not CurrentConfig.SelectedMerchant then CurrentConfig.SelectedMerchant = {} end
+        CurrentConfig.SelectedMerchant[iKey] = newState and true or nil
+        checkBtn.BackgroundColor3 = newState and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
+        checkBtn.Text = newState and "✓" or ""
+        cStroke.Color = newState and Color3.fromRGB(180, 90, 255) or Color3.fromRGB(55, 42, 68)
+        if AutoBuyGear and AutoBuyGear.Config then
+            AutoBuyGear.Config.SelectedMerchant = CurrentConfig.SelectedMerchant
+        end
+    end
+
+    checkBtn.MouseButton1Click:Connect(toggle)
+
+    local fullClick = Instance.new("TextButton")
+    fullClick.Size = UDim2.new(1, 0, 1, 0)
+    fullClick.BackgroundTransparency = 1
+    fullClick.Text = ""
+    fullClick.ZIndex = 14
+    fullClick.Parent = card
+    fullClick.MouseButton1Click:Connect(toggle)
+
+    return {
+        SetChecked = function(self, val)
+            if not CurrentConfig.SelectedMerchant then CurrentConfig.SelectedMerchant = {} end
+            CurrentConfig.SelectedMerchant[iKey] = val and true or nil
+            checkBtn.BackgroundColor3 = val and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(45, 35, 55)
+            checkBtn.Text = val and "✓" or ""
+            cStroke.Color = val and Color3.fromRGB(180, 90, 255) or Color3.fromRGB(55, 42, 68)
+        end,
+        Card = card
+    }
+end
+
+for mName, mData in pairs(MERCHANTS_DATA) do
+    for _, item in ipairs(mData.items) do
+        local ref = addMerchantChecklistCard(item.name, item.rarity, mName)
+        merchantCardRefs[item.name:lower()] = ref
+    end
+end
+
+ShopTab:AddSection("Aksi Cepat & Navigasi")
+ShopTab:AddButton("🛒 Beli 1x Gear & Merchant yang Ada Stok (Manual)", function()
+    if AutoBuyGear then
+        task.spawn(function()
+            Notify("Auto Shop", "Membeli item gear & merchant yang ada stok...", 1.5)
+            if AutoBuyGear.RunGearCycle then AutoBuyGear.RunGearCycle() end
+            if AutoBuyGear.RunMerchantCycle then AutoBuyGear.RunMerchantCycle() end
+            Notify("Auto Shop", "Selesai memproses pembelian!", 2.0)
+        end)
+    end
+end)
+
+ShopTab:AddButton("🏪 Teleport ke Gear Shop", function()
+    pcall(function()
+        local gearShop = workspace:FindFirstChild("GearShop", true) or workspace:FindFirstChild("Shop", true)
+        if gearShop and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = (gearShop:IsA("Model") and gearShop:GetPivot() or gearShop.CFrame) * CFrame.new(0, 2, 5)
+            Notify("Teleport", "Berhasil teleport ke Gear Shop!", 2)
+        else
+            Notify("Teleport", "Gear Shop tidak ditemukan di Workspace.", 2)
+        end
+    end)
+end)
+
+-- =========================================================================
 -- 📑 TAB 3: 🗑️ AUTO DELETE & BULK SELL
 -- =========================================================================
 local DeleteTab = CreateTab("Auto Delete", "🗑️")
@@ -2024,6 +2532,10 @@ local function applyLoadedConfig(loaded)
 
     if tutToggle and loaded.AutoTutorial ~= nil then tutToggle:Set(loaded.AutoTutorial, false) end
     if eggToggle and loaded.AutoBuyEgg ~= nil then eggToggle:Set(loaded.AutoBuyEgg, false) end
+    if buyGearToggle and loaded.AutoBuyGear ~= nil then buyGearToggle:Set(loaded.AutoBuyGear, false) end
+    if buyAllGearToggle and loaded.BuyAllGear ~= nil then buyAllGearToggle:Set(loaded.BuyAllGear ~= false, false) end
+    if buyMerchantToggle and loaded.AutoBuyMerchant ~= nil then buyMerchantToggle:Set(loaded.AutoBuyMerchant, false) end
+    if buyAllMerchantToggle and loaded.BuyAllMerchant ~= nil then buyAllMerchantToggle:Set(loaded.BuyAllMerchant ~= false, false) end
     if buyAllStockToggle and loaded.BuyAllStock ~= nil then buyAllStockToggle:Set(loaded.BuyAllStock ~= false, false) end
     if placeEggToggle and loaded.AutoPlaceEgg ~= nil then placeEggToggle:Set(loaded.AutoPlaceEgg, false) end
     if hatchEggToggle and loaded.AutoHatchEgg ~= nil then hatchEggToggle:Set(loaded.AutoHatchEgg, false) end
@@ -2053,6 +2565,24 @@ local function applyLoadedConfig(loaded)
         local isChk = (loaded.SelectedEggs and loaded.SelectedEggs[eKey] == true)
         if eggCardRefs[eKey] then
             eggCardRefs[eKey]:SetChecked(isChk)
+        end
+    end
+
+    for _, g in ipairs(OFFICIAL_GEAR_CATALOG) do
+        local gKey = g.name:lower()
+        local isChk = (loaded.SelectedGear and loaded.SelectedGear[gKey] == true)
+        if gearCardRefs[gKey] then
+            gearCardRefs[gKey]:SetChecked(isChk)
+        end
+    end
+
+    for mName, mData in pairs(MERCHANTS_DATA) do
+        for _, item in ipairs(mData.items) do
+            local iKey = item.name:lower()
+            local isChk = (loaded.SelectedMerchant and loaded.SelectedMerchant[iKey] == true)
+            if merchantCardRefs[iKey] then
+                merchantCardRefs[iKey]:SetChecked(isChk)
+            end
         end
     end
 end
@@ -2110,6 +2640,24 @@ task.spawn(function()
         end
         AutoBuyEgg.Start()
     end
+
+    if CurrentConfig.AutoBuyGear and AutoBuyGear then
+        if AutoBuyGear.Config then
+            AutoBuyGear.Config.SelectedGear = CurrentConfig.SelectedGear
+            AutoBuyGear.Config.BuyAllGear = CurrentConfig.BuyAllGear
+        end
+        AutoBuyGear.StartGear()
+    end
+
+    if CurrentConfig.AutoBuyMerchant and AutoBuyGear then
+        if AutoBuyGear.Config then
+            AutoBuyGear.Config.SelectedMerchant = CurrentConfig.SelectedMerchant
+            AutoBuyGear.Config.BuyAllMerchant = CurrentConfig.BuyAllMerchant
+            AutoBuyGear.Config.MerchantGroups = CurrentConfig.MerchantGroups
+        end
+        AutoBuyGear.StartMerchant()
+    end
+
     if CurrentConfig.AutoTutorial and AutoTutorial then AutoTutorial.Start() end
 end)
 
