@@ -21,6 +21,10 @@
 local AutoClaim = {}
 _G.AutoClaim = AutoClaim
 
+-- 🔇 SILENT MODE: Matikan seluruh text/log terminal
+local print = function(...) end
+local warn = function(...) end
+
 local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")

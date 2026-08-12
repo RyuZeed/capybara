@@ -1,5 +1,9 @@
 local AFKModule = {}
 
+-- 🔇 SILENT MODE: Matikan seluruh text/log terminal
+local print = function(...) end
+local warn = function(...) end
+
 local VirtualUser = game:GetService("VirtualUser")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()

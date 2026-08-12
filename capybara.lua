@@ -17,6 +17,10 @@
 if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
 task.wait(0.3)
 
+-- 🔇 SILENT MODE: Matikan seluruh text/log terminal
+local print = function(...) end
+local warn = function(...) end
+
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")

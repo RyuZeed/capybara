@@ -6,6 +6,10 @@
 
 local GraphicsModule = {}
 
+-- 🔇 SILENT MODE: Matikan seluruh text/log terminal
+local print = function(...) end
+local warn = function(...) end
+
 local RunService        = game:GetService("RunService")
 local UserInputService  = game:GetService("UserInputService")
 local Lighting          = game:GetService("Lighting")

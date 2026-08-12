@@ -12,6 +12,10 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(0.3)
 
+-- 🔇 SILENT MODE: Matikan seluruh text/log terminal
+local print = function(...) end
+local warn = function(...) end
+
 -- 🎯 DAFTAR PLACE ID GAME RESMI
 local PLACE_IDS = {
     ROLL_ANIME = 107653945083776,
