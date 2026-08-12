@@ -53,21 +53,29 @@ end)
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/capybara/"
 
 local function loadModule(name)
-    -- 1. Load dari GitHub Cloud (Raw dengan Cache Buster)
-    local success, result = pcall(function()
-        local url = BASE_URL .. name .. ".lua?t=" .. tostring(os.time())
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result then
-        print("🌐 [Ritod Hub] Loaded cloud module: " .. name)
-        return result
+    -- 0. Cek jika modul sudah diload di global _G
+    local globalMaps = {
+        ["auto_claim"] = _G.AutoClaim,
+        ["anti_afk"] = _G.AntiAFK or _G.AFKModule,
+        ["pink_remover"] = _G.PinkRemover,
+        ["graphics"] = _G.GraphicsOptimizer or _G.GraphicsModule,
+        ["auto_tutorial"] = _G.AutoTutorial,
+        ["auto_delete"] = _G.AutoDelete or _G.AutoDeletePlant,
+        ["auto_buy_egg"] = _G.AutoBuyEgg,
+        ["auto_buy_gear_and_merchant"] = _G.AutoBuyGearAndMerchant or _G.AutoBuyGear,
+        ["modern_settings"] = _G.ModernSettings,
+    }
+    if globalMaps[name] and typeof(globalMaps[name]) == "table" then
+        print("⚡ [Ritod Hub] Loaded memory module: " .. name)
+        return globalMaps[name]
     end
 
-    -- 2. Fallback jika offline: Cek file lokal di workspace executor
+    -- 1. Prioritaskan file lokal di workspace executor jika ada
     local localPaths = {
         "modules/capybara/" .. name .. ".lua",
         name .. ".lua",
-        "RitodHub/modules/capybara/" .. name .. ".lua"
+        "RitodHub/modules/capybara/" .. name .. ".lua",
+        "lucid-shannon/modules/capybara/" .. name .. ".lua"
     }
     if typeof(readfile) == "function" and typeof(isfile) == "function" then
         for _, path in ipairs(localPaths) do
@@ -76,11 +84,21 @@ local function loadModule(name)
                     return loadstring(readfile(path))()
                 end)
                 if lSuccess and lResult then
-                    print("📁 [Ritod Hub] Loaded local module: " .. path)
+                    print("📁 [Ritod Hub] Loaded local workspace module: " .. path)
                     return lResult
                 end
             end
         end
+    end
+
+    -- 2. Fallback: Load dari GitHub Cloud (Raw dengan Cache Buster)
+    local success, result = pcall(function()
+        local url = BASE_URL .. name .. ".lua?t=" .. tostring(os.time())
+        return loadstring(game:HttpGet(url))()
+    end)
+    if success and result then
+        print("🌐 [Ritod Hub] Loaded cloud module: " .. name)
+        return result
     end
 
     warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name .. " -> " .. tostring(result))
