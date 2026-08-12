@@ -4,12 +4,14 @@
 	Game: Capybaras vs Plants (PlaceId: 104973076655377)
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
-	🎯 ZERO-SPAM GUARANTEES:
-	- 🛑 STRICT READY-ONLY: Hanya mengklaim jika tombol/server eksplisit bertuliskan "CLAIM", "COLLECT", "READY", atau "00:00".
-	- 🛑 TIDAK AKAN MENGKLAIM ITEM LOCKED: Menolak mutlak teks "LOCKED", "LOCK", countdown timer aktif (> 00:00), atau misi belum selesai.
-	- 🛑 TIDAK ADA BLIND SPAM: Menghapus total pengiriman remote acak slot 1..12 yang menyebabkan "You've already claimed this" / "You can't claim this yet".
-	- 🛑 TEMPLATE IMMUNITY: Memblokir total DailyQuestTemplate & RewardTemplate.
-	- 🔒 PERMANENT CLAIM CACHE: Item yang terdeteksi "CLAIMED" / ceklis langsung dicatat agar tidak pernah diklik ulang.
+	🎯 FEATURES & FIXES:
+	- 📜 ACCURATE DAILY & LIFETIME QUEST CLAIMER:
+	  • Memeriksa progress bar fraksi (cur/max) secara real-time (contoh: 25/25 -> READY, 3/10 -> LOCKED).
+	  • Mendukung kartu quest aktif (DailyQuestTemplate & RewardTemplate) yang sudah 100% selesai.
+	  • Memindai LifetimeQuests, DailyQuests, dan Quest Reward Milestones.
+	- 🎁 PLAYTIME & DAILY LOGIN TRACKER: Berfungsi 100% normal & zero-spam.
+	- 🛑 STRICT READY-ONLY: Hanya mengklaim saat progress selesai atau tombol bertuliskan "CLAIM"/"READY".
+	- 🔒 PERMANENT CLAIM CACHE: Item yang sudah berstatus CLAIMED langsung dicatat agar tidak spam.
 	- 🖱️ Multi-Vector Hardware/Event Click Dispatcher (firesignal + getconnections + VIM + VirtualUser + Activate)
 	===============================================================
 ]]
@@ -118,27 +120,21 @@ local function clickButton(btn)
 end
 
 -- =================================================================
--- 🔍 HELPER: FILTER TEMPLATE & STRING CLEANER
+-- 🔍 HELPER: FILTER MASTER TEMPLATE & STRING CLEANER
 -- =================================================================
 
--- Cek apakah object merupakan template murni yang tidak boleh diklaim
+-- Cek apakah object merupakan template murni yang berada di folder Templates (tidak aktif)
 local function isTemplateObject(obj)
     if not obj then return true end
-    local name = obj.Name:lower()
 
-    -- 🛑 Blokir total semua frame template / sample / placeholder
-    if name:find("template") or name:find("sample") or name:find("placeholder") or name:find("dummy") or name:find("mockup") then
+    -- Jika parent adalah folder Templates atau Template, ini master template yang tidak aktif
+    if obj.Parent and (obj.Parent.Name:lower() == "templates" or obj.Parent.Name:lower() == "template") then
         return true
     end
 
-    -- Cek juga apakah parent berada di dalam folder/frame Templates
-    local current = obj.Parent
-    while current and current:IsA("GuiObject") do
-        local pName = current.Name:lower()
-        if pName:find("template") or pName == "templates" then
-            return true
-        end
-        current = current.Parent
+    -- Jika object memiliki Visible == false dan namanya template murni
+    if obj:IsA("GuiObject") and not obj.Visible and (obj.Name == "DailyQuestTemplate" or obj.Name == "RewardTemplate") then
+        return true
     end
 
     return false
@@ -212,7 +208,7 @@ local function isLockedKeyword(txt)
 end
 
 -- =================================================================
--- 🎯 REWARD CARD & BUTTON EVALUATOR (STRICT READY-ONLY)
+-- 🎯 REWARD CARD & BUTTON EVALUATOR (PLAYTIME & DAILY)
 -- =================================================================
 
 local function evaluateRewardCard(card)
@@ -302,7 +298,6 @@ local function evaluateRewardCard(card)
     end
 
     if not isExplicitlyReady then
-        -- 🛑 TIDAK ADA TEKS CLAIM/READY/00:00 -> JANGAN PERNAH DIKLAIM!
         return "LOCKED", nil, ""
     end
 
@@ -388,7 +383,7 @@ local function evaluateQuestCard(questCard)
         or questCard:FindFirstChildWhichIsA("ImageButton", true)
         or questCard:FindFirstChildWhichIsA("TextButton", true)
 
-    if not btn or isTemplateObject(btn) then
+    if not btn then
         return "LOCKED", nil, ""
     end
 
@@ -398,7 +393,7 @@ local function evaluateQuestCard(questCard)
         return "CLAIMED", nil, ""
     end
 
-    -- 4. Cek progress fraksi di TextLabel (contoh: "25/25 Plants Defeated", "5/5 Eggs Hatched", "100%")
+    -- 4. Cek progress fraksi di TextLabel (contoh: "25/25 Plants Defeated", "5/5 Eggs Hatched", "10/10", "100%")
     local hasFraction = false
     local isCompleted = false
 
@@ -412,7 +407,7 @@ local function evaluateQuestCard(questCard)
                 if nCur >= nMax then
                     isCompleted = true
                 else
-                    return "LOCKED", nil, "" -- Belum selesai (cur < max)
+                    return "LOCKED", nil, "" -- Belum selesai (cur < max) -> JANGAN DIKLAIM!
                 end
             end
         end
@@ -428,13 +423,7 @@ local function evaluateQuestCard(questCard)
         end
     end
 
-    -- 5. Harus ada indikasi CLAIM eksplisit
-    local isExplicitClaim = isClaimReadyKeyword(btnTxt) or isClaimReadyKeyword(btn.Name) or isClaimReadyKeyword(upperCombined)
-    if not isExplicitClaim and not isCompleted then
-        return "LOCKED", nil, ""
-    end
-
-    -- Ambil judul quest
+    -- 5. Ambil judul quest
     local qTitle = questCard.Name
     for _, t in ipairs(allTexts) do
         if #t > 3 and not t:find("/") and not t:find("%%") and not isClaimReadyKeyword(t) and not isClaimedKeyword(t) and not isLockedKeyword(t) then
@@ -443,7 +432,15 @@ local function evaluateQuestCard(questCard)
         end
     end
 
-    if (isCompleted or not hasFraction) and isExplicitClaim then
+    -- 6. Verifikasi kesiapan claim:
+    -- Jika progress bar selesai (isCompleted == true) ATAU tombol eksplisit CLAIM (tanpa fraction yang gagal)
+    local isExplicitClaim = isClaimReadyKeyword(btnTxt) or isClaimReadyKeyword(btn.Name) or isClaimReadyKeyword(upperCombined)
+
+    if isCompleted then
+        return "READY", btn, qTitle
+    end
+
+    if not hasFraction and isExplicitClaim then
         return "READY", btn, qTitle
     end
 
@@ -743,14 +740,28 @@ local function scanQuestsAndMissions()
 
     local questFrames = {}
 
-    -- 1. Cari target utama: MainGui.Root.Frames.Quests
+    -- 1. Cari target utama: MainGui.Root.Frames.Quests (dan frame quest lainnya)
     local mainGui = pg:FindFirstChild("MainGui")
     if mainGui then
         local root = mainGui:FindFirstChild("Root")
         local frames = root and root:FindFirstChild("Frames")
         if frames then
-            local qf = frames:FindFirstChild("Quests") or frames:FindFirstChild("DailyQuests") or frames:FindFirstChild("Missions")
-            if qf then table.insert(questFrames, qf) end
+            for _, f in ipairs(frames:GetChildren()) do
+                local fName = f.Name:lower()
+                if f:IsA("GuiObject") and (fName:find("quest") or fName:find("mission") or fName:find("task") or fName:find("achievement")) then
+                    table.insert(questFrames, f)
+                end
+            end
+        end
+
+        -- Cek juga di MainGui.Root langsung
+        if root then
+            for _, f in ipairs(root:GetChildren()) do
+                local fName = f.Name:lower()
+                if f:IsA("GuiObject") and (fName:find("quest") or fName:find("mission")) and f ~= frames then
+                    table.insert(questFrames, f)
+                end
+            end
         end
     end
 
@@ -766,7 +777,7 @@ local function scanQuestsAndMissions()
 
     -- 3. Evaluasi Quests
     for _, qf in ipairs(questFrames) do
-        -- A. Cek apakah ada tombol "Claim All" di Quests
+        -- A. Cek tombol "Claim All" di Quests
         for _, desc in ipairs(qf:GetDescendants()) do
             if desc:IsA("GuiButton") and not isTemplateObject(desc) then
                 local bTxt = extractButtonText(desc):upper():gsub("%s+", "")
@@ -777,7 +788,7 @@ local function scanQuestsAndMissions()
         end
 
         -- B. Scan LifetimeQuests
-        local lifetime = qf:FindFirstChild("LifetimeQuests", true)
+        local lifetime = qf:FindFirstChild("LifetimeQuests", true) or qf:FindFirstChild("Lifetime", true)
         if lifetime then
             for _, item in ipairs(lifetime:GetChildren()) do
                 if item:IsA("GuiObject") and not item:IsA("UIListLayout") and not item:IsA("UIGridLayout") and not isTemplateObject(item) then
@@ -790,8 +801,11 @@ local function scanQuestsAndMissions()
         end
 
         -- C. Scan DailyQuests (DailyQuestFrame -> DailyQuests)
-        local dailyFrame = qf:FindFirstChild("DailyQuestFrame", true)
-        local dailyQuests = (dailyFrame and dailyFrame:FindFirstChild("DailyQuests", true)) or qf:FindFirstChild("DailyQuests", true)
+        local dailyFrame = qf:FindFirstChild("DailyQuestFrame", true) or qf:FindFirstChild("DailyFrame", true)
+        local dailyQuests = (dailyFrame and (dailyFrame:FindFirstChild("DailyQuests", true) or dailyFrame:FindFirstChild("Quests", true)))
+            or qf:FindFirstChild("DailyQuests", true)
+            or qf:FindFirstChild("Daily", true)
+
         if dailyQuests then
             for _, item in ipairs(dailyQuests:GetChildren()) do
                 if item:IsA("GuiObject") and not item:IsA("UIListLayout") and not item:IsA("UIGridLayout") and not isTemplateObject(item) then
@@ -803,12 +817,28 @@ local function scanQuestsAndMissions()
             end
         end
 
-        -- D. Fallback Generic Scanner untuk seluruh card quest di dalam qf
+        -- D. Scan Milestone / Reward containers di Quests
+        local rewardHolder = qf:FindFirstChild("RewardHolder", true)
+            or qf:FindFirstChild("Rewards", true)
+            or qf:FindFirstChild("Milestones", true)
+
+        if rewardHolder then
+            for _, item in ipairs(rewardHolder:GetChildren()) do
+                if item:IsA("GuiObject") and not item:IsA("UIListLayout") and not item:IsA("UIGridLayout") and not isTemplateObject(item) then
+                    local state, btn, rTitle = evaluateRewardCard(item)
+                    if state == "READY" and btn then
+                        tryClaim(btn, "🎁 Quest Reward [" .. rTitle .. "]", item:GetFullName())
+                    end
+                end
+            end
+        end
+
+        -- E. Fallback Generic Scanner untuk seluruh card quest di dalam qf
         for _, desc in ipairs(qf:GetDescendants()) do
             if desc:IsA("GuiObject") and not desc:IsA("ScrollingFrame") and not isTemplateObject(desc) then
                 local dName = desc.Name:lower()
-                if (dName:find("quest") or dName:find("mission") or dName:find("task") or dName:find("card") or dName:find("item"))
-                   and not (dName:find("list") or dName:find("holder") or dName:find("container") or dName:find("content") or dName:find("frame")) then
+                if (dName:find("quest") or dName:find("mission") or dName:find("task") or dName:find("card") or dName:find("item") or dName:find("template"))
+                   and not (dName:find("list") or dName:find("holder") or dName:find("container") or dName:find("content") or dName:find("frame") or dName == "templates") then
                     local state, btn, qTitle = evaluateQuestCard(desc)
                     if state == "READY" and btn then
                         tryClaim(btn, "📜 Quest [" .. qTitle .. "]", desc:GetFullName())
