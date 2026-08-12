@@ -279,46 +279,35 @@ end
 local lastKnownMerchant = nil
 
 function AutoBuyGearAndMerchant.IsMerchantPresent(merchantName)
-	-- 1. Cek apakah ada NPC Traveling Merchant di Workspace
 	local found = false
-	local function matchesName(n)
-		n = n:lower()
-		if merchantName then
-			return n:find(merchantName:lower()) ~= nil
-		else
-			return n:find("merchant") ~= nil
-				or n:find("king capybara") ~= nil
-				or n:find("martian") ~= nil
-				or n:find("timbles") ~= nil
-				or n:find("jester") ~= nil
-		end
-	end
+	local merchantNames = {"king capybara", "martian", "timbles", "jester"}
 
+	-- 1. Cek apakah ada NPC Traveling Merchant spesifik di Workspace
 	pcall(function()
-		for _, obj in ipairs(workspace:GetChildren()) do
-			if (obj:IsA("Model") or obj:IsA("Folder")) and matchesName(obj.Name) then
-				found = true
-				return
-			end
-		end
-
-		local world = workspace:FindFirstChild("World")
-		local map = world and world:FindFirstChild("Map") or workspace:FindFirstChild("Map")
-		if map then
-			for _, obj in ipairs(map:GetChildren()) do
-				if (obj:IsA("Model") or obj:IsA("Folder")) and matchesName(obj.Name) then
-					found = true
-					return
-				end
-			end
-		end
-
-		local npcs = workspace:FindFirstChild("NPCs", true)
-		if npcs then
-			for _, npc in ipairs(npcs:GetChildren()) do
-				if matchesName(npc.Name) then
-					found = true
-					return
+		local searchFolders = {
+			workspace,
+			workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Map"),
+			workspace:FindFirstChild("Map"),
+			workspace:FindFirstChild("NPCs"),
+			workspace:FindFirstChild("Merchants"),
+			workspace:FindFirstChild("TravelingMerchants")
+		}
+		for _, folder in ipairs(searchFolders) do
+			if folder then
+				for _, obj in ipairs(folder:GetChildren()) do
+					if obj:IsA("Model") or obj:IsA("Folder") then
+						local oName = obj.Name:lower()
+						if oName:find("traveling") or oName:find("travelling") then
+							found = true
+							return
+						end
+						for _, mName in ipairs(merchantNames) do
+							if oName:find(mName) then
+								found = true
+								return
+							end
+						end
+					end
 				end
 			end
 		end
@@ -326,23 +315,20 @@ function AutoBuyGearAndMerchant.IsMerchantPresent(merchantName)
 
 	if found then return true end
 
-	-- 2. Cek apakah UI MerchantShop sedang Visible
+	-- 2. Cek apakah UI MerchantShop aktif dan benar-benar Visible
 	local frames = getFramesRoot()
 	local merchantShop = frames and frames:FindFirstChild("MerchantShop")
 	if merchantShop and merchantShop:IsA("GuiObject") and merchantShop.Visible then
-		return true
-	end
-
-	-- 3. Cek apakah ada item frame visible di MerchantShop.List
-	local list = merchantShop and merchantShop:FindFirstChild("List")
-	if list then
-		for _, itemFrame in ipairs(list:GetChildren()) do
-			if itemFrame:IsA("GuiObject") and itemFrame.Visible and not itemFrame.Name:find("Layout") then
-				local sLbl = itemFrame:FindFirstChild("Stock", true)
-				if sLbl and sLbl.Text then
-					local cnt = tonumber(sLbl.Text:match("(%d+)"))
-					if cnt and cnt > 0 then
-						return true
+		local list = merchantShop:FindFirstChild("List")
+		if list then
+			for _, itemFrame in ipairs(list:GetChildren()) do
+				if itemFrame:IsA("GuiObject") and itemFrame.Visible and not itemFrame.Name:find("Layout") then
+					local sLbl = itemFrame:FindFirstChild("Stock", true)
+					if sLbl and sLbl:IsA("TextLabel") and sLbl.Text then
+						local cnt = tonumber(sLbl.Text:match("(%d+)"))
+						if cnt and cnt > 0 then
+							return true
+						end
 					end
 				end
 			end
@@ -419,34 +405,31 @@ function AutoBuyGearAndMerchant.HasMerchantStock(itemName)
 
 	local frames = getFramesRoot()
 	local merchantShop = frames and frames:FindFirstChild("MerchantShop")
-	local list = merchantShop and merchantShop:FindFirstChild("List")
-	if not list then
-		local pg = LocalPlayer:FindFirstChild("PlayerGui")
-		list = pg and pg:FindFirstChild("MerchantShop", true) and pg.MerchantShop:FindFirstChild("List", true)
-	end
-	if not list then return false, 0 end
-
-	local itemFrame = list:FindFirstChild(itemName)
-	if not itemFrame then return false, 0 end
-
-	-- 1. Cek visibilitas item frame
-	if itemFrame:IsA("GuiObject") and itemFrame.Visible == false then
+	if not merchantShop or not merchantShop.Visible then
 		return false, 0
 	end
 
-	-- 2. Cek attribute OutOfStock
+	local list = merchantShop:FindFirstChild("List")
+	if not list then return false, 0 end
+
+	local itemFrame = list:FindFirstChild(itemName)
+	if not itemFrame or not itemFrame:IsA("GuiObject") or not itemFrame.Visible then
+		return false, 0
+	end
+
+	-- 1. Cek attribute OutOfStock
 	if itemFrame:GetAttribute("OutOfStock") == true then
 		return false, 0
 	end
 
-	-- 3. Cek attribute Stock / Count
+	-- 2. Cek attribute Stock / Count
 	local attrStock = itemFrame:GetAttribute("Stock") or itemFrame:GetAttribute("Count")
 	if typeof(attrStock) == "number" then
 		if attrStock <= 0 then return false, 0 end
 		return true, attrStock
 	end
 
-	-- 4. Cek label Stock
+	-- 3. Cek label Stock
 	local stockLabel = itemFrame:FindFirstChild("Stock", true)
 	if stockLabel and stockLabel.Text then
 		local txt = stockLabel.Text:lower()
@@ -458,18 +441,12 @@ function AutoBuyGearAndMerchant.HasMerchantStock(itemName)
 			if count > 0 then
 				return true, count
 			else
-				return false, 0 -- STOK 0 -> LANGSUNG RETURN FALSE
+				return false, 0
 			end
 		end
 		if txt:find("in stock") then
 			return true, 1
 		end
-	end
-
-	-- 5. Tombol Buy hanya jika frame visible dan merchant benar-benar ada
-	local buyBtn = findBuyButton(itemFrame)
-	if buyBtn and itemFrame:IsA("GuiObject") and itemFrame.Visible and itemFrame:GetAttribute("OutOfStock") ~= true then
-		return true, 1
 	end
 
 	return false, 0
