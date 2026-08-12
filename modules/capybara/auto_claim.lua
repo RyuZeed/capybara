@@ -1,21 +1,15 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - SMART AUTO CLAIM ENGINE (DUAL ENGINE & ANTI-SPAM)
+	⚡ RITOD HUB - SMART AUTO CLAIM ENGINE (ZERO SPAM & 100% READY-ONLY)
 	Game: Capybaras vs Plants (PlaceId: 104973076655377)
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
-	🎯 UPGRADES & FIXES:
-	- 🛑 100% TEMPLATE IMMUNITY: Memblokir total DailyQuestTemplate & RewardTemplate agar tidak spam!
-	- 🚀 DUAL-ENGINE ARCHITECTURE: Direct Remote Invocation + Deep Universal UI Scanner
-	- 🔄 RETRY COOLDOWN SYSTEM: Cooldown 3.5 detik per item tanpa lockout permanen prematur!
-	- 🟢 STATE-DRIVEN EVALUATION:
-	  • "READY"   -> Eksekusi klaim saat hadiah/misi selesai (progress >= max, timer 00:00, atau teks "Claim").
-	  • "CLAIMED" -> Dicatat jika visual/teks "Claimed" aktif agar tidak membuang resource.
-	  • "LOCKED"  -> Dilewati saat timer countdown masih berjalan atau progress belum lengkap.
-	- 🎁 Playtime Rewards & Online Gifts Tracker (12 Slots + 00:00 Countdown Detector)
-	- 📅 Daily Login Rewards Tracker (7-Day Calendar)
-	- 📜 Daily Quests, Lifetime Quests & Missions Tracker
-	- ✨ Smart "Claim All" Auto-Detector
+	🎯 ZERO-SPAM GUARANTEES:
+	- 🛑 STRICT READY-ONLY: Hanya mengklaim jika tombol/server eksplisit bertuliskan "CLAIM", "COLLECT", "READY", atau "00:00".
+	- 🛑 TIDAK AKAN MENGKLAIM ITEM LOCKED: Menolak mutlak teks "LOCKED", "LOCK", countdown timer aktif (> 00:00), atau misi belum selesai.
+	- 🛑 TIDAK ADA BLIND SPAM: Menghapus total pengiriman remote acak slot 1..12 yang menyebabkan "You've already claimed this" / "You can't claim this yet".
+	- 🛑 TEMPLATE IMMUNITY: Memblokir total DailyQuestTemplate & RewardTemplate.
+	- 🔒 PERMANENT CLAIM CACHE: Item yang terdeteksi "CLAIMED" / ceklis langsung dicatat agar tidak pernah diklik ulang.
 	- 🖱️ Multi-Vector Hardware/Event Click Dispatcher (firesignal + getconnections + VIM + VirtualUser + Activate)
 	===============================================================
 ]]
@@ -33,13 +27,13 @@ local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("Loc
 AutoClaim.Config = {
     PlaytimeDaily = true, -- Auto Claim Playtime & Daily Login
     Quest         = true, -- Auto Claim Daily Quests & Missions
-    CheckInterval = 2.5,  -- Interval pengecekan (detik)
+    CheckInterval = 3,    -- Interval pengecekan (detik)
 }
 
 local isRunning        = false
 local loopThread       = nil
-local claimedHistory   = {} -- [key] = true (hanya jika visualnya terkonfirmasi CLAIMED)
-local clickDebounce    = {} -- [key] = timestamp (cooldown antar klik)
+local claimedHistory   = {} -- [key] = true (Tercatat permanen jika visual/data sudah CLAIMED)
+local clickDebounce    = {} -- [key] = timestamp (Cooldown klik per item)
 local lastRemoteSweep  = 0
 
 -- =================================================================
@@ -175,7 +169,7 @@ local function extractButtonText(btn)
     return table.concat(texts, " ")
 end
 
--- Cek apakah teks atau tombol mengindikasikan siap diklaim
+-- Cek apakah teks atau tombol mengindikasikan siap diklaim secara eksplisit
 local function isClaimReadyKeyword(txt)
     local upper = txt:upper():gsub("%s+", "")
     if upper == "CLAIM" or upper == "COLLECT" or upper == "CLAIMALL" or upper == "REDEEM"
@@ -192,7 +186,7 @@ local function isClaimReadyKeyword(txt)
     return false
 end
 
--- Cek apakah teks atau item sudah terklaim
+-- Cek apakah teks mengindikasikan sudah terklaim
 local function isClaimedKeyword(txt)
     local upper = txt:upper():gsub("%s+", "")
     if upper == "CLAIMED" or upper == "COLLECTED" or upper == "TERKLAIM" or upper == "SUDAH"
@@ -205,8 +199,20 @@ local function isClaimedKeyword(txt)
     return false
 end
 
+-- Cek apakah teks mengindikasikan item masih terkunci
+local function isLockedKeyword(txt)
+    local upper = txt:upper():gsub("%s+", "")
+    if upper == "LOCKED" or upper == "LOCK" or upper == "TERKUNCI" or upper == "WAIT" or upper == "COOLDOWN" then
+        return true
+    end
+    if upper:find("LOCKED") or upper:find("TERKUNCI") or upper:find("COOLDOWN") then
+        return true
+    end
+    return false
+end
+
 -- =================================================================
--- 🎯 REWARD CARD & BUTTON EVALUATOR (STATE-DRIVEN)
+-- 🎯 REWARD CARD & BUTTON EVALUATOR (STRICT READY-ONLY)
 -- =================================================================
 
 local function evaluateRewardCard(card)
@@ -216,17 +222,29 @@ local function evaluateRewardCard(card)
     local cardKey = card:GetFullName()
     if claimedHistory[cardKey] then return "CLAIMED", nil, "" end
 
-    -- 1. Cek visual/label status "CLAIMED" di seluruh kartu
+    -- 1. Kumpulkan semua teks dari seluruh descendants di dalam card
+    local allTexts = {}
     for _, desc in ipairs(card:GetDescendants()) do
         if desc:IsA("TextLabel") or desc:IsA("TextButton") then
-            local txt = extractButtonText(desc)
-            if isClaimedKeyword(txt) then
-                claimedHistory[cardKey] = true
-                return "CLAIMED", nil, ""
+            local t = cleanString(desc.Text)
+            if t ~= "" then
+                table.insert(allTexts, t)
             end
         end
+    end
+    if card:IsA("TextButton") and card.Text and card.Text ~= "" then
+        table.insert(allTexts, cleanString(card.Text))
+    end
+    local combinedText = table.concat(allTexts, " ")
+    local upperCombined = combinedText:upper():gsub("%s+", "")
 
-        -- Cek visual overlay / icon ceklis
+    -- 2. Cek apakah CLAIMED
+    if isClaimedKeyword(upperCombined) then
+        claimedHistory[cardKey] = true
+        return "CLAIMED", nil, ""
+    end
+
+    for _, desc in ipairs(card:GetDescendants()) do
         local dName = desc.Name:lower()
         if (dName:find("claimed") or dName:find("check") or dName:find("tick") or dName == "done") and desc:IsA("GuiObject") then
             if (desc:IsA("ImageLabel") and desc.ImageTransparency < 0.5 and desc.Image ~= "")
@@ -237,95 +255,87 @@ local function evaluateRewardCard(card)
         end
     end
 
-    -- 2. Cek apakah ada status READY eksplisit di kartu (Claim / 00:00)
-    local cardHasReadyLabel = false
+    -- 3. 🛑 Cek apakah LOCKED (Mengandung kata LOCKED, LOCK, atau timer countdown > 00:00)
+    if isLockedKeyword(upperCombined) then
+        return "LOCKED", nil, ""
+    end
+
     for _, desc in ipairs(card:GetDescendants()) do
-        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
-            local txt = extractButtonText(desc)
-            if isClaimReadyKeyword(txt) then
-                cardHasReadyLabel = true
-                break
+        local dName = desc.Name:lower()
+        if dName:find("lock") and desc:IsA("ImageLabel") and desc.ImageTransparency < 0.5 and desc.Image ~= "" then
+            return "LOCKED", nil, ""
+        end
+    end
+
+    -- Cek countdown timer yang masih aktif (> 00:00)
+    local hasActiveCountdown = false
+    local hasExplicitZeroTime = false
+
+    for _, txt in ipairs(allTexts) do
+        local min, sec = txt:match("(%d+)%s*:%s*(%d+)")
+        if min and sec then
+            local nMin, nSec = tonumber(min), tonumber(sec)
+            if (nMin and nMin > 0) or (nSec and nSec > 0) then
+                hasActiveCountdown = true
+            elseif (nMin == 0 and nSec == 0) then
+                hasExplicitZeroTime = true
+            end
+        end
+        if (txt:match("%d+%s*m") or txt:match("%d+%s*s") or txt:match("%d+%s*h")) then
+            if not (txt:find("0s") or txt:find("00:00") or txt:lower():find("ready") or txt:lower():find("claim")) then
+                hasActiveCountdown = true
             end
         end
     end
 
-    -- 3. Cek apakah ada countdown timer yang AKTIF (dan kartu TIDAK memiliki label Ready/Claim)
-    if not cardHasReadyLabel then
-        for _, desc in ipairs(card:GetDescendants()) do
-            if desc:IsA("TextLabel") then
-                local txt = cleanString(desc.Text)
-                local min, sec = txt:match("(%d+)%s*:%s*(%d+)")
-                if min and sec then
-                    local nMin, nSec = tonumber(min), tonumber(sec)
-                    if (nMin and nMin > 0) or (nSec and nSec > 0) then
-                        return "LOCKED", nil, "" -- Timer masih berjalan
-                    end
-                end
+    if hasActiveCountdown and not hasExplicitZeroTime then
+        return "LOCKED", nil, ""
+    end
 
-                -- Format Xm Ys atau Xs (kecuali 0s / 00:00)
-                if (txt:match("%d+%s*m") or txt:match("%d+%s*s") or txt:match("%d+%s*h")) and not (txt:find("0s") or txt:find("00:00") or txt:lower():find("ready") or txt:lower():find("claim")) then
-                    return "LOCKED", nil, ""
-                end
-            end
+    -- 4. 🟢 Harus ada indikator READY yang EKSPLISIT ("CLAIM", "COLLECT", "READY", "FREE", "00:00")
+    local isExplicitlyReady = false
+    for _, txt in ipairs(allTexts) do
+        if isClaimReadyKeyword(txt) then
+            isExplicitlyReady = true
+            break
         end
     end
 
-    -- 4. Cari tombol klik di dalam card
+    if not isExplicitlyReady then
+        -- 🛑 TIDAK ADA TEKS CLAIM/READY/00:00 -> JANGAN PERNAH DIKLAIM!
+        return "LOCKED", nil, ""
+    end
+
+    -- 5. Cari tombol target yang valid
     local targetBtn = nil
-
-    -- A. Cari GuiButton langsung
     for _, desc in ipairs(card:GetDescendants()) do
         if desc:IsA("GuiButton") and not isTemplateObject(desc) then
             local btnTxt = extractButtonText(desc)
-            local bName = desc.Name:lower()
-
-            if isClaimReadyKeyword(btnTxt) or isClaimReadyKeyword(bName) then
-                targetBtn = desc
-                break
-            end
-
-            if (bName:find("claim") or bName:find("collect") or bName:find("reward") or bName == "button" or bName == "btn")
-               and not btnTxt:find(":") and not isClaimedKeyword(btnTxt) then
+            if isClaimReadyKeyword(btnTxt) or isClaimReadyKeyword(desc.Name) then
                 targetBtn = desc
                 break
             end
         end
     end
 
-    -- B. Jika card itu sendiri adalah GuiButton (misal slot Playtime gift atau Daily gift)
-    if not targetBtn and card:IsA("GuiButton") then
-        local cardTxt = extractButtonText(card)
-        if isClaimReadyKeyword(cardTxt) or not (cardTxt:find(":") or isClaimedKeyword(cardTxt)) then
-            targetBtn = card
-        end
+    if not targetBtn and card:IsA("GuiButton") and not isTemplateObject(card) then
+        targetBtn = card
     end
 
-    -- C. Fallback: Cari button apa saja yang bukan template jika ada label "CLAIM" / Ready
     if not targetBtn then
-        for _, desc in ipairs(card:GetDescendants()) do
-            if desc:IsA("TextLabel") and isClaimReadyKeyword(cleanString(desc.Text)) then
-                local anyBtn = card:FindFirstChildWhichIsA("GuiButton", true)
-                if anyBtn and not isTemplateObject(anyBtn) then
-                    targetBtn = anyBtn
-                    break
-                end
-            end
-        end
+        targetBtn = card:FindFirstChildWhichIsA("GuiButton", true)
     end
 
     -- Ambil label nama reward
     local rName = card.Name
-    for _, desc in ipairs(card:GetDescendants()) do
-        if desc:IsA("TextLabel") and desc ~= targetBtn and not desc:IsDescendantOf(targetBtn or card) then
-            local t = cleanString(desc.Text)
-            if t ~= "" and not t:find(":") and #t > 2 and not isClaimReadyKeyword(t) and not isClaimedKeyword(t) then
-                rName = t
-                break
-            end
+    for _, t in ipairs(allTexts) do
+        if #t > 2 and not isClaimReadyKeyword(t) and not isClaimedKeyword(t) and not isLockedKeyword(t) and not t:find(":") then
+            rName = t
+            break
         end
     end
 
-    if targetBtn then
+    if targetBtn and isExplicitlyReady then
         return "READY", targetBtn, rName
     end
 
@@ -343,16 +353,24 @@ local function evaluateQuestCard(questCard)
     local cardKey = questCard:GetFullName()
     if claimedHistory[cardKey] then return "CLAIMED", nil, "" end
 
-    -- 1. Cek visual / label status "CLAIMED"
+    -- 1. Kumpulkan semua teks
+    local allTexts = {}
     for _, desc in ipairs(questCard:GetDescendants()) do
         if desc:IsA("TextLabel") or desc:IsA("TextButton") then
-            local txt = extractButtonText(desc)
-            if isClaimedKeyword(txt) then
-                claimedHistory[cardKey] = true
-                return "CLAIMED", nil, ""
-            end
+            local t = cleanString(desc.Text)
+            if t ~= "" then table.insert(allTexts, t) end
         end
+    end
+    local combinedText = table.concat(allTexts, " ")
+    local upperCombined = combinedText:upper():gsub("%s+", "")
 
+    -- 2. Cek apakah CLAIMED
+    if isClaimedKeyword(upperCombined) then
+        claimedHistory[cardKey] = true
+        return "CLAIMED", nil, ""
+    end
+
+    for _, desc in ipairs(questCard:GetDescendants()) do
         local dName = desc.Name:lower()
         if (dName:find("claimed") or dName:find("check") or dName:find("tick") or dName == "done") and desc:IsA("GuiObject") then
             if (desc:IsA("ImageLabel") and desc.ImageTransparency < 0.5 and desc.Image ~= "")
@@ -363,7 +381,7 @@ local function evaluateQuestCard(questCard)
         end
     end
 
-    -- 2. Cari tombol di dalam questCard
+    -- 3. Cari tombol di dalam questCard
     local btn = questCard:FindFirstChild("Button")
         or questCard:FindFirstChild("ClaimButton")
         or questCard:FindFirstChild("Claim")
@@ -380,58 +398,52 @@ local function evaluateQuestCard(questCard)
         return "CLAIMED", nil, ""
     end
 
-    -- 3. Cek progress fraksi di TextLabel (contoh: "25/25 Plants Defeated", "5/5 Eggs Hatched", "100%")
+    -- 4. Cek progress fraksi di TextLabel (contoh: "25/25 Plants Defeated", "5/5 Eggs Hatched", "100%")
     local hasFraction = false
     local isCompleted = false
 
-    for _, desc in ipairs(questCard:GetDescendants()) do
-        if desc:IsA("TextLabel") and desc.Parent ~= btn and not desc:IsDescendantOf(btn) then
-            local txt = cleanString(desc.Text)
-            local cur, max = txt:match("(%d+)%s*/%s*(%d+)")
-            if cur and max then
-                hasFraction = true
-                local nCur = tonumber(cur)
-                local nMax = tonumber(max)
-                if nCur and nMax and nMax > 0 then
-                    if nCur >= nMax then
-                        isCompleted = true
-                    else
-                        return "LOCKED", nil, "" -- Belum selesai (cur < max)
-                    end
-                end
-            end
-
-            -- Cek format persentase (100%)
-            local pct = txt:match("(%d+)%%")
-            if pct then
-                hasFraction = true
-                if tonumber(pct) >= 100 then
+    for _, txt in ipairs(allTexts) do
+        local cur, max = txt:match("(%d+)%s*/%s*(%d+)")
+        if cur and max then
+            hasFraction = true
+            local nCur = tonumber(cur)
+            local nMax = tonumber(max)
+            if nCur and nMax and nMax > 0 then
+                if nCur >= nMax then
                     isCompleted = true
                 else
-                    return "LOCKED", nil, ""
+                    return "LOCKED", nil, "" -- Belum selesai (cur < max)
                 end
             end
         end
-    end
 
-    -- 4. Ambil judul / deskripsi quest untuk log
-    local qTitle = questCard.Name
-    for _, desc in ipairs(questCard:GetDescendants()) do
-        if desc:IsA("TextLabel") and desc.Parent ~= btn and not desc:IsDescendantOf(btn) then
-            local t = cleanString(desc.Text)
-            if t ~= "" and not t:find("/") and not t:find("%%") and #t > 3 and not isClaimReadyKeyword(t) and not isClaimedKeyword(t) then
-                qTitle = t
-                break
+        local pct = txt:match("(%d+)%%")
+        if pct then
+            hasFraction = true
+            if tonumber(pct) >= 100 then
+                isCompleted = true
+            else
+                return "LOCKED", nil, ""
             end
         end
     end
 
-    -- Jika progress bar selesai atau tombol eksplisit bertuliskan CLAIM
-    if (isCompleted or not hasFraction) and (isClaimReadyKeyword(btnTxt) or isClaimReadyKeyword(btn.Name)) then
-        return "READY", btn, qTitle
+    -- 5. Harus ada indikasi CLAIM eksplisit
+    local isExplicitClaim = isClaimReadyKeyword(btnTxt) or isClaimReadyKeyword(btn.Name) or isClaimReadyKeyword(upperCombined)
+    if not isExplicitClaim and not isCompleted then
+        return "LOCKED", nil, ""
     end
 
-    if not hasFraction and (btn:IsA("GuiButton") or btn:IsA("ImageButton") or btn:IsA("TextButton")) then
+    -- Ambil judul quest
+    local qTitle = questCard.Name
+    for _, t in ipairs(allTexts) do
+        if #t > 3 and not t:find("/") and not t:find("%%") and not isClaimReadyKeyword(t) and not isClaimedKeyword(t) and not isLockedKeyword(t) then
+            qTitle = t
+            break
+        end
+    end
+
+    if (isCompleted or not hasFraction) and isExplicitClaim then
         return "READY", btn, qTitle
     end
 
@@ -439,7 +451,7 @@ local function evaluateQuestCard(questCard)
 end
 
 -- =================================================================
--- 🚀 EKSEKUTOR KLAIM DENGAN COOLDOWN
+-- 🚀 EKSEKUTOR KLAIM DENGAN COOLDOWN & ANTI-SPAM
 -- =================================================================
 
 local function tryClaim(btn, label, itemKey)
@@ -447,9 +459,9 @@ local function tryClaim(btn, label, itemKey)
     if claimedHistory[key] then return false end
 
     local now = tick()
-    if now - (clickDebounce[key] or 0) > 3.5 then -- Cooldown 3.5 detik antar percobaan
+    if now - (clickDebounce[key] or 0) > 6 then -- 6 detik cooldown per item agar tidak spam
         clickDebounce[key] = now
-        print(string.format("🎁 [Auto Claim] %s! Mengklaim...", tostring(label)))
+        print(string.format("🎁 [Auto Claim] %s READY! Mengklaim...", tostring(label)))
         clickButton(btn)
         return true
     end
@@ -457,12 +469,12 @@ local function tryClaim(btn, label, itemKey)
 end
 
 -- =================================================================
--- 🌐 1. DIRECT REMOTE DISPATCHER (BACKEND ENGINE)
+-- 🌐 1. DIRECT REMOTE DISPATCHER (STRICT DATA-VERIFIED ONLY)
 -- =================================================================
 
 local function sweepRemoteClaims()
     local now = tick()
-    if now - lastRemoteSweep < 4 then return end
+    if now - lastRemoteSweep < 6 then return end
     lastRemoteSweep = now
 
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -471,7 +483,7 @@ local function sweepRemoteClaims()
 
     if not remotes then return end
 
-    -- A. Claim Playtime via Remote
+    -- A. Claim Playtime via Remote (HANYA JIKA TERVERIFIKASI READY DARI DATA SERVER)
     if AutoClaim.Config.PlaytimeDaily then
         pcall(function()
             local claimPlay = remotes:FindFirstChild("ClaimPlaytimeReward")
@@ -488,10 +500,10 @@ local function sweepRemoteClaims()
                     for slotId, slotInfo in pairs(data) do
                         if typeof(slotInfo) == "table" then
                             local isClaimed = slotInfo.Claimed or slotInfo.IsClaimed
-                            local isReady = (not isClaimed) and (slotInfo.Ready or (slotInfo.TimeLeft and slotInfo.TimeLeft <= 0))
+                            local isReady = (not isClaimed) and (slotInfo.Ready == true or (slotInfo.TimeLeft and slotInfo.TimeLeft <= 0))
                             local rKey = "RemotePlaytime_" .. tostring(slotId)
                             if isReady and not claimedHistory[rKey] then
-                                if tick() - (clickDebounce[rKey] or 0) > 3.5 then
+                                if tick() - (clickDebounce[rKey] or 0) > 6 then
                                     clickDebounce[rKey] = tick()
                                     print(string.format("🎁 [Auto Claim] Playtime Gift READY (Slot %s)! Mengklaim via Remote...", tostring(slotId)))
                                     if claimPlay:IsA("RemoteEvent") then
@@ -500,27 +512,16 @@ local function sweepRemoteClaims()
                                         claimPlay:InvokeServer(slotId)
                                     end
                                 end
+                            elseif isClaimed then
+                                claimedHistory[rKey] = true
                             end
-                        end
-                    end
-                end
-            elseif claimPlay then
-                -- Blind sweep untuk 12 slot playtime jika tidak ada RequestPlaytime
-                for slot = 1, 12 do
-                    local rKey = "BlindPlaytime_" .. tostring(slot)
-                    if not claimedHistory[rKey] and tick() - (clickDebounce[rKey] or 0) > 10 then
-                        clickDebounce[rKey] = tick()
-                        if claimPlay:IsA("RemoteEvent") then
-                            claimPlay:FireServer(slot)
-                        elseif claimPlay:IsA("RemoteFunction") then
-                            claimPlay:InvokeServer(slot)
                         end
                     end
                 end
             end
         end)
 
-        -- B. Claim Daily Login via Remote
+        -- B. Claim Daily Login via Remote (HANYA JIKA TERVERIFIKASI READY DARI DATA SERVER)
         pcall(function()
             local claimDaily = remotes:FindFirstChild("ClaimDailyReward")
                 or remotes:FindFirstChild("ClaimDaily")
@@ -536,10 +537,10 @@ local function sweepRemoteClaims()
                     for dayId, dayInfo in pairs(data) do
                         if typeof(dayInfo) == "table" then
                             local isClaimed = dayInfo.Claimed or dayInfo.IsClaimed
-                            local isReady = (not isClaimed) and (dayInfo.Ready or dayInfo.Available)
+                            local isReady = (not isClaimed) and (dayInfo.Ready == true or dayInfo.Available == true)
                             local rKey = "RemoteDaily_" .. tostring(dayId)
                             if isReady and not claimedHistory[rKey] then
-                                if tick() - (clickDebounce[rKey] or 0) > 3.5 then
+                                if tick() - (clickDebounce[rKey] or 0) > 6 then
                                     clickDebounce[rKey] = tick()
                                     print(string.format("📅 [Auto Claim] Daily Login READY (Day %s)! Mengklaim via Remote...", tostring(dayId)))
                                     if claimDaily:IsA("RemoteEvent") then
@@ -548,20 +549,9 @@ local function sweepRemoteClaims()
                                         claimDaily:InvokeServer(dayId)
                                     end
                                 end
+                            elseif isClaimed then
+                                claimedHistory[rKey] = true
                             end
-                        end
-                    end
-                end
-            elseif claimDaily then
-                -- Blind sweep untuk 7 hari
-                for day = 1, 7 do
-                    local rKey = "BlindDaily_" .. tostring(day)
-                    if not claimedHistory[rKey] and tick() - (clickDebounce[rKey] or 0) > 10 then
-                        clickDebounce[rKey] = tick()
-                        if claimDaily:IsA("RemoteEvent") then
-                            claimDaily:FireServer(day)
-                        elseif claimDaily:IsA("RemoteFunction") then
-                            claimDaily:InvokeServer(day)
                         end
                     end
                 end
@@ -569,14 +559,9 @@ local function sweepRemoteClaims()
         end)
     end
 
-    -- C. Claim Quests via Remote
+    -- C. Claim Quests via Remote (HANYA JIKA TERVERIFIKASI READY DARI DATA SERVER)
     if AutoClaim.Config.Quest then
         pcall(function()
-            local claimAll = remotes:FindFirstChild("ClaimAllQuests") or remotes:FindFirstChild("ClaimAll")
-            if claimAll and claimAll:IsA("RemoteEvent") then
-                claimAll:FireServer()
-            end
-
             local reqQuests = remotes:FindFirstChild("RequestQuests")
             local claimQuest = remotes:FindFirstChild("ClaimQuest")
                 or remotes:FindFirstChild("ClaimDailyQuest")
@@ -595,7 +580,7 @@ local function sweepRemoteClaims()
                                     local isReady = (not isClaimed) and ((qInfo.Progress and qInfo.Max and qInfo.Progress >= qInfo.Max) or qInfo.Completed == true or qInfo.Ready == true)
                                     local rKey = "RemoteQuest_" .. tostring(qId)
                                     if isReady and not claimedHistory[rKey] then
-                                        if tick() - (clickDebounce[rKey] or 0) > 3.5 then
+                                        if tick() - (clickDebounce[rKey] or 0) > 6 then
                                             clickDebounce[rKey] = tick()
                                             print(string.format("📜 [Auto Claim] Quest READY (%s: %s)! Mengklaim via Remote...", tostring(category), tostring(qId)))
                                             if claimQuest:IsA("RemoteEvent") then
@@ -606,6 +591,8 @@ local function sweepRemoteClaims()
                                                 claimQuest:InvokeServer(category, qId)
                                             end
                                         end
+                                    elseif isClaimed then
+                                        claimedHistory[rKey] = true
                                     end
                                 end
                             end
@@ -872,12 +859,12 @@ end
 function AutoClaim.Start()
     if isRunning then return end
     isRunning = true
-    print("🎁 [Ritod Hub] Dual-Engine Auto Claim (Playtime, Daily & Quests) Aktif!")
+    print("🎁 [Ritod Hub] Strict Auto Claim Engine (Ready-Only & Zero Spam) Aktif!")
 
     loopThread = task.spawn(function()
         while isRunning do
             pcall(function()
-                -- 1. Direct Remote Sweep (Backend)
+                -- 1. Direct Remote Sweep (Hanya jika terverifikasi READY)
                 sweepRemoteClaims()
 
                 -- 2. Playtime & Daily Login Scanner (UI)
@@ -895,7 +882,7 @@ function AutoClaim.Start()
                 scanGenericFreeRewards()
             end)
 
-            task.wait(AutoClaim.Config.CheckInterval or 2.5)
+            task.wait(AutoClaim.Config.CheckInterval or 3)
         end
     end)
 end
