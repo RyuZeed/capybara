@@ -2300,36 +2300,12 @@ local function applyLoadedConfig(loaded)
     if jpSlider and loaded.JumpPower then jpSlider:Set(loaded.JumpPower, true) end
     if infJumpToggle and loaded.InfJump ~= nil then infJumpToggle:Set(loaded.InfJump, true) end
 
-    for _, plant in ipairs(REAL_PLANTS_CATALOG) do
-        local pKey = plant.name:lower()
-        local isChk = (loaded.SelectedPlants and loaded.SelectedPlants[pKey] == true)
-        if plantCardRefs[pKey] then
-            plantCardRefs[pKey]:SetChecked(isChk)
-        end
-    end
-
-    for _, egg in ipairs(OFFICIAL_EGGS_CATALOG) do
-        local eKey = egg.name:lower()
-        local isChk = (loaded.SelectedEggs and loaded.SelectedEggs[eKey] == true)
-        if eggCardRefs[eKey] then
-            eggCardRefs[eKey]:SetChecked(isChk)
-        end
-    end
-
-    for _, g in ipairs(OFFICIAL_GEAR_CATALOG) do
-        local gKey = g.name:lower()
-        local isChk = (loaded.SelectedGear and loaded.SelectedGear[gKey] == true)
-        if gearCardRefs[gKey] then
-            gearCardRefs[gKey]:SetChecked(isChk)
-        end
-    end
-
-    for mName, mData in pairs(MERCHANTS_DATA) do
-        for _, item in ipairs(mData.items) do
-            local iKey = item.name:lower()
-            local isChk = (loaded.SelectedMerchant and loaded.SelectedMerchant[iKey] == true)
-            if merchantCardRefs[iKey] then
-                merchantCardRefs[iKey]:SetChecked(isChk)
+    if typeof(OFFICIAL_EGGS_CATALOG) == "table" and typeof(eggCardRefs) == "table" then
+        for _, egg in ipairs(OFFICIAL_EGGS_CATALOG) do
+            local eKey = egg.name:lower()
+            local isChk = (loaded.SelectedEggs and loaded.SelectedEggs[eKey] == true)
+            if eggCardRefs[eKey] then
+                eggCardRefs[eKey]:SetChecked(isChk)
             end
         end
     end
