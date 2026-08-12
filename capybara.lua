@@ -1628,6 +1628,7 @@ local OFFICIAL_EGGS_CATALOG = {
     { name = "Archer Capybara Egg", rarity = "Epic" },
     { name = "Magic Capybara Egg",  rarity = "Legendary" },
     { name = "Ghost Capybara Egg",  rarity = "Mythic" },
+    { name = "Robot Capybara Egg",  rarity = "Godly" },
     { name = "Golem Capybara Egg",  rarity = "Divine" },
     { name = "Disco Capybara Egg",  rarity = "Secret" },
     { name = "Angel Capybara Egg",  rarity = "Secret" },

@@ -34,7 +34,7 @@ local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("Loc
 local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
 
 -- =================================================================
--- 📋 OFFICIAL 8 EGG CATALOG (EXACT IN-GAME RARITIES)
+-- 📋 OFFICIAL 9 EGG CATALOG (EXACT IN-GAME RARITIES)
 -- =================================================================
 AutoBuyEgg.OFFICIAL_EGGS = {
     { name = "Capybara Egg",        rarity = "Common" },
@@ -42,6 +42,7 @@ AutoBuyEgg.OFFICIAL_EGGS = {
     { name = "Archer Capybara Egg", rarity = "Epic" },
     { name = "Magic Capybara Egg",  rarity = "Legendary" },
     { name = "Ghost Capybara Egg",  rarity = "Mythic" },
+    { name = "Robot Capybara Egg",  rarity = "Godly" },
     { name = "Golem Capybara Egg",  rarity = "Divine" },
     { name = "Disco Capybara Egg",  rarity = "Secret" },
     { name = "Angel Capybara Egg",  rarity = "Secret" },
@@ -143,6 +144,10 @@ function AutoBuyEgg.HasStock(eggName)
     if not pg then return false, 0 end
 
     local eggFrame = pg:FindFirstChild(eggName, true)
+    if not eggFrame then
+        local shortName = eggName:gsub("%s*[Ee]gg%s*", "")
+        eggFrame = pg:FindFirstChild(shortName, true) or pg:FindFirstChild(shortName .. " Egg", true)
+    end
     if not eggFrame then return false, 0 end
 
     -- 1. Cek attribute OutOfStock
