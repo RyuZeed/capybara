@@ -50,25 +50,73 @@ local syncCallback = nil
 local gcThread = nil
 
 -- =================================================================
--- 1. 🎯 FPS CONTROLLER (INDEPENDENT)
+-- 1. 🎯 FPS CONTROLLER (INDEPENDENT & MOBILE-RESILIENT)
 -- =================================================================
+local fpsLockThread = nil
+
 local function applyFpsCap(fps)
     States.CurrentFPSCap = fps
-    if typeof(setfpscap) == "function" then
-        pcall(setfpscap, fps)
-    elseif typeof(set_fps_cap) == "function" then
-        pcall(set_fps_cap, fps)
-    elseif typeof(setfps) == "function" then
-        pcall(setfps, fps)
-    end
+    pcall(function()
+        if typeof(setfpscap) == "function" then
+            setfpscap(fps)
+        elseif typeof(set_fps_cap) == "function" then
+            set_fps_cap(fps)
+        elseif typeof(setfps) == "function" then
+            setfps(fps)
+        elseif typeof(setfpslimit) == "function" then
+            setfpslimit(fps)
+        end
+    end)
 end
+
+local function startFpsLock(targetFps)
+    if fpsLockThread then
+        pcall(task.cancel, fpsLockThread)
+        fpsLockThread = nil
+    end
+
+    applyFpsCap(targetFps)
+
+    fpsLockThread = task.spawn(function()
+        while States.AntiLag or States.FarmMode do
+            applyFpsCap(targetFps)
+            task.wait(0.5) -- Terus kunci setiap 0.5 detik agar Android/Delta/Arceus X tidak me-reset ke normal
+        end
+    end)
+end
+
+local function stopFpsLock()
+    if fpsLockThread then
+        pcall(task.cancel, fpsLockThread)
+        fpsLockThread = nil
+    end
+    local normalFps = States.BaseFPS or SETTINGS.Normal_FPS_Cap or 60
+    applyFpsCap(normalFps)
+end
+
+-- Listener sentuhan layar Android (Delta, Arceus X) agar FPS tidak mental kembali ke normal saat layar disentuh
+pcall(function()
+    UserInputService.TouchStarted:Connect(function()
+        if States.AntiLag or States.FarmMode then
+            applyFpsCap(SETTINGS.AFK_FPS_Cap)
+        end
+    end)
+    UserInputService.InputBegan:Connect(function(input)
+        if (States.AntiLag or States.FarmMode) and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then
+            applyFpsCap(SETTINGS.AFK_FPS_Cap)
+        end
+    end)
+end)
 
 function GraphicsModule.ApplyFpsCap(fps)
     if fps and fps > 5 then
         States.BaseFPS = fps
     end
-    local target = fps or ((States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap))
-    applyFpsCap(target)
+    if States.FarmMode or States.AntiLag then
+        startFpsLock(SETTINGS.AFK_FPS_Cap)
+    else
+        applyFpsCap(fps or States.BaseFPS or SETTINGS.Normal_FPS_Cap)
+    end
 end
 
 -- =================================================================
@@ -205,15 +253,15 @@ function GraphicsModule.SetAntiLag(enable, customFps)
     States.AntiLag = enable
     if enable then
         local targetFps = customFps or SETTINGS.AFK_FPS_Cap
-        applyFpsCap(targetFps)
+        startFpsLock(targetFps)
         pcall(function() Lighting.GlobalShadows = false end)
         print("❄️ [Ritod Hub] Anti-Lag (FPS Cap " .. tostring(targetFps) .. "): ON")
     else
-        -- Restore Shadows (if not potato mode) and restore FPS to normal
         pcall(function() Lighting.GlobalShadows = not States.PotatoGraphics end)
-        local normalFps = States.FarmMode and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap)
-        applyFpsCap(normalFps)
-        print("❄️ [Ritod Hub] Anti-Lag: OFF (FPS Restored to " .. tostring(normalFps) .. ")")
+        if not States.FarmMode then
+            stopFpsLock()
+        end
+        print("❄️ [Ritod Hub] Anti-Lag: OFF")
     end
 end
 
@@ -328,8 +376,13 @@ function GraphicsModule.SetFarmMode(enable, onSync)
 
     set3DRendering(not enable)
 
-    local targetFps = enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap))
-    applyFpsCap(targetFps)
+    if enable then
+        startFpsLock(SETTINGS.AFK_FPS_Cap)
+    else
+        if not States.AntiLag then
+            stopFpsLock()
+        end
+    end
 
     print("🚜 [Ritod Hub] Farm Mode (3D Render Off): " .. (enable and "ON" or "OFF"))
 end
