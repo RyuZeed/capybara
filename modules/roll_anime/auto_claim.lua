@@ -71,7 +71,7 @@ local function clickButton(btn)
 end
 
 -- =================================================================
--- 1. 📜 AUTO CLAIM DAILY & WEEKLY QUESTS (EXACT DATA STRUCTURE)
+-- 1. 📜 AUTO CLAIM DAILY & WEEKLY QUESTS (HANYA KETIKA SUDAH SELESAI)
 -- =================================================================
 function AutoClaim.ClaimQuests()
     pcall(function()
@@ -94,60 +94,33 @@ function AutoClaim.ClaimQuests()
         local claimRemote = bpQuestFolder:FindFirstChild("ClaimQuest")
 
         if not claimRemote or not claimRemote:IsA("RemoteEvent") then return end
+        if not getQuestFunc or not getQuestFunc:IsA("RemoteFunction") then return end
 
         -- Ambil data quest real-time pemain
-        local questData = nil
-        if getQuestFunc and getQuestFunc:IsA("RemoteFunction") then
-            local s, res = pcall(function() return getQuestFunc:InvokeServer() end)
-            if s and type(res) == "table" then
-                questData = res
-            end
+        local s, questData = pcall(function() return getQuestFunc:InvokeServer() end)
+        if not (s and type(questData) == "table") then return end
+
+        local categories = {}
+        if AutoClaim.Config.DailyQuest and type(questData.Daily) == "table" then
+            categories["Daily"] = questData.Daily
+        end
+        if AutoClaim.Config.WeeklyQuest and type(questData.Weekly) == "table" then
+            categories["Weekly"] = questData.Weekly
         end
 
-        -- Jika data berhasil diambil dari server
-        if questData then
-            local categories = {}
-            if AutoClaim.Config.DailyQuest and type(questData.Daily) == "table" then
-                categories["Daily"] = questData.Daily
-            end
-            if AutoClaim.Config.WeeklyQuest and type(questData.Weekly) == "table" then
-                categories["Weekly"] = questData.Weekly
-            end
+        -- HANYA KLAIM JIKA: Completed == true DAN Claimed == false
+        for category, list in pairs(categories) do
+            for idx, qInfo in ipairs(list) do
+                if type(qInfo) == "table" then
+                    local isDone = (qInfo.Completed == true) or (qInfo.Progress and qInfo.Requirement and qInfo.Progress >= qInfo.Requirement)
+                    local isNotClaimed = (qInfo.Claimed == false)
 
-            for category, list in pairs(categories) do
-                for idx, qInfo in ipairs(list) do
-                    if type(qInfo) == "table" then
-                        local isDone = (qInfo.Completed == true) or (qInfo.Progress and qInfo.Requirement and qInfo.Progress >= qInfo.Requirement)
-                        local isNotClaimed = (qInfo.Claimed ~= true)
-
-                        if isDone and isNotClaimed then
-                            pcall(function() claimRemote:FireServer(category, idx) end)
-                            if qInfo.ID then
-                                pcall(function() claimRemote:FireServer(category, qInfo.ID) end)
-                                pcall(function() claimRemote:FireServer(qInfo.ID) end)
-                            end
-                            if qInfo.UniqueName then
-                                pcall(function() claimRemote:FireServer(category, qInfo.UniqueName) end)
-                                pcall(function() claimRemote:FireServer(qInfo.UniqueName) end)
-                            end
-                            if qInfo.Name then
-                                pcall(function() claimRemote:FireServer(category, qInfo.Name) end)
-                            end
-                            pcall(function() claimRemote:FireServer({ Category = category, ID = qInfo.ID, Index = idx }) end)
-                            pcall(function() claimRemote:FireServer({ category, idx }) end)
-                            pcall(function() claimRemote:FireServer(idx) end)
+                    if isDone and isNotClaimed then
+                        pcall(function() claimRemote:FireServer(category, idx) end)
+                        if qInfo.ID then
+                            pcall(function() claimRemote:FireServer(category, qInfo.ID) end)
                         end
                     end
-                end
-            end
-        else
-            -- Fallback sweep jika GetQuestData offline
-            for i = 1, 10 do
-                if AutoClaim.Config.DailyQuest then
-                    pcall(function() claimRemote:FireServer("Daily", i) end)
-                end
-                if AutoClaim.Config.WeeklyQuest then
-                    pcall(function() claimRemote:FireServer("Weekly", i) end)
                 end
             end
         end
@@ -155,19 +128,33 @@ function AutoClaim.ClaimQuests()
 end
 
 -- =================================================================
--- 2. 🏆 AUTO CLAIM BATTLEPASS TIER REWARDS
+-- 2. 🏆 AUTO CLAIM BATTLEPASS TIER REWARDS (HANYA JIKA TERBUKA)
 -- =================================================================
 function AutoClaim.ClaimBattlepass()
     if not AutoClaim.Config.Battlepass then return end
     pcall(function()
-        for _, desc in ipairs(RS:GetDescendants()) do
-            if (desc.Name == "Claim" or desc.Name == "ClaimBattlepass" or desc.Name == "ClaimReward") and desc:IsA("RemoteEvent") then
-                local pName = desc.Parent and desc.Parent.Name or ""
-                if pName:find("Battlepass") or pName:find("Reward") or desc.Name:find("Battlepass") then
-                    for tier = 1, 50 do
-                        pcall(function() desc:FireServer(tier) end)
-                        pcall(function() desc:FireServer("Free", tier) end)
-                        pcall(function() desc:FireServer("Premium", tier) end)
+        local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local mainUI = pGui and pGui:FindFirstChild("MainUI")
+        local bpFrame = mainUI and mainUI:FindFirstChild("Frames") and mainUI.Frames:FindFirstChild("Battlepass")
+        
+        local bpContent = bpFrame and bpFrame:FindFirstChild("Frame")
+            and bpFrame.Frame:FindFirstChild("Main")
+            and bpFrame.Frame.Main:FindFirstChild("Battlepass")
+            and bpFrame.Frame.Main.Battlepass:FindFirstChild("ScrollingFrame")
+            and bpFrame.Frame.Main.Battlepass.ScrollingFrame:FindFirstChild("Content")
+            and bpFrame.Frame.Main.Battlepass.ScrollingFrame.Content:FindFirstChild("Rewards")
+
+        if bpContent then
+            for _, bpReward in ipairs(bpContent:GetChildren()) do
+                if bpReward.Name == "BattlepassReward" then
+                    -- Cek tombol reward yang aktif/siap klaim
+                    for _, btn in ipairs(bpReward:GetDescendants()) do
+                        if btn:IsA("GuiButton") and btn.Visible and btn.Active then
+                            local txt = tostring(btn:IsA("TextButton") and btn.Text or ""):lower()
+                            if txt:find("claim") or txt == "" then
+                                clickButton(btn)
+                            end
+                        end
                     end
                 end
             end
@@ -176,35 +163,35 @@ function AutoClaim.ClaimBattlepass()
 end
 
 -- =================================================================
--- 3. 🎁 AUTO CLAIM FREE REWARDS, VIP & GROUP REWARDS
+-- 3. 🎁 AUTO CLAIM FREE REWARDS, VIP & GROUP (HANYA JIKA SIAP)
 -- =================================================================
 function AutoClaim.ClaimFreeRewards()
     pcall(function()
-        local remotes = RS:FindFirstChild("Remotes")
-        if remotes then
-            -- Playtime gifts
-            if AutoClaim.Config.FreeRewards then
-                local freeRewards = remotes:FindFirstChild("FreeRewards")
-                if freeRewards then
-                    local updateProgress = freeRewards:FindFirstChild("UpdateProgress")
-                    if updateProgress and updateProgress:IsA("RemoteEvent") then
-                        for slot = 1, 15 do
-                            pcall(function() updateProgress:FireServer(slot) end)
-                        end
-                    end
-                    local freeGroup = freeRewards:FindFirstChild("FreeGroup")
-                    if freeGroup and freeGroup:IsA("RemoteEvent") then
-                        pcall(function() freeGroup:FireServer() end)
-                    end
-                end
-            end
+        local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local mainUI = pGui and pGui:FindFirstChild("MainUI")
+        local frames = mainUI and mainUI:FindFirstChild("Frames")
 
-            -- VIP Reward
-            if AutoClaim.Config.VIPAndGroup then
-                local claimVIP = remotes:FindFirstChild("ClaimVIP")
-                if claimVIP and claimVIP:IsA("RemoteEvent") then
-                    pcall(function() claimVIP:FireServer() end)
-                end
+        -- 1. VIP Claim (Hanya jika tombol aktif)
+        if AutoClaim.Config.VIPAndGroup and frames and frames:FindFirstChild("VIPRewards") then
+            local vipBtn = frames.VIPRewards:FindFirstChild("Frame")
+                and frames.VIPRewards.Frame:FindFirstChild("Main")
+                and frames.VIPRewards.Frame.Main:FindFirstChild("Claim")
+                and frames.VIPRewards.Frame.Main.Claim:FindFirstChild("Claim")
+
+            if vipBtn and vipBtn:IsA("GuiButton") and vipBtn.Visible and vipBtn.Active then
+                clickButton(vipBtn)
+            end
+        end
+
+        -- 2. Group Claim (Hanya jika tombol aktif)
+        if AutoClaim.Config.VIPAndGroup and frames and frames:FindFirstChild("GroupRewards") then
+            local grpBtn = frames.GroupRewards:FindFirstChild("Frame")
+                and frames.GroupRewards.Frame:FindFirstChild("Main")
+                and frames.GroupRewards.Frame.Main:FindFirstChild("Claim")
+                and frames.GroupRewards.Frame.Main.Claim:FindFirstChild("Start")
+
+            if grpBtn and grpBtn:IsA("GuiButton") and grpBtn.Visible and grpBtn.Active then
+                clickButton(grpBtn)
             end
         end
     end)
