@@ -364,8 +364,9 @@ local function initScreenOffGui()
     end
 
     hintBtn.MouseButton1Click:Connect(disableFarmMode)
-    blackFrame.MouseButton1Click:Connect(disableFarmMode)
 end
+
+local farmModeWatchdog = nil
 
 function GraphicsModule.SetFarmMode(enable, onSync)
     States.FarmMode = enable
@@ -377,14 +378,22 @@ function GraphicsModule.SetFarmMode(enable, onSync)
     set3DRendering(not enable)
 
     if enable then
+        if not farmModeWatchdog then
+            farmModeWatchdog = task.spawn(function()
+                while States.FarmMode do
+                    set3DRendering(false)
+                    task.wait(1)
+                end
+                farmModeWatchdog = nil
+            end)
+        end
         startFpsLock(SETTINGS.AFK_FPS_Cap)
     else
+        set3DRendering(true)
         if not States.AntiLag then
             stopFpsLock()
         end
     end
-
-    print("🚜 [Ritod Hub] Farm Mode (3D Render Off): " .. (enable and "ON" or "OFF"))
 end
 
 -- =================================================================

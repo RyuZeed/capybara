@@ -702,18 +702,16 @@ local function initScreenOffGui()
     hintBtn.ZIndex = 999993
     hintBtn.Parent = centerBox
 
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 8)
-    btnCorner.Parent = hintBtn
-
     local function disableFarmMode()
         GraphicsModule.SetFarmMode(false)
         if syncCallback then pcall(function() syncCallback(false) end) end
     end
 
+    -- Hanya tombol khusus di tengah yang bisa mematikan Farm Mode (mencegah Anti-AFK atau auto-clicker mematikan Farm Mode)
     hintBtn.MouseButton1Click:Connect(disableFarmMode)
-    blackFrame.MouseButton1Click:Connect(disableFarmMode)
 end
+
+local farmModeWatchdog = nil
 
 function GraphicsModule.SetFarmMode(enable, onSync)
     States.FarmMode = enable
@@ -723,6 +721,20 @@ function GraphicsModule.SetFarmMode(enable, onSync)
     if screenOffGui then screenOffGui.Enabled = enable end
 
     set3DRendering(not enable)
+
+    if enable then
+        if not farmModeWatchdog then
+            farmModeWatchdog = task.spawn(function()
+                while States.FarmMode do
+                    set3DRendering(false)
+                    task.wait(1)
+                end
+                farmModeWatchdog = nil
+            end)
+        end
+    else
+        set3DRendering(true)
+    end
 
     local targetFps = enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap))
     applyFpsCap(targetFps)
