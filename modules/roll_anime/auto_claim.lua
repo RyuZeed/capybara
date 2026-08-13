@@ -23,7 +23,7 @@ AutoClaim.Config = {
     Battlepass    = true,
     FreeRewards   = true,
     VIPAndGroup   = true,
-    CheckInterval = 8
+    CheckInterval = 4
 }
 
 local isRunning = false
@@ -121,7 +121,6 @@ function AutoClaim.ClaimQuests()
                         local isNotClaimed = (qInfo.Claimed ~= true)
 
                         if isDone and isNotClaimed then
-                            -- Tembak semua variasi parameter agar 100% kompatibel dengan server
                             pcall(function() claimRemote:FireServer(category, idx) end)
                             if qInfo.ID then
                                 pcall(function() claimRemote:FireServer(category, qInfo.ID) end)
@@ -134,6 +133,9 @@ function AutoClaim.ClaimQuests()
                             if qInfo.Name then
                                 pcall(function() claimRemote:FireServer(category, qInfo.Name) end)
                             end
+                            pcall(function() claimRemote:FireServer({ Category = category, ID = qInfo.ID, Index = idx }) end)
+                            pcall(function() claimRemote:FireServer({ category, idx }) end)
+                            pcall(function() claimRemote:FireServer(idx) end)
                         end
                     end
                 end
