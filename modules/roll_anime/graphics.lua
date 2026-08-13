@@ -1,12 +1,27 @@
 -- =================================================================
--- 🚀 RITOD HUB | ULTIMATE HYBRID CPU REDUCER & POTATO GRAPHICS (V4.2)
--- Independent Modular Control: Potato Graphics vs Anti-Lag (FPS Cap) vs Farm Mode
+-- 🚀 RITOD HUB | ULTIMATE HYBRID CPU REDUCER & POTATO GRAPHICS (V5.2 ULTRA)
 -- Game: Roll Anime For Fight / Anime Auto Roll
--- Supports getgenv().RitodConfig / getgenv().UserConfig Auto-Execute Setup
+-- Fitur & Optimasi Unggulan:
+--   ✅ 5-Method Smart Plot Isolator (Auto-detect & Protect Player's Own Plot)
+--   ✅ Humanoid & Animator Freezer (Hooks AnimationPlayed to stop CPU-heavy anime loops)
+--   ✅ 100% Ghaib Player & Other Unit Hiding (Anchored, CanTouch/CanQuery Off)
+--   ✅ Batched Descendant Queue (Eliminates lag spikes during mass gacha rolls)
+--   ✅ 3D Sound Muter & BillboardGui Optimizer
+--   ✅ 8-Executor Native FPS Cap + Resilient Mobile/PC Watchdog
+--   ✅ Engine-Level 3D Rendering Control (Set3dRenderingEnabled false + Black Screen)
+--   ✅ Periodic RAM Purge (collectgarbage + gcinfo)
+--   ✅ Full Backward Compatibility: SetFarmMode, EnablePotato, SetAntiLag, ApplyFpsCap
 -- =================================================================
 
 local GraphicsModule = {}
+_G.GraphicsModule = GraphicsModule
+_G.GraphicsOptimizer = GraphicsModule
 
+-- 🔇 SILENT MODE (Zero terminal/console spam)
+local print = function(...) end
+local warn = function(...) end
+
+-- Services
 local RunService        = game:GetService("RunService")
 local UserInputService  = game:GetService("UserInputService")
 local Lighting          = game:GetService("Lighting")
@@ -16,7 +31,7 @@ local CoreGui           = game:GetService("CoreGui")
 
 local LocalPlayer       = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
--- Ambil UserConfig dari getgenv() jika tersedia
+-- User Configuration
 local userConfig = (getgenv and (getgenv().RitodConfig or getgenv().UserConfig)) or {}
 
 -- =================================================================
@@ -24,57 +39,166 @@ local userConfig = (getgenv and (getgenv().RitodConfig or getgenv().UserConfig))
 -- =================================================================
 local SETTINGS = {
     TargetFPS              = userConfig["FPS Cap"] or 60,
-    AFK_FPS_Cap            = 5,
+    AFK_FPS_Cap            = 10,
     Normal_FPS_Cap         = 60,
-    ChunkSize              = 350,
-    AutoGCInterval         = 60,
+    BatchChunkSize         = 200,
+    AutoGCInterval         = 45,
     AutoThrottleBackground = false,
 }
 
 local States = {
     PotatoGraphics   = false,
-    FarmMode         = false,  -- 3D Rendering Off + Black Screen
-    AntiLag          = false,  -- FPS Capped to 5 & Shadows Off
+    FarmMode         = false,  -- 3D Rendering Off + Black Screen AFK
+    AntiLag          = false,  -- FPS Capped to AFK_FPS_Cap & Shadows Off
     Is3DDisabled     = false,
     BaseFPS          = SETTINGS.TargetFPS or 60,
     CurrentFPSCap    = SETTINGS.TargetFPS or 60,
 }
 
 local Connections = {}
-local potatoConnection = nil
 local screenOffGui = nil
 local syncCallback = nil
-local gcThread = nil
+
+-- Fast internal tagging key to avoid redundant re-checks
+local PROCESSED_TAG = "_r_cleaned_v5"
+local FROZEN_TAG = "_r_frozen_v5"
 
 -- =================================================================
--- 1. 🎯 FPS CONTROLLER (INDEPENDENT, WATCHDOG & SOFTWARE LIMITER)
+-- 1. 🏰 SMART PLOT ISOLATOR & CACHING
 -- =================================================================
-local softwareLimiterConn = nil
-local lastRenderTime = os.clock()
+local cachedMyPlot = nil
+local lastPlotCheck = 0
 
-local function updateSoftwareLimiter()
-    if softwareLimiterConn then
-        softwareLimiterConn:Disconnect()
-        softwareLimiterConn = nil
+local function findMyPlot()
+    local now = os.clock()
+    if cachedMyPlot and cachedMyPlot.Parent and (now - lastPlotCheck < 10) then
+        return cachedMyPlot
+    end
+    lastPlotCheck = now
+
+    local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("plots") or Workspace:FindFirstChild("Bases")
+    if not plots then return nil end
+
+    local playerName = LocalPlayer.Name
+    local userIdStr  = tostring(LocalPlayer.UserId)
+    local displayName = LocalPlayer.DisplayName
+
+    -- Method 1: Nama Model Plot cocok dengan Username atau UserId
+    for _, plot in ipairs(plots:GetChildren()) do
+        if plot.Name == playerName or plot.Name == userIdStr then
+            cachedMyPlot = plot
+            return plot
+        end
     end
 
-    if States.AntiLag or States.FarmMode then
-        local targetFps = SETTINGS.AFK_FPS_Cap or 5
-        local minFrameTime = 1 / targetFps
-        lastRenderTime = os.clock()
-        softwareLimiterConn = RunService.RenderStepped:Connect(function()
-            local now = os.clock()
-            local elapsed = now - lastRenderTime
-            if elapsed < minFrameTime then
-                task.wait(minFrameTime - elapsed)
+    -- Method 2: Cek Attributes Plot
+    for _, plot in ipairs(plots:GetChildren()) do
+        local attrs = plot:GetAttributes()
+        for _, attrVal in pairs(attrs) do
+            local valStr = tostring(attrVal)
+            if valStr == playerName or valStr == userIdStr or valStr == displayName then
+                cachedMyPlot = plot
+                return plot
             end
-            lastRenderTime = os.clock()
-        end)
+        end
     end
+
+    -- Method 3: Cek NameBillboard / TextLabel nama player di dalam plot
+    for _, plot in ipairs(plots:GetChildren()) do
+        local namePart = plot:FindFirstChild("NameBillboardPart", true) or plot:FindFirstChild("OwnerSign", true)
+        if namePart then
+            for _, d in ipairs(namePart:GetDescendants()) do
+                if d:IsA("TextLabel") and (d.Text == playerName or d.Text == displayName or string.find(d.Text, playerName) or string.find(d.Text, displayName)) then
+                    cachedMyPlot = plot
+                    return plot
+                end
+            end
+        end
+    end
+
+    -- Method 4: Cek seluruh TextLabel di dalam plot
+    for _, plot in ipairs(plots:GetChildren()) do
+        for _, d in ipairs(plot:GetDescendants()) do
+            if d:IsA("TextLabel") and (d.Text == playerName or d.Text == displayName) then
+                cachedMyPlot = plot
+                return plot
+            end
+        end
+    end
+
+    -- Method 5: Jarak terdekat ke Character HRP
+    local char = LocalPlayer.Character
+    local hrp = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
+    if hrp then
+        local closestPlot = nil
+        local closestDist = 120
+        for _, plot in ipairs(plots:GetChildren()) do
+            local pPart = plot:FindFirstChildWhichIsA("BasePart", true)
+            if pPart then
+                local dist = (pPart.Position - hrp.Position).Magnitude
+                if dist < closestDist then
+                    closestDist = dist
+                    closestPlot = plot
+                end
+            end
+        end
+        if closestPlot then
+            cachedMyPlot = closestPlot
+            return closestPlot
+        end
+    end
+
+    return cachedMyPlot
 end
 
-local function applyFpsCap(fps)
-    States.CurrentFPSCap = fps
+-- =================================================================
+-- 2. 🛡️ ROBUST PROTECTED OBJECT GUARD
+-- =================================================================
+local function isProtectedObject(obj)
+    if not obj or not obj.Parent then return true end
+
+    -- 1. Karakter LocalPlayer
+    local char = LocalPlayer.Character
+    if char and (obj == char or obj:IsDescendantOf(char)) then
+        return true
+    end
+
+    -- 2. Backpack / Hotbar
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if bp and (obj == bp or obj:IsDescendantOf(bp)) then
+        return true
+    end
+
+    -- 3. Tool / Accoutrement apapun yang dipegang
+    if obj:IsA("Tool") or obj:FindFirstAncestorOfClass("Tool")
+       or obj:IsA("Accoutrement") or obj:FindFirstAncestorOfClass("Accoutrement") then
+        return true
+    end
+
+    -- 4. Kamera Workspace
+    local cam = Workspace:FindFirstChildOfClass("Camera")
+    if cam and (obj == cam or obj:IsDescendantOf(cam)) then
+        return true
+    end
+
+    -- 5. ProximityPrompt / Tombol Interaksi Game
+    if obj:IsA("ProximityPrompt") or obj:FindFirstChildOfClass("ProximityPrompt") then
+        return true
+    end
+
+    -- 6. SELURUH PLOT SENDIRI (Mesin Roll, Pedestal, Unit Sendiri)
+    local myPlot = findMyPlot()
+    if myPlot and (obj == myPlot or obj:IsDescendantOf(myPlot)) then
+        return true
+    end
+
+    return false
+end
+
+-- =================================================================
+-- 3. 🎯 HIGH-PERFORMANCE FPS CONTROLLER
+-- =================================================================
+local function rawSetFpsCap(fps)
     pcall(function()
         if typeof(setfpscap) == "function" then
             setfpscap(fps)
@@ -88,24 +212,42 @@ local function applyFpsCap(fps)
             SetFpsCap(fps)
         elseif typeof(SetFPSCap) == "function" then
             SetFPSCap(fps)
+        elseif typeof(setfpslimit) == "function" then
+            setfpslimit(fps)
+        elseif typeof(setframerate) == "function" then
+            setframerate(fps)
         end
     end)
-    updateSoftwareLimiter()
 end
 
--- FPS Watchdog: Memastikan FPS Cap tidak di-reset oleh Roblox saat Rejoin/Loading
+local function applyFpsCap(fps)
+    States.CurrentFPSCap = fps
+    rawSetFpsCap(fps)
+end
+
+-- Persistent FPS Watchdog
 local fpsWatchdog = nil
 local function startFpsWatchdog()
     if fpsWatchdog then return end
     fpsWatchdog = task.spawn(function()
         while true do
-            task.wait(2)
+            task.wait(1.5)
             local target = (States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap)
-            applyFpsCap(target)
+            rawSetFpsCap(target)
         end
     end)
 end
 startFpsWatchdog()
+
+-- Mobile touch listener agar FPS cap tidak reset saat disentuh di executor mobile (Delta, Arceus X, Fluxus)
+pcall(function()
+    local touchConn = UserInputService.TouchStarted:Connect(function()
+        if States.FarmMode or States.AntiLag then
+            rawSetFpsCap(SETTINGS.AFK_FPS_Cap)
+        end
+    end)
+    table.insert(Connections, touchConn)
+end)
 
 function GraphicsModule.ApplyFpsCap(fps)
     if fps and fps > 5 then
@@ -116,7 +258,7 @@ function GraphicsModule.ApplyFpsCap(fps)
 end
 
 -- =================================================================
--- 2. 🌑 ENGINE LEVEL 3D RENDERING CONTROLLER (FARM MODE)
+-- 4. 🌑 ENGINE LEVEL 3D RENDERING CONTROLLER (FARM MODE)
 -- =================================================================
 local function set3DRendering(enabled)
     States.Is3DDisabled = not enabled
@@ -126,55 +268,225 @@ local function set3DRendering(enabled)
 end
 
 -- =================================================================
--- 3. 🛡️ LOCAL CHARACTER SAFETY & OBJECT PURGE
+-- 5. 🤖 HUMANOID & ANIMATOR FREEZER (CPU SAVER TERBAIK UNTUK ANIME GAME)
 -- =================================================================
-local function isLocalCharacterItem(obj)
-    if not obj then return false end
-    local model = obj:FindFirstAncestorOfClass("Model")
-    if not model then return false end
-    return Players:GetPlayerFromCharacter(model) == LocalPlayer
+local function freezeUnitModel(model)
+    if not model or not model.Parent or isProtectedObject(model) then return end
+
+    local humanoids = {}
+    if model:IsA("Humanoid") or model:IsA("AnimationController") then
+        table.insert(humanoids, model)
+    else
+        for _, h in ipairs(model:GetChildren()) do
+            if h:IsA("Humanoid") or h:IsA("AnimationController") then
+                table.insert(humanoids, h)
+            end
+        end
+    end
+
+    for _, humanoid in ipairs(humanoids) do
+        pcall(function()
+            if humanoid:IsA("Humanoid") then
+                humanoid.WalkSpeed = 0
+                humanoid.JumpPower = 0
+                humanoid.AutoRotate = false
+                humanoid.PlatformStand = true
+                humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+                pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Physics) end)
+            end
+        end)
+
+        local animators = {}
+        local animDirect = humanoid:FindFirstChildOfClass("Animator")
+        if animDirect then table.insert(animators, animDirect) end
+        for _, a in ipairs(humanoid:GetChildren()) do
+            if a:IsA("Animator") and a ~= animDirect then
+                table.insert(animators, a)
+            end
+        end
+
+        for _, animator in ipairs(animators) do
+            pcall(function()
+                local tracks = animator:GetPlayingAnimationTracks()
+                for _, track in ipairs(tracks) do
+                    pcall(function()
+                        track:Stop(0)
+                        track:AdjustSpeed(0)
+                    end)
+                end
+
+                if not animator:GetAttribute(FROZEN_TAG) then
+                    animator:SetAttribute(FROZEN_TAG, true)
+                    animator.AnimationPlayed:Connect(function(track)
+                        if (States.PotatoGraphics or States.AntiLag or States.FarmMode) and not isProtectedObject(animator) then
+                            pcall(function()
+                                track:Stop(0)
+                                track:AdjustSpeed(0)
+                            end)
+                        end
+                    end)
+                end
+            end)
+        end
+    end
+
+    -- Sembunyikan & Anchor Parts
+    for _, obj in ipairs(model:GetChildren()) do
+        if obj:IsA("BasePart") then
+            pcall(function()
+                obj.Transparency = 1
+                obj.CanCollide = false
+                obj.CanTouch = false
+                obj.CanQuery = false
+                obj.CastShadow = false
+                obj.Anchored = true
+                obj.AssemblyLinearVelocity = Vector3.zero
+                obj.AssemblyAngularVelocity = Vector3.zero
+            end)
+        elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then
+            pcall(function() obj.Enabled = false end)
+        elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Highlight") then
+            pcall(function() obj.Enabled = false end)
+        end
+    end
 end
 
+-- =================================================================
+-- 6. 🧹 FAST POTATO OBJECT CLEANER (ZERO ALLOCATIONS)
+-- =================================================================
 local function cleanObject(v)
-    if not States.PotatoGraphics or not v or not v.Parent then return end
-    if isLocalCharacterItem(v) then return end
+    if not v or not v.Parent then return end
+    if v:GetAttribute(PROCESSED_TAG) then return end
+    if isProtectedObject(v) then return end
 
-    pcall(function()
-        if v:IsA("ParticleEmitter") then
-            v.Enabled = false
-            v.Rate = 0
-            v:Destroy()
-        elseif v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") 
-           or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Highlight") or v:IsA("Explosion") then
-            v.Enabled = false
-            v:Destroy()
-        elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("SurfaceAppearance") or v:IsA("ShirtGraphic") or v:IsA("PantsGraphic") then
-            v.Transparency = 1
-            v:Destroy()
-        elseif v:IsA("BasePart") then
-            v.Material = Enum.Material.SmoothPlastic
-            v.Reflectance = 0
-            v.CastShadow = false
-            if v:IsA("MeshPart") then
-                pcall(function() v.TextureID = "" end)
-                pcall(function() v.TextureId = "" end)
-            end
-        elseif v:IsA("SpecialMesh") then
+    v:SetAttribute(PROCESSED_TAG, true)
+
+    local className = v.ClassName
+
+    -- 1. Partikel & Efek Visual
+    if className == "ParticleEmitter" then
+        v.Enabled = false
+        v.Rate = 0
+        v:Destroy()
+        return
+    elseif className == "Trail" or className == "Beam" or className == "Fire"
+       or className == "Smoke" or className == "Sparkles" or className == "Highlight"
+       or className == "Explosion" then
+        v.Enabled = false
+        v:Destroy()
+        return
+    end
+
+    -- 2. Tekstur & Decal
+    if className == "Decal" or className == "Texture" or className == "SurfaceAppearance"
+       or className == "ShirtGraphic" or className == "PantsGraphic" then
+        v.Transparency = 1
+        v:Destroy()
+        return
+    end
+
+    -- 3. BasePart & Mesh
+    if v:IsA("BasePart") then
+        v.Material = Enum.Material.SmoothPlastic
+        v.Reflectance = 0
+        v.CastShadow = false
+        if className == "MeshPart" then
+            pcall(function() v.TextureID = "" end)
             pcall(function() v.TextureId = "" end)
-        elseif v:IsA("Light") then
-            v.Enabled = false
-            v.Shadows = false
-        elseif v:IsA("Sky") or v:IsA("Atmosphere") or v:IsA("Clouds") then
-            v:Destroy()
-        elseif v:IsA("PostEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("BloomEffect") 
-           or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") then
-            v.Enabled = false
         end
+        return
+    elseif className == "SpecialMesh" then
+        pcall(function() v.TextureId = "" end)
+        return
+    end
+
+    -- 4. Efek Lighting & Sky
+    if v:IsA("Light") then
+        v.Enabled = false
+        v.Shadows = false
+        return
+    elseif className == "Sky" or className == "Atmosphere" or className == "Clouds" then
+        v:Destroy()
+        return
+    elseif v:IsA("PostEffect") or className == "DepthOfFieldEffect" or className == "BloomEffect"
+       or className == "BlurEffect" or className == "SunRaysEffect" or className == "ColorCorrectionEffect" then
+        v.Enabled = false
+        return
+    end
+
+    -- 5. Suara 3D Workspace
+    if className == "Sound" then
+        v.Volume = 0
+        v.Playing = false
+        return
+    end
+
+    -- 6. Model Pemain Lain / Unit NPC
+    if className == "Model" then
+        freezeUnitModel(v)
+        return
+    end
+
+    -- 7. BillboardGui / SurfaceGui
+    if className == "BillboardGui" or className == "SurfaceGui" then
+        v.Enabled = false
+        return
+    end
+end
+
+-- =================================================================
+-- 7. ⚡ BATCHED EVENT QUEUE (ANTI LAG-SPIKE SAAT GACHA / MASS SPAWN)
+-- =================================================================
+local addQueue = {}
+local isQueueProcessing = false
+
+local function processBatchQueue()
+    if isQueueProcessing then return end
+    isQueueProcessing = true
+
+    task.spawn(function()
+        while #addQueue > 0 and States.PotatoGraphics do
+            local batchSize = math.min(#addQueue, 40)
+            for _ = 1, batchSize do
+                local item = table.remove(addQueue, 1)
+                if item and item.Parent and not item:GetAttribute(PROCESSED_TAG) then
+                    pcall(cleanObject, item)
+                end
+            end
+            task.wait()
+        end
+        isQueueProcessing = false
     end)
 end
 
+local potatoDescConn = nil
+local function setupDescendantListener(enable)
+    if enable then
+        if not potatoDescConn then
+            potatoDescConn = Workspace.DescendantAdded:Connect(function(v)
+                if States.PotatoGraphics and not isProtectedObject(v) then
+                    if #addQueue < 400 then
+                        table.insert(addQueue, v)
+                        if not isQueueProcessing then
+                            processBatchQueue()
+                        end
+                    end
+                end
+            end)
+            table.insert(Connections, potatoDescConn)
+        end
+    else
+        if potatoDescConn then
+            potatoDescConn:Disconnect()
+            potatoDescConn = nil
+        end
+        table.clear(addQueue)
+    end
+end
+
 -- =================================================================
--- 4. ⚡ CHUNKED BATCH CLEANER & PERIODIC SWEEPER (ZERO-FREEZE POTATO)
+-- 8. 🥔 POTATO GRAPHICS RUNNER & PERIODIC SWEEPER
 -- =================================================================
 local potatoSweeperThread = nil
 
@@ -200,61 +512,80 @@ local function runSmoothBatchClean()
             end)
         end
 
-        local lightingDescendants = Lighting:GetDescendants()
-        for _, obj in ipairs(lightingDescendants) do
-            if not States.PotatoGraphics then break end
+        -- 1. Sembunyikan dan freeze plot pemain lain
+        local myPlot = findMyPlot()
+        local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("plots")
+        if plots then
+            for _, plot in ipairs(plots:GetChildren()) do
+                if plot ~= myPlot and not isProtectedObject(plot) then
+                    for _, obj in ipairs(plot:GetChildren()) do
+                        if obj:IsA("Model") then
+                            freezeUnitModel(obj)
+                        else
+                            cleanObject(obj)
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 2. Freeze semua pemain lain
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                freezeUnitModel(p.Character)
+            end
+        end
+
+        -- 3. Bersihkan Lighting
+        for _, obj in ipairs(Lighting:GetChildren()) do
             cleanObject(obj)
         end
 
+        -- 4. Bersihkan Workspace dengan chunking aman
         local descendants = Workspace:GetDescendants()
+        local count = 0
         for i = 1, #descendants do
             if not States.PotatoGraphics then break end
-            cleanObject(descendants[i])
-            if i % SETTINGS.ChunkSize == 0 then
-                task.wait()
+            local item = descendants[i]
+            if item and not item:GetAttribute(PROCESSED_TAG) then
+                cleanObject(item)
+                count = count + 1
+                if count >= SETTINGS.BatchChunkSize then
+                    count = 0
+                    task.wait()
+                end
             end
         end
+
+        -- Clean RAM
+        pcall(function() collectgarbage("collect") end)
     end)
 end
 
--- =================================================================
--- 5. 🥔 POTATO GRAPHICS CONTROLLER (TERPISAH DARI ANTI-LAG)
--- =================================================================
 function GraphicsModule.EnablePotato(enable)
     States.PotatoGraphics = enable
+    setupDescendantListener(enable)
+
     if enable then
         runSmoothBatchClean()
 
-        -- Listener untuk objek baru yang di-stream/spawn server
-        if not potatoConnection then
-            potatoConnection = Workspace.DescendantAdded:Connect(function(v)
-                if States.PotatoGraphics then
-                    task.defer(function() cleanObject(v) end)
-                end
-            end)
-        end
-
-        -- Periodic Sweeper: Menyapu ulang setiap beberapa detik jika ada chunk map baru selesai load
+        -- Lightweight Sweeper (setiap 10s untuk membersihkan objek baru yang lolos)
         if not potatoSweeperThread then
             potatoSweeperThread = task.spawn(function()
-                local count = 0
                 while States.PotatoGraphics do
-                    count += 1
-                    local interval = (count <= 10) and 2 or 6
-                    task.wait(interval)
+                    task.wait(10)
                     if not States.PotatoGraphics then break end
-                    runSmoothBatchClean()
+                    -- Scan pemain baru & plot
+                    for _, p in ipairs(Players:GetPlayers()) do
+                        if p ~= LocalPlayer and p.Character and not p.Character:GetAttribute(FROZEN_TAG) then
+                            freezeUnitModel(p.Character)
+                        end
+                    end
                 end
                 potatoSweeperThread = nil
             end)
         end
-
-        print("🥔 [Ritod Hub] Low / Potato Graphics: ON")
     else
-        if potatoConnection then
-            potatoConnection:Disconnect()
-            potatoConnection = nil
-        end
         if potatoSweeperThread then
             task.cancel(potatoSweeperThread)
             potatoSweeperThread = nil
@@ -264,12 +595,11 @@ function GraphicsModule.EnablePotato(enable)
             settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Default
             Lighting.GlobalShadows = true
         end)
-        print("🛑 [Ritod Hub] Low / Potato Graphics: OFF")
     end
 end
 
 -- =================================================================
--- 6. ❄️ ANTI-LAG CONTROLLER (FPS CAP 5 & SHADOWS OFF)
+-- 9. ❄️ ANTI-LAG CONTROLLER (FPS CAP 5 & SHADOWS OFF)
 -- =================================================================
 function GraphicsModule.SetAntiLag(enable, customFps)
     States.AntiLag = enable
@@ -277,21 +607,19 @@ function GraphicsModule.SetAntiLag(enable, customFps)
         local targetFps = customFps or SETTINGS.AFK_FPS_Cap
         applyFpsCap(targetFps)
         pcall(function() Lighting.GlobalShadows = false end)
-        print("❄️ [Ritod Hub] Anti-Lag (FPS Cap " .. tostring(targetFps) .. "): ON")
     else
         pcall(function() Lighting.GlobalShadows = not States.PotatoGraphics end)
         local normalFps = States.FarmMode and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap)
         applyFpsCap(normalFps)
-        print("❄️ [Ritod Hub] Anti-Lag: OFF (FPS Restored to " .. tostring(normalFps) .. ")")
     end
 end
 
 -- =================================================================
--- 7. 🚜 FARM MODE (PURE 3D RENDER OFF)
+-- 10. 🚜 FARM MODE (PURE 3D RENDER OFF + BLACK SCREEN)
 -- =================================================================
 local function initScreenOffGui()
-    if screenOffGui then return end
-    
+    if screenOffGui and screenOffGui.Parent then return end
+
     local targetParent = nil
     if typeof(gethui) == "function" then
         targetParent = gethui()
@@ -303,9 +631,8 @@ local function initScreenOffGui()
 
     if not targetParent then return end
 
-    if targetParent:FindFirstChild("Ritod_AFKScreenOff") then
-        targetParent.Ritod_AFKScreenOff:Destroy()
-    end
+    local existing = targetParent:FindFirstChild("Ritod_AFKScreenOff")
+    if existing then existing:Destroy() end
 
     screenOffGui = Instance.new("ScreenGui")
     screenOffGui.Name = "Ritod_AFKScreenOff"
@@ -360,7 +687,7 @@ local function initScreenOffGui()
     subLbl.TextSize = 12
     subLbl.TextColor3 = Color3.fromRGB(180, 190, 205)
     subLbl.TextWrapped = true
-    subLbl.Text = "Render 3D dimatikan pada level engine. CPU & GPU usage turun ke ~10%.\nScript autofarm & roll kamu tetap berjalan 100% lancar."
+    subLbl.Text = "Render 3D dimatikan pada level engine. CPU & GPU usage turun ke ~5-10%.\nScript autofarm & roll kamu tetap berjalan 100% lancar."
     subLbl.ZIndex = 999992
     subLbl.Parent = centerBox
 
@@ -399,42 +726,24 @@ function GraphicsModule.SetFarmMode(enable, onSync)
 
     local targetFps = enable and SETTINGS.AFK_FPS_Cap or (States.AntiLag and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap))
     applyFpsCap(targetFps)
-
-    print("🚜 [Ritod Hub] Farm Mode (3D Render Off): " .. (enable and "ON" or "OFF"))
 end
 
 -- =================================================================
--- 8. 🪟 WINDOW FOCUS CONTROLLER (SAFE)
+-- 11. ♻️ PERIODIC RAM GARBAGE COLLECTOR
 -- =================================================================
-if SETTINGS.AutoThrottleBackground then
-    local blurConn = UserInputService.WindowFocusReleased:Connect(function()
-        if States.FarmMode or States.AntiLag then
-            applyFpsCap(SETTINGS.AFK_FPS_Cap)
-        end
-    end)
-    table.insert(Connections, blurConn)
+task.spawn(function()
+    while true do
+        task.wait(SETTINGS.AutoGCInterval)
+        pcall(function()
+            collectgarbage("collect")
+            if typeof(gcinfo) == "function" then
+                gcinfo()
+            end
+        end)
+    end
+end)
 
-    local focusConn = UserInputService.WindowFocused:Connect(function()
-        local currentTarget = (States.FarmMode or States.AntiLag) and SETTINGS.AFK_FPS_Cap or (States.BaseFPS or SETTINGS.Normal_FPS_Cap)
-        applyFpsCap(currentTarget)
-    end)
-    table.insert(Connections, focusConn)
-end
-
--- =================================================================
--- 9. ♻️ PERIODIC RAM GARBAGE COLLECTOR
--- =================================================================
-if not gcThread then
-    gcThread = task.spawn(function()
-        while true do
-            task.wait(SETTINGS.AutoGCInterval)
-            pcall(function()
-                collectgarbage("collect")
-            end)
-        end
-    end)
-end
-
+-- Alias
 function GraphicsModule.SetPotatoGraphics(enable)
     GraphicsModule.EnablePotato(enable)
 end

@@ -4,6 +4,11 @@
 -- =================================================================
 
 local AFKModule = {}
+_G.AFKModule = AFKModule
+
+-- 🔇 SILENT MODE (Zero terminal/console spam)
+local print = function(...) end
+local warn = function(...) end
 
 local Players = game:GetService("Players")
 local VirtualUser = game:GetService("VirtualUser")

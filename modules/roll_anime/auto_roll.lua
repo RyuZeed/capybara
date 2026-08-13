@@ -4,15 +4,32 @@
 -- =================================================================
 
 local AutoRollModule = {}
+_G.AutoRollModule = AutoRollModule
+_G.AutoRoll = AutoRollModule
+
+-- 🔇 SILENT MODE (Zero terminal/console spam)
+local print = function(...) end
+local warn = function(...) end
 
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local WS = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
-local CharRemotes = RS:WaitForChild("Remotes"):WaitForChild("Characters")
-local RollRemote = CharRemotes:WaitForChild("Roll")
-local BuyRemote = CharRemotes:WaitForChild("Buy")
+local CharRemotes = nil
+local RollRemote = nil
+local BuyRemote = nil
+
+pcall(function()
+    local remotes = RS:FindFirstChild("Remotes")
+    if remotes then
+        CharRemotes = remotes:FindFirstChild("Characters")
+        if CharRemotes then
+            RollRemote = CharRemotes:FindFirstChild("Roll")
+            BuyRemote = CharRemotes:FindFirstChild("Buy")
+        end
+    end
+end)
 
 local isRunning = false
 local rollThread = nil
@@ -96,23 +113,12 @@ function AutoRollModule.GetRollPrompt(plot, timeout)
     timeout = timeout or 0
     local start = tick()
     repeat
-        -- 1. Cari di child Roll
-        local roll = plot:FindFirstChild("Roll")
-        if roll then
-            for _, p in ipairs(roll:GetDescendants()) do
-                if p:IsA("ProximityPrompt") and (p.Name == "RollPrompt" or p.Name:lower():find("roll")) then
-                    p.Enabled = true
-                    return p, p.Parent
-                end
-            end
-        end
-
-        -- 2. Fallback scan semua descendants di plot
+        -- 1. Cari di child Roll / Button
         for _, p in ipairs(plot:GetDescendants()) do
             if p:IsA("ProximityPrompt") then
                 local pName = p.Name:lower()
                 local act = tostring(p.ActionText):lower()
-                if pName == "rollprompt" or pName:find("roll") or act:find("roll") then
+                if pName == "rollprompt" or pName:find("roll") or act:find("summon") or act:find("roll") then
                     p.Enabled = true
                     return p, p.Parent
                 end
@@ -148,7 +154,7 @@ function AutoRollModule.TriggerRoll(prompt)
     end
 end
 
-function AutoRollModule.GetTargetUnitsOnPedestals(plot, selectedUnitsMap, allUnitsMap)
+function AutoRollModule.GetTargetUnitsOnPedestals(plot, selectedUnitsMap, allUnitsMap, autoSecretGod)
     local targetsFound = {}
     local roll = plot:FindFirstChild("Roll")
     local rollOrigin = roll and roll:GetPivot().Position or plot:GetPivot().Position
@@ -157,31 +163,61 @@ function AutoRollModule.GetTargetUnitsOnPedestals(plot, selectedUnitsMap, allUni
         if model:IsA("Model") then
             local buyPrompt = nil
             for _, p in ipairs(model:GetDescendants()) do
-                if p:IsA("ProximityPrompt") and p.Name ~= "RollPrompt" then
+                if p:IsA("ProximityPrompt") then
                     local act = tostring(p.ActionText):lower()
                     local pName = p.Name:lower()
-                    if act:find("buy") or pName:find("buy") or act:find("$") then
-                        buyPrompt = p
-                        break
+                    if pName ~= "rollprompt" and not act:find("summon") then
+                        if act:find("buy") or pName:find("buy") or act:find("pick") or pName:find("placement") or act:find("$") or act:find("claim") then
+                            buyPrompt = p
+                            break
+                        end
                     end
                 end
             end
             
             if buyPrompt then
                 local charData = nil
-                local mName = model.Name:lower()
-                if selectedUnitsMap[mName] and allUnitsMap[mName] then 
-                    charData = allUnitsMap[mName] 
+                
+                local function findMatch(raw)
+                    if not raw then return nil end
+                    local k1 = raw:lower():gsub("^%s+", ""):gsub("%s+$", "")
+                    local k2 = k1:gsub("%s+", "")
+                    local k3 = k1:gsub("%b()", ""):gsub("^%s+", ""):gsub("%s+$", "")
+                    
+                    local matchedData = allUnitsMap[k1] or allUnitsMap[k2] or ( #k3 > 0 and allUnitsMap[k3] )
+                    
+                    -- Mode Auto Secret / God: Ambil otomatis unit Secret, God, atau Limited
+                    if autoSecretGod and matchedData then
+                        local r = matchedData.rarity
+                        if r == "Secret" or r == "God" or r == "Limited" then
+                            return matchedData
+                        end
+                    end
+                    
+                    -- Mode Manual List
+                    if selectedUnitsMap[k1] and allUnitsMap[k1] then return allUnitsMap[k1] end
+                    if selectedUnitsMap[k2] and allUnitsMap[k2] then return allUnitsMap[k2] end
+                    if #k3 > 0 and selectedUnitsMap[k3] and allUnitsMap[k3] then return allUnitsMap[k3] end
+                    
+                    -- Check if selected directly by displayName or raw name
+                    for selKey, isSelected in pairs(selectedUnitsMap) do
+                        if isSelected then
+                            local selClean = tostring(selKey):lower()
+                            if k1:find(selClean, 1, true) or selClean:find(k1, 1, true) then
+                                return allUnitsMap[k1] or allUnitsMap[selClean]
+                            end
+                        end
+                    end
+                    return nil
                 end
+                
+                charData = findMatch(model.Name)
                 
                 if not charData then
                     for _, lbl in ipairs(model:GetDescendants()) do
                         if lbl:IsA("TextLabel") and lbl.Text and #lbl.Text > 0 then
-                            local txt = lbl.Text:lower():gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
-                            if selectedUnitsMap[txt] and allUnitsMap[txt] then
-                                charData = allUnitsMap[txt]
-                                break
-                            end
+                            charData = findMatch(lbl.Text)
+                            if charData then break end
                         end
                     end
                 end
@@ -253,6 +289,7 @@ function AutoRollModule.Start(options)
     
     local selectedUnits = options.SelectedUnits or {}
     local allUnitsMap = options.AllUnitsMap or {}
+    local getAutoSecretGod = options.GetAutoSecretGod or function() return options.AutoSecretGod or false end
     local getInterval = options.GetInterval or function() return 2.5 end
     local onStatus = options.OnStatus or function() end
     local onBought = options.OnBought or function() end
@@ -300,7 +337,13 @@ function AutoRollModule.Start(options)
             
             if rollPrompt and rollBtn then
                 rollCount += 1
-                onStatus(string.format("Status: 🎰 Roll #%d | Plot: %s", rollCount, myPlot.Name), "rolling", rollCount)
+                local modeText = ""
+                local isAutoSG = (type(getAutoSecretGod) == "function" and getAutoSecretGod()) or (getAutoSecretGod == true)
+                if isAutoSG then
+                    modeText = " [👑 Auto Secret/God]"
+                end
+                
+                onStatus(string.format("Status: 🎰 Roll #%d%s | Plot: %s", rollCount, modeText, myPlot.Name), "rolling", rollCount)
                 
                 AutoRollModule.MoveToRollButton(rollBtn)
                 AutoRollModule.TriggerRoll(rollPrompt)
@@ -310,7 +353,8 @@ function AutoRollModule.Start(options)
             
             if not isRunning then break end
             
-            local targets = AutoRollModule.GetTargetUnitsOnPedestals(myPlot, selectedUnits, allUnitsMap)
+            local isAutoSG = (type(getAutoSecretGod) == "function" and getAutoSecretGod()) or (getAutoSecretGod == true)
+            local targets = AutoRollModule.GetTargetUnitsOnPedestals(myPlot, selectedUnits, allUnitsMap, isAutoSG)
             
             if #targets > 0 then
                 onStatus(string.format("Status: 🎯 %d Unit Target Ditemukan! Membeli...", #targets), "found", #targets)

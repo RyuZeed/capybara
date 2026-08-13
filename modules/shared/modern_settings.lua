@@ -454,6 +454,10 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
         local nm = nameBox.Text:gsub("%s+","")~="" and nameBox.Text or "Imported"
         if mgr.Import(jsonBox.Text, nm) then
             selTxt.Text = S.Current; nameBox.Text = S.Current; rebuildDrop()
+            -- Langsung terapkan config yg diimpor ke semua modul aktif
+            task.defer(function()
+                mgr.Load(S.Current)
+            end)
         end
     end)
 

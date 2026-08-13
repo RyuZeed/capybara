@@ -5,6 +5,11 @@
 -- =================================================================
 
 local ConfigManager = {}
+_G.ConfigManager = ConfigManager
+
+-- 🔇 SILENT MODE (Zero terminal/console spam)
+local print = function(...) end
+local warn = function(...) end
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -18,6 +23,7 @@ ConfigManager.ConfigPath = CONFIG_PATH
 
 ConfigManager.CurrentConfig = {
     AutoHuntEnabled = false,
+    AutoSecretGod = false,
     RollInterval = 2.5,
     SelectedUnits = {},
     WalkSpeed = 16,
@@ -73,6 +79,7 @@ function ConfigManager.Load()
                 local data = HttpService:JSONDecode(content)
                 if typeof(data) == "table" then
                     if data.AutoHuntEnabled ~= nil then ConfigManager.CurrentConfig.AutoHuntEnabled = data.AutoHuntEnabled end
+                    if data.AutoSecretGod ~= nil then ConfigManager.CurrentConfig.AutoSecretGod = data.AutoSecretGod end
                     if data.RollInterval ~= nil then ConfigManager.CurrentConfig.RollInterval = data.RollInterval end
                     if data.WalkSpeed ~= nil then ConfigManager.CurrentConfig.WalkSpeed = data.WalkSpeed end
                     if data.JumpPower ~= nil then ConfigManager.CurrentConfig.JumpPower = data.JumpPower end

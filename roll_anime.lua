@@ -17,8 +17,12 @@
 	===============================================================
 ]]
 
-if not game:IsLoaded() then game.Loaded:Wait() end
-task.wait(0.5)
+if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
+task.wait(0.3)
+
+-- 🔇 SILENT MODE: Matikan seluruh text/log terminal
+local print = function(...) end
+local warn = function(...) end
 
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -27,43 +31,73 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local player = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
+-- 🧹 HAPUS PAKSA UI LAMA BILA ADA (gethui, CoreGui & PlayerGui)
+pcall(function()
+    if _G.RitodHubRollAnime and typeof(_G.RitodHubRollAnime) == "Instance" then
+        pcall(function() _G.RitodHubRollAnime:Destroy() end)
+    end
+    local targets = {}
+    if typeof(gethui) == "function" then pcall(function() table.insert(targets, gethui()) end) end
+    if CoreGui then table.insert(targets, CoreGui) end
+    if player and player:FindFirstChild("PlayerGui") then table.insert(targets, player.PlayerGui) end
+    
+    for _, parent in ipairs(targets) do
+        for _, name in ipairs({"RitodHubUltra", "RitodHubLite", "RollAnimeHub", "RitodRollAnime"}) do
+            if parent:FindFirstChild(name) then
+                pcall(function() parent[name]:Destroy() end)
+            end
+        end
+    end
+end)
+
 -- =================================================================
 -- 🌐 ROLL ANIME MODULAR LOADER (LOCAL & GITHUB CLOUD SUPPORT)
 -- =================================================================
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/roll_anime/"
 
 local function loadModule(name)
-    -- 1. Load from GitHub Cloud with Cache-Buster for instant updates
-    local cacheBuster = "?t=" .. tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999))
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(BASE_URL .. name .. ".lua" .. cacheBuster))()
-    end)
-    if success and result then
-        print("🌐 [Ritod Hub] Loaded cloud module: " .. name)
-        return result
+    -- 0. Cek jika modul sudah diload di global memory _G
+    local globalMaps = {
+        ["anti_afk"]        = _G.AntiAFK or _G.AFKModule,
+        ["config_manager"]  = _G.ConfigManager,
+        ["catalog"]         = _G.CatalogModule or _G.Catalog,
+        ["auto_roll"]       = _G.AutoRoll or _G.AutoRollModule,
+        ["graphics"]        = _G.GraphicsOptimizer or _G.GraphicsModule,
+        ["modern_settings"] = _G.ModernSettings,
+    }
+    if globalMaps[name] and typeof(globalMaps[name]) == "table" then
+        return globalMaps[name]
     end
 
-    -- 2. Fallback to local files if offline
+    -- 1. Prioritaskan file lokal di workspace executor jika ada
     local localPaths = {
         "modules/roll_anime/" .. name .. ".lua",
         name .. ".lua",
-        "RitodHub/modules/roll_anime/" .. name .. ".lua"
+        "RitodHub/modules/roll_anime/" .. name .. ".lua",
+        "lucid-shannon/modules/roll_anime/" .. name .. ".lua"
     }
     if typeof(readfile) == "function" and typeof(isfile) == "function" then
         for _, path in ipairs(localPaths) do
             if isfile(path) then
-                local s, r = pcall(function()
+                local lSuccess, lResult = pcall(function()
                     return loadstring(readfile(path))()
                 end)
-                if s and r then
-                    print("📁 [Ritod Hub] Loaded local fallback module: " .. path)
-                    return r
+                if lSuccess and lResult then
+                    return lResult
                 end
             end
         end
     end
 
-    warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name .. " -> " .. tostring(result))
+    -- 2. Fallback: Load dari GitHub Cloud
+    local success, result = pcall(function()
+        local url = BASE_URL .. name .. ".lua?t=" .. tostring(os.time())
+        return loadstring(game:HttpGet(url))()
+    end)
+    if success and result then
+        return result
+    end
+
     return nil
 end
 
@@ -76,7 +110,7 @@ local ModernSettings  = loadModule("modern_settings")
 
 -- Auto-start Anti-AFK
 if AFKModule then
-    AFKModule.Enable()
+    pcall(function() AFKModule.Enable() end)
 end
 
 -- Muat config tersimpan
@@ -118,6 +152,8 @@ screenGui.Name = "RitodHubUltra"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = parentGui
+_G.RitodHubRollAnime = screenGui
+_G.RitodHubGui = screenGui
 
 -- ===================== DRAGGABLE & CLICK HANDLER =====================
 local function makeDraggable(frame, dragHandle, onClick)
@@ -1234,6 +1270,8 @@ local function startHunt()
 	Notify("Auto Hunt", "Auto Roll & Sniper AKTIF!", 2.5)
 
 	AutoRollModule.Start({
+		AutoSecretGod = savedConfig.AutoSecretGod or false,
+		GetAutoSecretGod = function() return savedConfig.AutoSecretGod or false end,
 		SelectedUnits = selectedUnits,
 		AllUnitsMap = CatalogModule and CatalogModule.AllUnitsMap or {},
 		GetInterval = function() return rollInterval end,
@@ -1286,6 +1324,14 @@ huntToggleRef = RollTab:AddToggle("Auto Hunt (Continuous Roll & Sniper)", savedC
 	end
 end)
 
+RollTab:AddToggle("👑 Auto Buy Secret/God/Limited (Tanpa List)", savedConfig.AutoSecretGod or false, function(state)
+	savedConfig.AutoSecretGod = state
+	if ConfigManager then
+		ConfigManager.Save({ AutoSecretGod = state })
+	end
+	Notify("Auto Secret/God", state and "Mode Auto Secret & God AKTIF!" or "Mode Auto Secret & God NONAKTIF", 2)
+end)
+
 RollTab:AddSlider("Roll Delay (Detik)", 1, 5, math.floor(rollInterval), function(val)
 	rollInterval = val
 	if ConfigManager then
@@ -1295,7 +1341,10 @@ end)
 
 RollTab:AddSection("Quick Rarity Select")
 
-RollTab:AddButton("🌟 Pilih Semua Secret (13 Unit) & God (14 Unit)", function()
+local secretNum = CatalogModule and #(CatalogModule.UnitsByRarity["Secret"] or {}) or 16
+local godNum = CatalogModule and #(CatalogModule.UnitsByRarity["God"] or {}) or 22
+
+RollTab:AddButton(string.format("🌟 Pilih Semua Secret (%d) & God (%d)", secretNum, godNum), function()
 	selectedUnits = {}
 	if CatalogModule then
 		for _, u in ipairs(CatalogModule.UnitsByRarity["Secret"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
@@ -1550,4 +1599,6 @@ if savedConfig.AutoHuntEnabled then
 end
 
 -- Pop up notifikasi awal
-Notify("⚡RITOD HUB⚡", "Loaded! File Config: " .. cfgPath, 4)
+local activeCfgPath = (ConfigManager and ConfigManager.ConfigPath) or string.format("RitodHub/RollAnimeForFight/%s.json", player.Name)
+Notify("⚡RITOD HUB⚡", "Loaded! File Config: " .. activeCfgPath, 4)
+
