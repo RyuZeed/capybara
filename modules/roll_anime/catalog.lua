@@ -128,18 +128,17 @@ for id, data in pairs(rawTable) do
             
             table.insert(CatalogModule.UnitsByRarity[r], entry)
             
-            -- Multi-alias indexing for bulletproof detection
+            -- Multi-alias indexing for exact detection
             local key1 = rawName:lower()
             local key2 = displayName:lower()
             local key3 = key1:gsub("%s+", "")
             local key4 = key2:gsub("%s+", "")
-            local key5 = key1:gsub("%b()", ""):gsub("^%s+", ""):gsub("%s+$", "")
             
             CatalogModule.AllUnitsMap[key1] = entry
             CatalogModule.AllUnitsMap[key2] = entry
             CatalogModule.AllUnitsMap[key3] = entry
             CatalogModule.AllUnitsMap[key4] = entry
-            if #key5 > 0 then CatalogModule.AllUnitsMap[key5] = entry end
+            CatalogModule.AllUnitsMap[sid] = entry
         end
     end
 end

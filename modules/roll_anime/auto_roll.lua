@@ -179,35 +179,31 @@ function AutoRollModule.GetTargetUnitsOnPedestals(plot, selectedUnitsMap, allUni
                 local charData = nil
                 
                 local function findMatch(raw)
-                    if not raw then return nil end
+                    if not raw or #raw == 0 then return nil end
                     local k1 = raw:lower():gsub("^%s+", ""):gsub("%s+$", "")
                     local k2 = k1:gsub("%s+", "")
-                    local k3 = k1:gsub("%b()", ""):gsub("^%s+", ""):gsub("%s+$", "")
                     
-                    local matchedData = allUnitsMap[k1] or allUnitsMap[k2] or ( #k3 > 0 and allUnitsMap[k3] )
+                    local matchedData = allUnitsMap[k1] or allUnitsMap[k2]
+                    if not matchedData then return nil end
                     
-                    -- Mode Auto Secret / God: Ambil otomatis unit Secret, God, atau Limited
-                    if autoSecretGod and matchedData then
+                    -- Mode 1: Auto Secret / God Mode (Hanya unit dengan rarity Secret, God, atau Limited)
+                    if autoSecretGod then
                         local r = matchedData.rarity
                         if r == "Secret" or r == "God" or r == "Limited" then
                             return matchedData
                         end
                     end
                     
-                    -- Mode Manual List
-                    if selectedUnitsMap[k1] and allUnitsMap[k1] then return allUnitsMap[k1] end
-                    if selectedUnitsMap[k2] and allUnitsMap[k2] then return allUnitsMap[k2] end
-                    if #k3 > 0 and selectedUnitsMap[k3] and allUnitsMap[k3] then return allUnitsMap[k3] end
+                    -- Mode 2: Manual Checklist (Hanya beli jika benar-benar dicentang di checklist)
+                    local rawLower = matchedData.name:lower()
+                    local dispLower = matchedData.displayName:lower()
+                    local rawClean = rawLower:gsub("%s+", "")
+                    local dispClean = dispLower:gsub("%s+", "")
                     
-                    -- Check if selected directly by displayName or raw name
-                    for selKey, isSelected in pairs(selectedUnitsMap) do
-                        if isSelected then
-                            local selClean = tostring(selKey):lower()
-                            if k1:find(selClean, 1, true) or selClean:find(k1, 1, true) then
-                                return allUnitsMap[k1] or allUnitsMap[selClean]
-                            end
-                        end
+                    if selectedUnitsMap[rawLower] or selectedUnitsMap[dispLower] or selectedUnitsMap[rawClean] or selectedUnitsMap[dispClean] or selectedUnitsMap[matchedData.id] then
+                        return matchedData
                     end
+                    
                     return nil
                 end
                 
