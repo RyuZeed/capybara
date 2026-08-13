@@ -1471,8 +1471,14 @@ QuestTab:AddToggle("📜 Auto Claim Daily & Weekly Quests", savedConfig.AutoClai
 	if AutoClaimModule then
 		AutoClaimModule.Config.DailyQuest = state
 		AutoClaimModule.Config.WeeklyQuest = state
-		if state and not AutoClaimModule.IsRunning() then
-			AutoClaimModule.Start()
+		if state then
+			task.spawn(function()
+				AutoClaimModule.ClaimQuests()
+				AutoClaimModule.ScanAndClaimUI()
+			end)
+			if not AutoClaimModule.IsRunning() then
+				AutoClaimModule.Start()
+			end
 		end
 	end
 	Notify("Auto Quests", state and "Auto Claim Quests AKTIF!" or "Auto Claim Quests NONAKTIF", 2)
@@ -1487,8 +1493,15 @@ QuestTab:AddToggle("🏆 Auto Claim Battlepass Tier", savedConfig.AutoClaimRewar
 		AutoClaimModule.Config.Battlepass = state
 		AutoClaimModule.Config.FreeRewards = state
 		AutoClaimModule.Config.VIPAndGroup = state
-		if state and not AutoClaimModule.IsRunning() then
-			AutoClaimModule.Start()
+		if state then
+			task.spawn(function()
+				AutoClaimModule.ClaimBattlepass()
+				AutoClaimModule.ClaimFreeRewards()
+				AutoClaimModule.ScanAndClaimUI()
+			end)
+			if not AutoClaimModule.IsRunning() then
+				AutoClaimModule.Start()
+			end
 		end
 	end
 	Notify("Auto Rewards", state and "Auto Claim Battlepass & Hadiah AKTIF!" or "Auto Claim Hadiah NONAKTIF", 2)

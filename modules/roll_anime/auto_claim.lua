@@ -71,61 +71,107 @@ local function clickButton(btn)
 end
 
 -- =================================================================
--- 1. 📜 AUTO CLAIM DAILY & WEEKLY QUESTS
+-- 1. 📜 AUTO CLAIM DAILY & WEEKLY QUESTS (COMPREHENSIVE ENGINE)
 -- =================================================================
 function AutoClaim.ClaimQuests()
     pcall(function()
-        local bpFolder = RS:FindFirstChild("Modules") and RS.Modules:FindFirstChild("Battlepass")
-        local questFolder = bpFolder and bpFolder:FindFirstChild("BattlepassQuest")
-        
-        if not questFolder then
-            for _, desc in ipairs(RS:GetDescendants()) do
-                if desc.Name == "BattlepassQuest" and desc:IsA("Folder") then
-                    questFolder = desc; break
+        -- 1. Cari Remote ClaimQuest & GetQuestData
+        local claimQuestRemote = nil
+        local getQuestDataFunc = nil
+        local questDataModule = nil
+
+        for _, desc in ipairs(RS:GetDescendants()) do
+            if desc.Name == "ClaimQuest" and desc:IsA("RemoteEvent") then
+                claimQuestRemote = desc
+            elseif desc.Name == "GetQuestData" and desc:IsA("RemoteFunction") then
+                getQuestDataFunc = desc
+            elseif desc.Name == "Quest" and desc:IsA("ModuleScript") and desc.Parent and desc.Parent.Name == "BattlepassQuest" then
+                pcall(function() questDataModule = require(desc) end)
+            end
+        end
+
+        -- 2. Coba baca data quest aktif dari server jika RemoteFunction tersedia
+        if getQuestDataFunc then
+            local s, data = pcall(function() return getQuestDataFunc:InvokeServer() end)
+            if s and type(data) == "table" and claimQuestRemote then
+                -- Scan Daily Quests dari data server
+                if AutoClaim.Config.DailyQuest and data.Daily then
+                    for qKey, qVal in pairs(data.Daily) do
+                        if type(qVal) == "table" then
+                            local isDone = qVal.Completed or qVal.Done or (qVal.Progress and qVal.Target and qVal.Progress >= qVal.Target)
+                            if isDone and not qVal.Claimed then
+                                pcall(function() claimQuestRemote:FireServer("Daily", qKey) end)
+                                pcall(function() claimQuestRemote:FireServer(qKey) end)
+                                if qVal.Name then pcall(function() claimQuestRemote:FireServer("Daily", qVal.Name) end) end
+                                if qVal.Id then pcall(function() claimQuestRemote:FireServer("Daily", qVal.Id) end) end
+                            end
+                        else
+                            pcall(function() claimQuestRemote:FireServer("Daily", qKey) end)
+                        end
+                    end
+                end
+
+                -- Scan Weekly Quests dari data server
+                if AutoClaim.Config.WeeklyQuest and data.Weekly then
+                    for qKey, qVal in pairs(data.Weekly) do
+                        if type(qVal) == "table" then
+                            local isDone = qVal.Completed or qVal.Done or (qVal.Progress and qVal.Target and qVal.Progress >= qVal.Target)
+                            if isDone and not qVal.Claimed then
+                                pcall(function() claimQuestRemote:FireServer("Weekly", qKey) end)
+                                pcall(function() claimQuestRemote:FireServer(qKey) end)
+                                if qVal.Name then pcall(function() claimQuestRemote:FireServer("Weekly", qVal.Name) end) end
+                                if qVal.Id then pcall(function() claimQuestRemote:FireServer("Weekly", qVal.Id) end) end
+                            end
+                        else
+                            pcall(function() claimQuestRemote:FireServer("Weekly", qKey) end)
+                        end
+                    end
                 end
             end
         end
 
-        if questFolder then
-            local claimQuestRemote = questFolder:FindFirstChild("ClaimQuest")
-            local getQuestDataFunc = questFolder:FindFirstChild("GetQuestData")
-
-            if getQuestDataFunc and getQuestDataFunc:IsA("RemoteFunction") then
-                local s, data = pcall(function() return getQuestDataFunc:InvokeServer() end)
-                if s and type(data) == "table" then
-                    -- Scan Daily Quests
-                    if AutoClaim.Config.DailyQuest and data.Daily then
-                        for qId, qInfo in pairs(data.Daily) do
-                            if type(qInfo) == "table" and qInfo.Completed and not qInfo.Claimed then
-                                if claimQuestRemote and claimQuestRemote:IsA("RemoteEvent") then
-                                    claimQuestRemote:FireServer("Daily", qId)
-                                end
-                            end
-                        end
-                    end
-                    -- Scan Weekly Quests
-                    if AutoClaim.Config.WeeklyQuest and data.Weekly then
-                        for qId, qInfo in pairs(data.Weekly) do
-                            if type(qInfo) == "table" and qInfo.Completed and not qInfo.Claimed then
-                                if claimQuestRemote and claimQuestRemote:IsA("RemoteEvent") then
-                                    claimQuestRemote:FireServer("Weekly", qId)
-                                end
-                            end
-                        end
+        -- 3. Coba klaim berdasarkan modul definisi quest internal game
+        if questDataModule and claimQuestRemote then
+            if AutoClaim.Config.DailyQuest and questDataModule.Daily then
+                for qKey, qVal in pairs(questDataModule.Daily) do
+                    pcall(function() claimQuestRemote:FireServer("Daily", qKey) end)
+                    if type(qVal) == "table" and qVal.Name then
+                        pcall(function() claimQuestRemote:FireServer("Daily", qVal.Name) end)
                     end
                 end
             end
+            if AutoClaim.Config.WeeklyQuest and questDataModule.Weekly then
+                for qKey, qVal in pairs(questDataModule.Weekly) do
+                    pcall(function() claimQuestRemote:FireServer("Weekly", qKey) end)
+                    if type(qVal) == "table" and qVal.Name then
+                        pcall(function() claimQuestRemote:FireServer("Weekly", qVal.Name) end)
+                    end
+                end
+            end
+        end
 
-            -- Direct safety sweep for generic quest index slots
-            if claimQuestRemote and claimQuestRemote:IsA("RemoteEvent") then
+        -- 4. Pola Index Universal (Slot 1 sampai 15)
+        if claimQuestRemote then
+            for i = 1, 15 do
+                if AutoClaim.Config.DailyQuest then
+                    pcall(function() claimQuestRemote:FireServer("Daily", i) end)
+                    pcall(function() claimQuestRemote:FireServer("Daily", tostring(i)) end)
+                    pcall(function() claimQuestRemote:FireServer(i) end)
+                    pcall(function() claimQuestRemote:FireServer(tostring(i)) end)
+                end
+                if AutoClaim.Config.WeeklyQuest then
+                    pcall(function() claimQuestRemote:FireServer("Weekly", i) end)
+                    pcall(function() claimQuestRemote:FireServer("Weekly", tostring(i)) end)
+                end
+            end
+        end
+
+        -- 5. Faction Quest Support
+        for _, desc in ipairs(RS:GetDescendants()) do
+            if (desc.Name == "ClaimFactionQuest" or desc.Name == "FactionClaim") and desc:IsA("RemoteEvent") then
                 for i = 1, 10 do
-                    if AutoClaim.Config.DailyQuest then
-                        pcall(function() claimQuestRemote:FireServer("Daily", i) end)
-                        pcall(function() claimQuestRemote:FireServer(i) end)
-                    end
-                    if AutoClaim.Config.WeeklyQuest then
-                        pcall(function() claimQuestRemote:FireServer("Weekly", i) end)
-                    end
+                    pcall(function() desc:FireServer(i) end)
+                    pcall(function() desc:FireServer("Daily", i) end)
                 end
             end
         end
@@ -138,12 +184,15 @@ end
 function AutoClaim.ClaimBattlepass()
     if not AutoClaim.Config.Battlepass then return end
     pcall(function()
-        local bpFolder = RS:FindFirstChild("Modules") and RS.Modules:FindFirstChild("Battlepass")
-        if bpFolder then
-            local bpClaimRemote = bpFolder:FindFirstChild("Claim")
-            if bpClaimRemote and bpClaimRemote:IsA("RemoteEvent") then
-                for tier = 1, 50 do
-                    pcall(function() bpClaimRemote:FireServer(tier) end)
+        for _, desc in ipairs(RS:GetDescendants()) do
+            if (desc.Name == "Claim" or desc.Name == "ClaimBattlepass" or desc.Name == "ClaimReward") and desc:IsA("RemoteEvent") then
+                local pName = desc.Parent and desc.Parent.Name or ""
+                if pName:find("Battlepass") or pName:find("Reward") or desc.Name:find("Battlepass") then
+                    for tier = 1, 50 do
+                        pcall(function() desc:FireServer(tier) end)
+                        pcall(function() desc:FireServer("Free", tier) end)
+                        pcall(function() desc:FireServer("Premium", tier) end)
+                    end
                 end
             end
         end
@@ -157,13 +206,13 @@ function AutoClaim.ClaimFreeRewards()
     pcall(function()
         local remotes = RS:FindFirstChild("Remotes")
         if remotes then
-            -- 1. Free Rewards / Playtime gifts
+            -- Playtime gifts
             if AutoClaim.Config.FreeRewards then
                 local freeRewards = remotes:FindFirstChild("FreeRewards")
                 if freeRewards then
                     local updateProgress = freeRewards:FindFirstChild("UpdateProgress")
                     if updateProgress and updateProgress:IsA("RemoteEvent") then
-                        for slot = 1, 12 do
+                        for slot = 1, 15 do
                             pcall(function() updateProgress:FireServer(slot) end)
                         end
                     end
@@ -174,7 +223,7 @@ function AutoClaim.ClaimFreeRewards()
                 end
             end
 
-            -- 2. VIP Reward
+            -- VIP Reward
             if AutoClaim.Config.VIPAndGroup then
                 local claimVIP = remotes:FindFirstChild("ClaimVIP")
                 if claimVIP and claimVIP:IsA("RemoteEvent") then
@@ -186,7 +235,7 @@ function AutoClaim.ClaimFreeRewards()
 end
 
 -- =================================================================
--- 4. 🖥️ SCAN GUI BUTTONS UNTUK KLAIM TAMPILAN
+-- 4. 🖥️ DEEP UI BUTTON CLAIM SCANNER (AUTO CLICK IN-GAME CLAIM BUTTONS)
 -- =================================================================
 function AutoClaim.ScanAndClaimUI()
     pcall(function()
@@ -195,12 +244,16 @@ function AutoClaim.ScanAndClaimUI()
 
         for _, desc in ipairs(pGui:GetDescendants()) do
             if desc:IsA("TextButton") or desc:IsA("ImageButton") then
-                local txt = tostring(desc.Text or ""):lower()
-                local bName = desc.Name:lower()
-                if txt == "claim" or txt == "claim all" or txt == "collect" or bName == "claimbutton" or bName == "claim" then
-                    if desc.Visible and desc.Active then
-                        clickButton(desc)
-                    end
+                local txt = tostring(desc.Text or ""):lower():gsub("%s+", "")
+                local bName = desc.Name:lower():gsub("%s+", "")
+                local pName = desc.Parent and desc.Parent.Name:lower() or ""
+                
+                local isClaim = (txt == "claim" or txt == "claimall" or txt == "collect" or txt == "ambil" or txt == "klaim") or
+                                (bName == "claim" or bName == "claimbtn" or bName == "claimbutton" or bName == "collectbtn" or bName == "rewardbtn") or
+                                (pName:find("quest") and (txt:find("claim") or bName:find("claim")))
+
+                if isClaim and desc.Visible then
+                    clickButton(desc)
                 end
             end
         end
