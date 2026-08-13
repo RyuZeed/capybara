@@ -149,12 +149,5 @@ for r, list in pairs(CatalogModule.UnitsByRarity) do
     table.sort(list, function(a, b) return (a.price or 0) > (b.price or 0) end)
 end
 
-local secretCount = #(CatalogModule.UnitsByRarity["Secret"] or {})
-local godCount = #(CatalogModule.UnitsByRarity["God"] or {})
-local mythicCount = #(CatalogModule.UnitsByRarity["Mythic"] or {})
-
-print(string.format("🌟 [Catalog] Loaded %d Secret, %d God, %d Mythic Units!", 
-    secretCount, godCount, mythicCount
-))
-
 return CatalogModule
+

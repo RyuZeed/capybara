@@ -96,15 +96,12 @@ function AFKModule.Enable()
             oldKick = hookmetamethod(game, "__namecall", function(self, ...)
                 local method = getnamecallmethod()
                 if tostring(method):lower() == "kick" and self == LocalPlayer then
-                    print("🛡️ [Ritod Anti-AFK] Blocked Kick attempt!")
                     return nil
                 end
                 return oldKick(self, ...)
             end)
         end
     end)
-
-    print("🛡️ [Ritod Hub] Bulletproof Anti-AFK 24/7 Aktif!")
 end
 
 function AFKModule.Disable()
@@ -117,7 +114,6 @@ function AFKModule.Disable()
         idledConn:Disconnect()
         idledConn = nil
     end
-    print("🛑 [Ritod Hub] Anti-AFK Dimatikan.")
 end
 
 function AFKModule.IsEnabled()

@@ -62,11 +62,6 @@ function ConfigManager.Save(newConfig)
         end
     end)
 
-    if success then
-        print("💾 [ConfigManager] Tersimpan ke: " .. CONFIG_PATH)
-    else
-        warn("⚠️ [ConfigManager] Gagal menyimpan config: " .. tostring(err))
-    end
     return success
 end
 
@@ -96,15 +91,10 @@ function ConfigManager.Load()
                             end
                         end
                     end
-                    print("💾 [ConfigManager] Berhasil memuat config dari: " .. CONFIG_PATH)
                 end
             end
         end
     end)
-
-    if not success then
-        warn("⚠️ [ConfigManager] Gagal membaca config: " .. tostring(err))
-    end
     return ConfigManager.CurrentConfig
 end
 
@@ -116,13 +106,16 @@ function ConfigManager.Reset()
     end)
     ConfigManager.CurrentConfig = {
         AutoHuntEnabled = false,
+        AutoSecretGod = false,
         RollInterval = 2.5,
         SelectedUnits = {},
         WalkSpeed = 16,
         JumpPower = 50,
-        InfJump = false
+        InfJump = false,
+        PotatoGraphics = false,
+        FarmMode = false,
+        AntiLag = false
     }
-    print("🗑️ [ConfigManager] Config direset ke default.")
     return ConfigManager.CurrentConfig
 end
 
