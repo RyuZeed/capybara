@@ -209,24 +209,96 @@ function AutoClaim.ClaimFreeRewards()
 end
 
 -- =================================================================
--- 4. 🖥️ DEEP UI BUTTON CLAIM SCANNER (AUTO CLICK IN-GAME CLAIM BUTTONS)
+-- 4. 🖥️ DEEP UI BUTTON CLAIM SCANNER (EXACT MAINUI.FRAMES ENGINE)
 -- =================================================================
 function AutoClaim.ScanAndClaimUI()
     pcall(function()
         local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
         if not pGui then return end
 
+        local mainUI = pGui:FindFirstChild("MainUI")
+        local frames = mainUI and mainUI:FindFirstChild("Frames")
+
+        -- 1. Klaim Tombol Quest di MainUI.Frames.Battlepass
+        if AutoClaim.Config.DailyQuest or AutoClaim.Config.WeeklyQuest then
+            local bpFrame = frames and frames:FindFirstChild("Battlepass")
+            local questContent = bpFrame and bpFrame:FindFirstChild("Frame")
+                and bpFrame.Frame:FindFirstChild("Main")
+                and bpFrame.Frame.Main:FindFirstChild("Quest")
+                and bpFrame.Frame.Main.Quest:FindFirstChild("ScrollingFrame")
+                and bpFrame.Frame.Main.Quest.ScrollingFrame:FindFirstChild("Content")
+                and bpFrame.Frame.Main.Quest.ScrollingFrame.Content:FindFirstChild("Rewards")
+
+            if questContent then
+                for _, questReward in ipairs(questContent:GetChildren()) do
+                    if questReward.Name == "QuestReward" or questReward.Name:find("Quest") then
+                        for _, desc in ipairs(questReward:GetDescendants()) do
+                            if desc:IsA("GuiButton") and (desc.Name == "Button" or desc.Name:find("Claim")) then
+                                clickButton(desc)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 2. Klaim Tombol Battlepass Tier di MainUI.Frames.Battlepass
+        if AutoClaim.Config.Battlepass then
+            local bpFrame = frames and frames:FindFirstChild("Battlepass")
+            local bpContent = bpFrame and bpFrame:FindFirstChild("Frame")
+                and bpFrame.Frame:FindFirstChild("Main")
+                and bpFrame.Frame.Main:FindFirstChild("Battlepass")
+                and bpFrame.Frame.Main.Battlepass:FindFirstChild("ScrollingFrame")
+                and bpFrame.Frame.Main.Battlepass.ScrollingFrame:FindFirstChild("Content")
+                and bpFrame.Frame.Main.Battlepass.ScrollingFrame.Content:FindFirstChild("Rewards")
+
+            if bpContent then
+                for _, bpReward in ipairs(bpContent:GetChildren()) do
+                    if bpReward.Name == "BattlepassReward" or bpReward.Name:find("Reward") then
+                        for _, desc in ipairs(bpReward:GetDescendants()) do
+                            if desc:IsA("GuiButton") and (desc.Name == "Button" or desc.Name:find("Claim")) then
+                                clickButton(desc)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 3. Klaim VIP Rewards
+        if AutoClaim.Config.VIPAndGroup and frames and frames:FindFirstChild("VIPRewards") then
+            local vipClaimBtn = frames.VIPRewards:FindFirstChild("Frame")
+                and frames.VIPRewards.Frame:FindFirstChild("Main")
+                and frames.VIPRewards.Frame.Main:FindFirstChild("Claim")
+                and frames.VIPRewards.Frame.Main.Claim:FindFirstChild("Claim")
+
+            if vipClaimBtn and vipClaimBtn:IsA("GuiButton") then
+                clickButton(vipClaimBtn)
+            end
+        end
+
+        -- 4. Klaim Group Rewards
+        if AutoClaim.Config.VIPAndGroup and frames and frames:FindFirstChild("GroupRewards") then
+            local groupClaimBtn = frames.GroupRewards:FindFirstChild("Frame")
+                and frames.GroupRewards.Frame:FindFirstChild("Main")
+                and frames.GroupRewards.Frame.Main:FindFirstChild("Claim")
+                and frames.GroupRewards.Frame.Main.Claim:FindFirstChild("Start")
+
+            if groupClaimBtn and groupClaimBtn:IsA("GuiButton") then
+                clickButton(groupClaimBtn)
+            end
+        end
+
+        -- 5. Generic Safe Sweep untuk tombol Claim lainnya
         for _, desc in ipairs(pGui:GetDescendants()) do
-            if desc:IsA("TextButton") or desc:IsA("ImageButton") then
-                local txt = tostring(desc.Text or ""):lower():gsub("%s+", "")
+            if desc:IsA("GuiButton") then
+                local txt = tostring(desc:IsA("TextButton") and desc.Text or ""):lower():gsub("%s+", "")
                 local bName = desc.Name:lower():gsub("%s+", "")
                 local pName = desc.Parent and desc.Parent.Name:lower() or ""
-                
-                local isClaim = (txt == "claim" or txt == "claimall" or txt == "collect" or txt == "ambil" or txt == "klaim") or
-                                (bName == "claim" or bName == "claimbtn" or bName == "claimbutton" or bName == "collectbtn" or bName == "rewardbtn") or
-                                (pName:find("quest") and (txt:find("claim") or bName:find("claim")))
 
-                if isClaim and desc.Visible then
+                if (txt == "claim" or txt == "claimall" or txt == "collect" or txt == "ambil") or
+                   (bName == "claim" or bName == "claimbtn" or bName == "claimbutton") or
+                   (pName:find("quest") and (txt:find("claim") or bName:find("claim"))) then
                     clickButton(desc)
                 end
             end
