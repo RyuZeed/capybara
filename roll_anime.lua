@@ -62,6 +62,7 @@ local function loadModule(name)
         ["config_manager"]  = _G.ConfigManager,
         ["catalog"]         = _G.CatalogModule or _G.Catalog,
         ["auto_roll"]       = _G.AutoRoll or _G.AutoRollModule,
+        ["auto_claim"]      = _G.AutoClaim or _G.AutoClaimModule,
         ["graphics"]        = _G.GraphicsOptimizer or _G.GraphicsModule,
         ["modern_settings"] = _G.ModernSettings,
     }
@@ -105,6 +106,7 @@ local AFKModule       = loadModule("anti_afk")
 local ConfigManager   = loadModule("config_manager")
 local CatalogModule   = loadModule("catalog")
 local AutoRollModule  = loadModule("auto_roll")
+local AutoClaimModule = loadModule("auto_claim")
 local GraphicsModule  = loadModule("graphics")
 local ModernSettings  = loadModule("modern_settings")
 
@@ -115,6 +117,19 @@ end
 
 -- Muat config tersimpan
 local savedConfig = ConfigManager and ConfigManager.Load() or {}
+
+-- Auto-start Auto-Claim Engine
+if AutoClaimModule then
+    pcall(function()
+        AutoClaimModule.Start({
+            DailyQuest  = savedConfig.AutoClaimQuests ~= false,
+            WeeklyQuest = savedConfig.AutoClaimQuests ~= false,
+            Battlepass  = savedConfig.AutoClaimRewards ~= false,
+            FreeRewards = savedConfig.AutoClaimRewards ~= false,
+            VIPAndGroup = savedConfig.AutoClaimRewards ~= false,
+        })
+    end)
+end
 
 -- ⚙️ getgenv().RitodConfig / getgenv().UserConfig Override Support
 local userGenConfig = (getgenv and (getgenv().RitodConfig or getgenv().UserConfig)) or {}
@@ -1445,7 +1460,55 @@ PlayerTab:AddToggle("Infinite Jump", savedConfig.InfJump or false, function(stat
 	end
 end)
 
--- 4. TAB ⚙️ SETTINGS & CONFIG
+-- 4. TAB 🎁 QUESTS & REWARDS
+local QuestTab = RitodLib:CreateTab("Quests", "🎁")
+
+QuestTab:AddSection("Daily & Weekly Quests")
+
+QuestTab:AddToggle("📜 Auto Claim Daily & Weekly Quests", savedConfig.AutoClaimQuests ~= false, function(state)
+	savedConfig.AutoClaimQuests = state
+	if ConfigManager then ConfigManager.Save({ AutoClaimQuests = state }) end
+	if AutoClaimModule then
+		AutoClaimModule.Config.DailyQuest = state
+		AutoClaimModule.Config.WeeklyQuest = state
+		if state and not AutoClaimModule.IsRunning() then
+			AutoClaimModule.Start()
+		end
+	end
+	Notify("Auto Quests", state and "Auto Claim Quests AKTIF!" or "Auto Claim Quests NONAKTIF", 2)
+end)
+
+QuestTab:AddSection("Battlepass & Free Gifts")
+
+QuestTab:AddToggle("🏆 Auto Claim Battlepass Tier", savedConfig.AutoClaimRewards ~= false, function(state)
+	savedConfig.AutoClaimRewards = state
+	if ConfigManager then ConfigManager.Save({ AutoClaimRewards = state }) end
+	if AutoClaimModule then
+		AutoClaimModule.Config.Battlepass = state
+		AutoClaimModule.Config.FreeRewards = state
+		AutoClaimModule.Config.VIPAndGroup = state
+		if state and not AutoClaimModule.IsRunning() then
+			AutoClaimModule.Start()
+		end
+	end
+	Notify("Auto Rewards", state and "Auto Claim Battlepass & Hadiah AKTIF!" or "Auto Claim Hadiah NONAKTIF", 2)
+end)
+
+QuestTab:AddSection("Instant Actions")
+
+QuestTab:AddButton("⚡ Klaim Semua Hadiah & Quest Sekarang", function()
+	if AutoClaimModule then
+		AutoClaimModule.ClaimQuests()
+		AutoClaimModule.ClaimBattlepass()
+		AutoClaimModule.ClaimFreeRewards()
+		AutoClaimModule.ScanAndClaimUI()
+		Notify("Claim All", "Semua Quest & Hadiah berhasil diproses klaim!", 2.5)
+	else
+		Notify("Claim Error", "Modul AutoClaim belum dimuat.", 2)
+	end
+end)
+
+-- 5. TAB ⚙️ SETTINGS & CONFIG
 local MiscTab = RitodLib:CreateTab("Settings", "⚙️")
 
 MiscTab:AddSection("Graphics & Performance")

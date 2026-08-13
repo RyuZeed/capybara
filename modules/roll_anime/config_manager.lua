@@ -24,6 +24,8 @@ ConfigManager.ConfigPath = CONFIG_PATH
 ConfigManager.CurrentConfig = {
     AutoHuntEnabled = false,
     AutoSecretGod = false,
+    AutoClaimQuests = true,
+    AutoClaimRewards = true,
     RollInterval = 2.5,
     SelectedUnits = {},
     WalkSpeed = 16,
@@ -75,6 +77,8 @@ function ConfigManager.Load()
                 if typeof(data) == "table" then
                     if data.AutoHuntEnabled ~= nil then ConfigManager.CurrentConfig.AutoHuntEnabled = data.AutoHuntEnabled end
                     if data.AutoSecretGod ~= nil then ConfigManager.CurrentConfig.AutoSecretGod = data.AutoSecretGod end
+                    if data.AutoClaimQuests ~= nil then ConfigManager.CurrentConfig.AutoClaimQuests = data.AutoClaimQuests end
+                    if data.AutoClaimRewards ~= nil then ConfigManager.CurrentConfig.AutoClaimRewards = data.AutoClaimRewards end
                     if data.RollInterval ~= nil then ConfigManager.CurrentConfig.RollInterval = data.RollInterval end
                     if data.WalkSpeed ~= nil then ConfigManager.CurrentConfig.WalkSpeed = data.WalkSpeed end
                     if data.JumpPower ~= nil then ConfigManager.CurrentConfig.JumpPower = data.JumpPower end
