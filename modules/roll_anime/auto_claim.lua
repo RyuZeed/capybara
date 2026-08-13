@@ -71,107 +71,81 @@ local function clickButton(btn)
 end
 
 -- =================================================================
--- 1. 📜 AUTO CLAIM DAILY & WEEKLY QUESTS (COMPREHENSIVE ENGINE)
+-- 1. 📜 AUTO CLAIM DAILY & WEEKLY QUESTS (EXACT DATA STRUCTURE)
 -- =================================================================
 function AutoClaim.ClaimQuests()
     pcall(function()
-        -- 1. Cari Remote ClaimQuest & GetQuestData
-        local claimQuestRemote = nil
-        local getQuestDataFunc = nil
-        local questDataModule = nil
-
-        for _, desc in ipairs(RS:GetDescendants()) do
-            if desc.Name == "ClaimQuest" and desc:IsA("RemoteEvent") then
-                claimQuestRemote = desc
-            elseif desc.Name == "GetQuestData" and desc:IsA("RemoteFunction") then
-                getQuestDataFunc = desc
-            elseif desc.Name == "Quest" and desc:IsA("ModuleScript") and desc.Parent and desc.Parent.Name == "BattlepassQuest" then
-                pcall(function() questDataModule = require(desc) end)
+        local bpQuestFolder = RS:FindFirstChild("Modules") 
+            and RS.Modules:FindFirstChild("Battlepass") 
+            and RS.Modules.Battlepass:FindFirstChild("BattlepassQuest")
+        
+        if not bpQuestFolder then
+            for _, desc in ipairs(RS:GetDescendants()) do
+                if desc.Name == "BattlepassQuest" and desc:IsA("Folder") then
+                    bpQuestFolder = desc
+                    break
+                end
             end
         end
 
-        -- 2. Coba baca data quest aktif dari server jika RemoteFunction tersedia
-        if getQuestDataFunc then
-            local s, data = pcall(function() return getQuestDataFunc:InvokeServer() end)
-            if s and type(data) == "table" and claimQuestRemote then
-                -- Scan Daily Quests dari data server
-                if AutoClaim.Config.DailyQuest and data.Daily then
-                    for qKey, qVal in pairs(data.Daily) do
-                        if type(qVal) == "table" then
-                            local isDone = qVal.Completed or qVal.Done or (qVal.Progress and qVal.Target and qVal.Progress >= qVal.Target)
-                            if isDone and not qVal.Claimed then
-                                pcall(function() claimQuestRemote:FireServer("Daily", qKey) end)
-                                pcall(function() claimQuestRemote:FireServer(qKey) end)
-                                if qVal.Name then pcall(function() claimQuestRemote:FireServer("Daily", qVal.Name) end) end
-                                if qVal.Id then pcall(function() claimQuestRemote:FireServer("Daily", qVal.Id) end) end
+        if not bpQuestFolder then return end
+
+        local getQuestFunc = bpQuestFolder:FindFirstChild("GetQuestData")
+        local claimRemote = bpQuestFolder:FindFirstChild("ClaimQuest")
+
+        if not claimRemote or not claimRemote:IsA("RemoteEvent") then return end
+
+        -- Ambil data quest real-time pemain
+        local questData = nil
+        if getQuestFunc and getQuestFunc:IsA("RemoteFunction") then
+            local s, res = pcall(function() return getQuestFunc:InvokeServer() end)
+            if s and type(res) == "table" then
+                questData = res
+            end
+        end
+
+        -- Jika data berhasil diambil dari server
+        if questData then
+            local categories = {}
+            if AutoClaim.Config.DailyQuest and type(questData.Daily) == "table" then
+                categories["Daily"] = questData.Daily
+            end
+            if AutoClaim.Config.WeeklyQuest and type(questData.Weekly) == "table" then
+                categories["Weekly"] = questData.Weekly
+            end
+
+            for category, list in pairs(categories) do
+                for idx, qInfo in ipairs(list) do
+                    if type(qInfo) == "table" then
+                        local isDone = (qInfo.Completed == true) or (qInfo.Progress and qInfo.Requirement and qInfo.Progress >= qInfo.Requirement)
+                        local isNotClaimed = (qInfo.Claimed ~= true)
+
+                        if isDone and isNotClaimed then
+                            -- Tembak semua variasi parameter agar 100% kompatibel dengan server
+                            pcall(function() claimRemote:FireServer(category, idx) end)
+                            if qInfo.ID then
+                                pcall(function() claimRemote:FireServer(category, qInfo.ID) end)
+                                pcall(function() claimRemote:FireServer(qInfo.ID) end)
                             end
-                        else
-                            pcall(function() claimQuestRemote:FireServer("Daily", qKey) end)
+                            if qInfo.UniqueName then
+                                pcall(function() claimRemote:FireServer(category, qInfo.UniqueName) end)
+                                pcall(function() claimRemote:FireServer(qInfo.UniqueName) end)
+                            end
+                            if qInfo.Name then
+                                pcall(function() claimRemote:FireServer(category, qInfo.Name) end)
+                            end
                         end
                     end
                 end
-
-                -- Scan Weekly Quests dari data server
-                if AutoClaim.Config.WeeklyQuest and data.Weekly then
-                    for qKey, qVal in pairs(data.Weekly) do
-                        if type(qVal) == "table" then
-                            local isDone = qVal.Completed or qVal.Done or (qVal.Progress and qVal.Target and qVal.Progress >= qVal.Target)
-                            if isDone and not qVal.Claimed then
-                                pcall(function() claimQuestRemote:FireServer("Weekly", qKey) end)
-                                pcall(function() claimQuestRemote:FireServer(qKey) end)
-                                if qVal.Name then pcall(function() claimQuestRemote:FireServer("Weekly", qVal.Name) end) end
-                                if qVal.Id then pcall(function() claimQuestRemote:FireServer("Weekly", qVal.Id) end) end
-                            end
-                        else
-                            pcall(function() claimQuestRemote:FireServer("Weekly", qKey) end)
-                        end
-                    end
-                end
             end
-        end
-
-        -- 3. Coba klaim berdasarkan modul definisi quest internal game
-        if questDataModule and claimQuestRemote then
-            if AutoClaim.Config.DailyQuest and questDataModule.Daily then
-                for qKey, qVal in pairs(questDataModule.Daily) do
-                    pcall(function() claimQuestRemote:FireServer("Daily", qKey) end)
-                    if type(qVal) == "table" and qVal.Name then
-                        pcall(function() claimQuestRemote:FireServer("Daily", qVal.Name) end)
-                    end
-                end
-            end
-            if AutoClaim.Config.WeeklyQuest and questDataModule.Weekly then
-                for qKey, qVal in pairs(questDataModule.Weekly) do
-                    pcall(function() claimQuestRemote:FireServer("Weekly", qKey) end)
-                    if type(qVal) == "table" and qVal.Name then
-                        pcall(function() claimQuestRemote:FireServer("Weekly", qVal.Name) end)
-                    end
-                end
-            end
-        end
-
-        -- 4. Pola Index Universal (Slot 1 sampai 15)
-        if claimQuestRemote then
-            for i = 1, 15 do
+        else
+            -- Fallback sweep jika GetQuestData offline
+            for i = 1, 10 do
                 if AutoClaim.Config.DailyQuest then
-                    pcall(function() claimQuestRemote:FireServer("Daily", i) end)
-                    pcall(function() claimQuestRemote:FireServer("Daily", tostring(i)) end)
-                    pcall(function() claimQuestRemote:FireServer(i) end)
-                    pcall(function() claimQuestRemote:FireServer(tostring(i)) end)
+                    pcall(function() claimRemote:FireServer("Daily", i) end)
                 end
                 if AutoClaim.Config.WeeklyQuest then
-                    pcall(function() claimQuestRemote:FireServer("Weekly", i) end)
-                    pcall(function() claimQuestRemote:FireServer("Weekly", tostring(i)) end)
-                end
-            end
-        end
-
-        -- 5. Faction Quest Support
-        for _, desc in ipairs(RS:GetDescendants()) do
-            if (desc.Name == "ClaimFactionQuest" or desc.Name == "FactionClaim") and desc:IsA("RemoteEvent") then
-                for i = 1, 10 do
-                    pcall(function() desc:FireServer(i) end)
-                    pcall(function() desc:FireServer("Daily", i) end)
+                    pcall(function() claimRemote:FireServer("Weekly", i) end)
                 end
             end
         end
