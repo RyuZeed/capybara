@@ -67,6 +67,7 @@ local function loadModule(name)
         ["auto_delete"] = _G.AutoDelete or _G.AutoDeletePlant,
         ["auto_buy_egg"] = _G.AutoBuyEgg,
         ["auto_buy_gear_and_merchant"] = _G.AutoBuyGearAndMerchant or _G.AutoBuyGear,
+        ["auto_gift"] = _G.AutoGift,
         ["modern_settings"] = _G.ModernSettings,
     }
     if globalMaps[name] and typeof(globalMaps[name]) == "table" and (name ~= "auto_buy_gear_and_merchant" or typeof(globalMaps[name].Toggle) == "function") then
@@ -117,6 +118,7 @@ local AutoTutorial   = loadModule("auto_tutorial")
 local AutoDelete     = loadModule("auto_delete")
 local AutoBuyEgg    = loadModule("auto_buy_egg") or loadModule("Auto buy Egg")
 local AutoBuyGear   = loadModule("auto_buy_gear_and_merchant")
+local AutoGift      = loadModule("auto_gift")
 local ModernSettings = loadModule("modern_settings")
 
 -- =================================================================
@@ -135,6 +137,10 @@ local DEFAULT_CONFIG = {
     AutoDelete         = false,
     AutoClaim          = true,
     AutoClaimQuest     = true,
+    AutoGift           = false,
+    AutoAcceptGift     = true,
+    GiftTarget         = "",
+    SelectedGiftItems  = {},
     WalkSpeed          = 16,
     JumpPower          = 50,
     InfJump            = false,
@@ -198,6 +204,8 @@ if typeof(USER_CFG) == "table" then
     if USER_CFG["Auto Claim"] ~= nil then CurrentConfig.AutoClaim = USER_CFG["Auto Claim"] end
     if USER_CFG["Auto Claim Quest"] ~= nil then CurrentConfig.AutoClaimQuest = USER_CFG["Auto Claim Quest"] end
     if USER_CFG["Auto Quest"] ~= nil then CurrentConfig.AutoClaimQuest = USER_CFG["Auto Quest"] end
+    if USER_CFG["Auto Gift"] ~= nil then CurrentConfig.AutoGift = USER_CFG["Auto Gift"] end
+    if USER_CFG["Auto Accept Gift"] ~= nil then CurrentConfig.AutoAcceptGift = USER_CFG["Auto Accept Gift"] end
     if USER_CFG["Auto Delete"] ~= nil then CurrentConfig.AutoDelete = USER_CFG["Auto Delete"] end
     if USER_CFG["Auto Buy Egg"] ~= nil then CurrentConfig.AutoBuyEgg = USER_CFG["Auto Buy Egg"] end
     if USER_CFG["Auto Buy Gear"] ~= nil then CurrentConfig.AutoBuyGear = USER_CFG["Auto Buy Gear"] end
@@ -769,6 +777,7 @@ yesBtn.Activated:Connect(function()
         if AutoTutorial and AutoTutorial.Stop then AutoTutorial.Stop() end
         if AutoDelete and AutoDelete.Stop then AutoDelete.Stop() end
         if AutoClaim and AutoClaim.Stop then AutoClaim.Stop() end
+        if AutoGift and AutoGift.Stop then AutoGift.Stop() end
         if AutoBuyGear then
             if AutoBuyGear.StopGear then AutoBuyGear.StopGear() end
             if AutoBuyGear.StopMerchant then AutoBuyGear.StopMerchant() end
@@ -2175,6 +2184,391 @@ local claimQuestToggle = ClaimTab:AddToggle("📜 Aktifkan Auto Claim Quest (Dai
     end
     Notify("Auto Claim Quest", state and "Auto Claim Quest aktif!" or "Auto Claim Quest dimatikan.", 2.5)
 end)
+
+-- =========================================================================
+-- 📑 TAB 3B: 🎁 AUTO GIFT (DIVINE+ CATALOG)
+-- =========================================================================
+local GiftTab = CreateTab("Auto Gift", "🎁")
+
+local giftCard = Instance.new("Frame")
+giftCard.Size = UDim2.new(1, 0, 0, 56)
+giftCard.BackgroundColor3 = Color3.fromRGB(24, 18, 32)
+giftCard.BorderSizePixel = 0
+giftCard.ZIndex = 14
+giftCard.Parent = GiftTab.Page
+
+local gcCorner = Instance.new("UICorner")
+gcCorner.CornerRadius = UDim.new(0, 10)
+gcCorner.Parent = giftCard
+
+local giftStatusLabel = Instance.new("TextLabel")
+giftStatusLabel.Position = UDim2.new(0, 12, 0, 6)
+giftStatusLabel.Size = UDim2.new(1, -24, 0, 20)
+giftStatusLabel.BackgroundTransparency = 1
+giftStatusLabel.Text = "🎁 Status: Nonaktif"
+giftStatusLabel.TextColor3 = Color3.fromRGB(255, 110, 130)
+giftStatusLabel.TextSize = 12
+giftStatusLabel.Font = Enum.Font.GothamBold
+giftStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+giftStatusLabel.ZIndex = 15
+giftStatusLabel.Parent = giftCard
+
+local giftDetailLabel = Instance.new("TextLabel")
+giftDetailLabel.Position = UDim2.new(0, 12, 0, 28)
+giftDetailLabel.Size = UDim2.new(1, -24, 0, 20)
+giftDetailLabel.BackgroundTransparency = 1
+giftDetailLabel.Text = "🎯 Target: (Belum dipilih) | 📦 Terkirim: 0"
+giftDetailLabel.TextColor3 = Color3.fromRGB(180, 165, 195)
+giftDetailLabel.TextSize = 11
+giftDetailLabel.Font = Enum.Font.GothamMedium
+giftDetailLabel.TextXAlignment = Enum.TextXAlignment.Left
+giftDetailLabel.ZIndex = 15
+giftDetailLabel.Parent = giftCard
+
+task.spawn(function()
+    while giftCard and giftCard.Parent do
+        if AutoGift and AutoGift.Stats then
+            if AutoGift.Stats.IsRunning then
+                giftStatusLabel.Text = "🚀 Status: " .. tostring(AutoGift.Stats.LastStatus)
+                giftStatusLabel.TextColor3 = Color3.fromRGB(0, 230, 140)
+            else
+                giftStatusLabel.Text = "🔴 Status: " .. tostring(AutoGift.Stats.LastStatus or "Nonaktif")
+                giftStatusLabel.TextColor3 = Color3.fromRGB(255, 110, 130)
+            end
+            local tName = AutoGift.Config.TargetName ~= "" and AutoGift.Config.TargetName or (CurrentConfig.GiftTarget ~= "" and CurrentConfig.GiftTarget or "(Auto Pick)")
+            local _, totalStock = AutoGift.ScanInventoryDivineStats()
+            giftDetailLabel.Text = string.format("🎯 Target: %s | 📦 Terkirim: %d | 🎒 Sisa Tas: %d", tName, AutoGift.Stats.TotalSent or 0, totalStock or 0)
+        end
+        task.wait(0.5)
+    end
+end)
+
+GiftTab:AddSection("Kontrol Auto Gift & Auto Accept")
+
+local giftLoopToggle = GiftTab:AddToggle("⚡ Jalankan Auto Gift Loop (Pilihan Divine+)", CurrentConfig.AutoGift or false, function(state)
+    CurrentConfig.AutoGift = state
+    if AutoGift then
+        if AutoGift.Config then
+            AutoGift.Config.TargetName = CurrentConfig.GiftTarget or ""
+            AutoGift.Config.SelectedItems = CurrentConfig.SelectedGiftItems or {}
+            AutoGift.Config.AutoAccept = CurrentConfig.AutoAcceptGift ~= false
+        end
+        AutoGift.Toggle(state)
+    end
+    Notify("Auto Gift", state and "Auto Gift dimulai!" or "Auto Gift dihentikan.", 2.5)
+end)
+
+local giftAcceptToggle = GiftTab:AddToggle("🎁 Auto Accept Gift (Untuk Akun Alt Penerima)", CurrentConfig.AutoAcceptGift ~= false, function(state)
+    CurrentConfig.AutoAcceptGift = state
+    if AutoGift and AutoGift.Config then
+        AutoGift.Config.AutoAccept = state
+    end
+    Notify("Auto Accept", state and "Auto Accept Gift AKTIF!" or "Auto Accept Gift DIMATIKAN.", 2)
+end)
+
+GiftTab:AddSection("Pilih Target Player (Penerima)")
+
+local playerListContainer = Instance.new("Frame")
+playerListContainer.Size = UDim2.new(1, 0, 0, 0)
+playerListContainer.BackgroundTransparency = 1
+playerListContainer.AutomaticSize = Enum.AutomaticSize.Y
+playerListContainer.ZIndex = 14
+playerListContainer.Parent = GiftTab.Page
+
+local plLayout = Instance.new("UIListLayout", playerListContainer)
+plLayout.Padding = UDim.new(0, 4)
+plLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function refreshGiftPlayerList()
+    for _, c in ipairs(playerListContainer:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
+    end
+
+    local others = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then table.insert(others, p) end
+    end
+
+    if #others == 0 then
+        local emptyLbl = Instance.new("TextLabel", playerListContainer)
+        emptyLbl.Size = UDim2.new(1, 0, 0, 32)
+        emptyLbl.BackgroundTransparency = 1
+        emptyLbl.Text = "  (Tidak ada player lain di server)"
+        emptyLbl.TextColor3 = Color3.fromRGB(150, 135, 165)
+        emptyLbl.Font = Enum.Font.Gotham
+        emptyLbl.TextSize = 11
+        emptyLbl.TextXAlignment = Enum.TextXAlignment.Left
+        emptyLbl.ZIndex = 15
+        return
+    end
+
+    local curTarget = (CurrentConfig.GiftTarget or ""):lower()
+    for _, p in ipairs(others) do
+        local isSel = (curTarget == p.Name:lower())
+        local row = Instance.new("Frame", playerListContainer)
+        row.Size = UDim2.new(1, 0, 0, 34)
+        row.BackgroundColor3 = isSel and Color3.fromRGB(45, 30, 65) or Color3.fromRGB(24, 18, 32)
+        row.BorderSizePixel = 0
+        row.ZIndex = 15
+        Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+        local rStroke = Instance.new("UIStroke", row)
+        rStroke.Thickness = 1
+        rStroke.Color = isSel and Color3.fromRGB(180, 90, 255) or Color3.fromRGB(55, 40, 70)
+
+        local pLbl = Instance.new("TextLabel", row)
+        pLbl.BackgroundTransparency = 1
+        pLbl.Size = UDim2.new(1, -95, 1, 0)
+        pLbl.Position = UDim2.new(0, 10, 0, 0)
+        pLbl.Text = (isSel and "✓ " or "  ") .. p.DisplayName .. " (@" .. p.Name .. ")"
+        pLbl.TextColor3 = isSel and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(210, 195, 230)
+        pLbl.Font = Enum.Font.GothamBold
+        pLbl.TextSize = 11
+        pLbl.TextXAlignment = Enum.TextXAlignment.Left
+        pLbl.ZIndex = 16
+
+        local selBtn = Instance.new("TextButton", row)
+        selBtn.Size = UDim2.new(0, 75, 0, 22)
+        selBtn.Position = UDim2.new(1, -82, 0.5, -11)
+        selBtn.BackgroundColor3 = isSel and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(38, 28, 50)
+        selBtn.Text = isSel and "✓ DIPILIH" or "PILIH"
+        selBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        selBtn.Font = Enum.Font.GothamBold
+        selBtn.TextSize = 10
+        selBtn.BorderSizePixel = 0
+        selBtn.ZIndex = 16
+        Instance.new("UICorner", selBtn).CornerRadius = UDim.new(0, 6)
+
+        selBtn.MouseButton1Click:Connect(function()
+            CurrentConfig.GiftTarget = p.Name
+            if AutoGift and AutoGift.Config then
+                AutoGift.Config.TargetName = p.Name
+            end
+            Notify("Target Gift", "Target diatur ke: " .. p.DisplayName, 2)
+            refreshGiftPlayerList()
+        end)
+    end
+end
+
+refreshGiftPlayerList()
+Players.PlayerAdded:Connect(refreshGiftPlayerList)
+Players.PlayerRemoving:Connect(refreshGiftPlayerList)
+
+GiftTab:AddSection("Checklist Plant & Capybara Divine+ (Pilih Item)")
+
+local giftToolbar = Instance.new("Frame", GiftTab.Page)
+giftToolbar.Size = UDim2.new(1, 0, 0, 30)
+giftToolbar.BackgroundTransparency = 1
+giftToolbar.ZIndex = 14
+
+local function mkGToolBtn(txt, sz, pos, color)
+    local b = Instance.new("TextButton", giftToolbar)
+    b.Size = sz
+    b.Position = pos
+    b.BackgroundColor3 = color or Color3.fromRGB(32, 24, 44)
+    b.Text = txt
+    b.TextColor3 = Color3.fromRGB(255, 255, 255)
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 10
+    b.BorderSizePixel = 0
+    b.ZIndex = 15
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+    return b
+end
+
+local gAllBtn = mkGToolBtn("✓ SEMUA", UDim2.new(0.32, -3, 1, 0), UDim2.new(0, 0, 0, 0), Color3.fromRGB(40, 130, 85))
+local gBagBtn = mkGToolBtn("🎒 HANYA DI TAS", UDim2.new(0.36, -3, 1, 0), UDim2.new(0.32, 2, 0, 0), Color3.fromRGB(130, 60, 180))
+local gClrBtn = mkGToolBtn("✕ BATAL", UDim2.new(0.32, -2, 1, 0), UDim2.new(0.68, 2, 0, 0), Color3.fromRGB(55, 35, 65))
+
+local giftCatalogContainer = Instance.new("Frame", GiftTab.Page)
+giftCatalogContainer.Size = UDim2.new(1, 0, 0, 0)
+giftCatalogContainer.BackgroundTransparency = 1
+giftCatalogContainer.AutomaticSize = Enum.AutomaticSize.Y
+giftCatalogContainer.ZIndex = 14
+
+local gcLayout = Instance.new("UIListLayout", giftCatalogContainer)
+gcLayout.Padding = UDim.new(0, 4)
+gcLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local giftCardRefs = {}
+
+local function refreshGiftCatalogCards()
+    for _, c in ipairs(giftCatalogContainer:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
+    end
+
+    if not AutoGift or not AutoGift.DIVINE_PLUS_LIST then return end
+
+    local itemCounts, _ = AutoGift.ScanInventoryDivineStats()
+    local rarityGroups = {
+        { id = "Divine", label = "✨ DIVINE TIER", color = AutoGift.RARITY_COLORS["Divine"], items = {} },
+        { id = "Godly",  label = "⚡ GODLY TIER",  color = AutoGift.RARITY_COLORS["Godly"],  items = {} },
+        { id = "Secret", label = "🔮 SECRET TIER", color = AutoGift.RARITY_COLORS["Secret"], items = {} },
+    }
+
+    for _, it in ipairs(AutoGift.DIVINE_PLUS_LIST) do
+        for _, g in ipairs(rarityGroups) do
+            if g.id == it.rarity then
+                table.insert(g.items, it)
+                break
+            end
+        end
+    end
+
+    if not CurrentConfig.SelectedGiftItems then CurrentConfig.SelectedGiftItems = {} end
+
+    for _, group in ipairs(rarityGroups) do
+        local gHead = Instance.new("Frame", giftCatalogContainer)
+        gHead.Size = UDim2.new(1, 0, 0, 26)
+        gHead.BackgroundColor3 = Color3.fromRGB(20, 15, 28)
+        gHead.BorderSizePixel = 0
+        gHead.ZIndex = 15
+        Instance.new("UICorner", gHead).CornerRadius = UDim.new(0, 6)
+
+        local ghStroke = Instance.new("UIStroke", gHead)
+        ghStroke.Color = group.color
+        ghStroke.Thickness = 1
+
+        local ghTitle = Instance.new("TextLabel", gHead)
+        ghTitle.BackgroundTransparency = 1
+        ghTitle.Size = UDim2.new(0.6, 0, 1, 0)
+        ghTitle.Position = UDim2.new(0, 8, 0, 0)
+        ghTitle.Text = string.format("%s (%d Item)", group.label, #group.items)
+        ghTitle.TextColor3 = group.color
+        ghTitle.Font = Enum.Font.GothamBold
+        ghTitle.TextSize = 10
+        ghTitle.TextXAlignment = Enum.TextXAlignment.Left
+        ghTitle.ZIndex = 16
+
+        local allGrpSel = true
+        for _, it in ipairs(group.items) do
+            if not CurrentConfig.SelectedGiftItems[it.name:lower()] then
+                allGrpSel = false
+                break
+            end
+        end
+
+        local ghBtn = Instance.new("TextButton", gHead)
+        ghBtn.Size = UDim2.new(0, 80, 0, 18)
+        ghBtn.Position = UDim2.new(1, -86, 0.5, -9)
+        ghBtn.BackgroundColor3 = allGrpSel and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(34, 25, 46)
+        ghBtn.Text = allGrpSel and "✓ SEMUA ON" or "PILIH SEMUA"
+        ghBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        ghBtn.Font = Enum.Font.GothamBold
+        ghBtn.TextSize = 8
+        ghBtn.BorderSizePixel = 0
+        ghBtn.ZIndex = 16
+        Instance.new("UICorner", ghBtn).CornerRadius = UDim.new(0, 4)
+
+        ghBtn.MouseButton1Click:Connect(function()
+            local newState = not allGrpSel
+            for _, it in ipairs(group.items) do
+                CurrentConfig.SelectedGiftItems[it.name:lower()] = newState and true or nil
+            end
+            if AutoGift and AutoGift.Config then AutoGift.Config.SelectedItems = CurrentConfig.SelectedGiftItems end
+            refreshGiftCatalogCards()
+        end)
+
+        for _, item in ipairs(group.items) do
+            local key = item.name:lower()
+            local isSel = CurrentConfig.SelectedGiftItems[key] == true
+            local stock = itemCounts[key] or 0
+
+            local card = Instance.new("Frame", giftCatalogContainer)
+            card.Size = UDim2.new(1, 0, 0, 32)
+            card.BackgroundColor3 = isSel and Color3.fromRGB(38, 25, 54) or Color3.fromRGB(24, 18, 32)
+            card.BorderSizePixel = 0
+            card.ZIndex = 15
+            Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+            local cStroke = Instance.new("UIStroke", card)
+            cStroke.Color = isSel and group.color or Color3.fromRGB(50, 38, 64)
+            cStroke.Thickness = 1
+
+            local nLbl = Instance.new("TextLabel", card)
+            nLbl.BackgroundTransparency = 1
+            nLbl.Size = UDim2.new(0.55, -8, 1, 0)
+            nLbl.Position = UDim2.new(0, 8, 0, 0)
+            nLbl.Text = string.format("%s %s (%s)", item.icon, item.name, item.type)
+            nLbl.TextColor3 = isSel and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(205, 190, 225)
+            nLbl.Font = Enum.Font.GothamSemibold
+            nLbl.TextSize = 10
+            nLbl.TextXAlignment = Enum.TextXAlignment.Left
+            nLbl.ZIndex = 16
+
+            local stLbl = Instance.new("TextLabel", card)
+            stLbl.BackgroundTransparency = 1
+            stLbl.Size = UDim2.new(0.22, 0, 1, 0)
+            stLbl.Position = UDim2.new(0.53, 0, 0, 0)
+            stLbl.Font = Enum.Font.GothamBold
+            stLbl.TextSize = 9
+            stLbl.TextXAlignment = Enum.TextXAlignment.Center
+            stLbl.ZIndex = 16
+            if stock > 0 then
+                stLbl.Text = string.format("🎒 x%d di tas", stock)
+                stLbl.TextColor3 = Color3.fromRGB(0, 230, 140)
+            else
+                stLbl.Text = "(kosong)"
+                stLbl.TextColor3 = Color3.fromRGB(130, 115, 145)
+            end
+
+            local chkBtn = Instance.new("TextButton", card)
+            chkBtn.Size = UDim2.new(0, 68, 0, 20)
+            chkBtn.Position = UDim2.new(1, -74, 0.5, -10)
+            chkBtn.BackgroundColor3 = isSel and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(38, 28, 50)
+            chkBtn.Text = isSel and "✓ [ON]" or "[  ] OFF"
+            chkBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            chkBtn.Font = Enum.Font.GothamBold
+            chkBtn.TextSize = 9
+            chkBtn.BorderSizePixel = 0
+            chkBtn.ZIndex = 16
+            Instance.new("UICorner", chkBtn).CornerRadius = UDim.new(0, 4)
+
+            chkBtn.MouseButton1Click:Connect(function()
+                CurrentConfig.SelectedGiftItems[key] = not isSel and true or nil
+                if AutoGift and AutoGift.Config then AutoGift.Config.SelectedItems = CurrentConfig.SelectedGiftItems end
+                refreshGiftCatalogCards()
+            end)
+        end
+    end
+end
+
+gAllBtn.MouseButton1Click:Connect(function()
+    if not CurrentConfig.SelectedGiftItems then CurrentConfig.SelectedGiftItems = {} end
+    if AutoGift and AutoGift.DIVINE_PLUS_LIST then
+        for _, it in ipairs(AutoGift.DIVINE_PLUS_LIST) do
+            CurrentConfig.SelectedGiftItems[it.name:lower()] = true
+        end
+    end
+    if AutoGift and AutoGift.Config then AutoGift.Config.SelectedItems = CurrentConfig.SelectedGiftItems end
+    refreshGiftCatalogCards()
+    Notify("Checklist Gift", "Semua item Divine+ dipilih!", 2)
+end)
+
+gBagBtn.MouseButton1Click:Connect(function()
+    CurrentConfig.SelectedGiftItems = {}
+    if AutoGift then
+        local counts, _ = AutoGift.ScanInventoryDivineStats()
+        for _, it in ipairs(AutoGift.DIVINE_PLUS_LIST) do
+            local k = it.name:lower()
+            if counts[k] and counts[k] > 0 then
+                CurrentConfig.SelectedGiftItems[k] = true
+            end
+        end
+        if AutoGift.Config then AutoGift.Config.SelectedItems = CurrentConfig.SelectedGiftItems end
+    end
+    refreshGiftCatalogCards()
+    Notify("Checklist Gift", "Hanya item yang ada di tas dipilih!", 2)
+end)
+
+gClrBtn.MouseButton1Click:Connect(function()
+    CurrentConfig.SelectedGiftItems = {}
+    if AutoGift and AutoGift.Config then AutoGift.Config.SelectedItems = CurrentConfig.SelectedGiftItems end
+    refreshGiftCatalogCards()
+    Notify("Checklist Gift", "Pilihan gift dikosongkan (Kirim Semua Mode).", 2)
+end)
+
+refreshGiftCatalogCards()
 
 -- =========================================================================
 -- 📑 TAB 4: ❄️ GRAPHICS & UTILITIES
