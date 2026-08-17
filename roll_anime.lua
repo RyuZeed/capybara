@@ -1591,7 +1591,7 @@ local MiscTab = RitodLib:CreateTab("Settings", "⚙️")
 
 MiscTab:AddSection("Server & Private Server")
 
-autoPrivateServerToggleRef = MiscTab:AddToggle("🔒 Auto Join Private Server (Saat Load/Execute)", savedConfig.AutoPrivateServer or false, function(state)
+autoPrivateServerToggleRef = MiscTab:AddToggle("🔒 Auto Join Private Server (Saat Load/Execute)", savedConfig.AutoPrivateServer ~= false, function(state)
 	savedConfig.AutoPrivateServer = state
 	if ConfigManager then ConfigManager.Save({ AutoPrivateServer = state }) end
 	Notify("Private Server", state and "Auto Join Private Server AKTIF!" or "Auto Join Private Server NONAKTIF", 2)
@@ -1810,12 +1810,19 @@ if savedConfig.FarmMode and GraphicsModule then
 	end)
 end
 
-if savedConfig.AutoPrivateServer and PrivateServerModule then
+if savedConfig.AutoPrivateServer ~= false and PrivateServerModule then
 	task.spawn(function()
-		task.wait(2.5)
+		if not game:IsLoaded() then
+			pcall(function() game.Loaded:Wait() end)
+		end
+		-- Tunggu 7 detik agar seluruh pemain & server data tereplikasi
+		task.wait(7)
 		if not PrivateServerModule.IsPrivateServer() then
-			Notify("Auto Private Server", "Mendeteksi server publik, berpindah ke Private Server...", 3)
-			PrivateServerModule.JoinPrivateServer(Notify)
+			Notify("🔒 Auto Private Server", "Mendeteksi server publik, berpindah ke Private Server...", 3)
+			task.wait(1.5)
+			if not PrivateServerModule.IsPrivateServer() then
+				PrivateServerModule.JoinPrivateServer(Notify)
+			end
 		end
 	end)
 end

@@ -47,7 +47,7 @@ ConfigManager.DefaultConfig = {
     PotatoGraphics   = false,
     FarmMode         = false,
     AntiLag          = false,
-    AutoPrivateServer = false
+    AutoPrivateServer = true
 }
 
 ConfigManager.CurrentConfig = deepCopy(ConfigManager.DefaultConfig)

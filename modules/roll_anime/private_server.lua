@@ -109,10 +109,16 @@ end
 -- 🔍 HELPER: CEK APAKAH SUDAH DI PRIVATE SERVER
 -- =================================================================
 function PrivateServer.IsPrivateServer()
-    if game.PrivateServerId and game.PrivateServerId ~= "" and game.PrivateServerOwnerId ~= 0 then
+    -- 1. Reserved Server (Server buatan in-game private server)
+    if game.PrivateServerId and game.PrivateServerId ~= "" then
         return true
     end
-    if game.VIPServerId and game.VIPServerId ~= "" and game.VIPServerOwnerId ~= 0 then
+    -- 2. VIP Server
+    if game.VIPServerId and game.VIPServerId ~= "" then
+        return true
+    end
+    -- 3. Cek jumlah pemain (Jika hanya sendiri di server)
+    if #Players:GetPlayers() <= 1 then
         return true
     end
     return false
