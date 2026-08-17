@@ -6,7 +6,7 @@
 	===============================================================
 	🎯 FEATURES:
 	- 🖥️ Ultra HD GUI (700x460) with Neon Floating Widget & Minimize
-	- 💾 Per-User Persistent Config: RitodHub/Capybara/<Username>.json
+	- 💾 Persistent Config: RitodHub/Capybara/config.json (Universal Single-File)
 	- 🚀 12 Steps Auto Tutorial Engine with Plot Isolation
 	- 🗑️ Smart Auto Delete & Bulk Sell Plant with Catalog Checkers
 	- 🎁 Smart Auto Claim Rewards (Playtime & Daily Gifts)
@@ -32,8 +32,15 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
--- 🧹 HAPUS PAKSA UI LAMA BILA ADA (gethui, CoreGui & PlayerGui)
+-- 🧹 HAPUS PAKSA UI LAMA BILA ADA (gethui, CoreGui & PlayerGui) & CLEANUP
 pcall(function()
+    if typeof(_G.RitodHubCleanup) == "function" then
+        _G.RitodHubCleanup()
+    end
+    if _G.AutoSaveDaemonThread then
+        pcall(function() task.cancel(_G.AutoSaveDaemonThread) end)
+        _G.AutoSaveDaemonThread = nil
+    end
     if _G.RitodHubGui and typeof(_G.RitodHubGui) == "Instance" then
         pcall(function() _G.RitodHubGui:Destroy() end)
     end
@@ -59,6 +66,7 @@ local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/module
 local function loadModule(name)
     -- 0. Cek jika modul sudah diload di global _G
     local globalMaps = {
+        ["config_manager"] = _G.CapybaraConfigManager or _G.ConfigManager,
         ["auto_claim"] = _G.AutoClaim,
         ["anti_afk"] = _G.AntiAFK or _G.AFKModule,
         ["pink_remover"] = _G.PinkRemover,
@@ -80,7 +88,12 @@ local function loadModule(name)
         "modules/capybara/" .. name .. ".lua",
         name .. ".lua",
         "RitodHub/modules/capybara/" .. name .. ".lua",
-        "lucid-shannon/modules/capybara/" .. name .. ".lua"
+        "lucid-shannon/modules/capybara/" .. name .. ".lua",
+        "modules/shared/" .. name .. ".lua",
+        "RitodHub/modules/shared/" .. name .. ".lua",
+        "lucid-shannon/modules/shared/" .. name .. ".lua",
+        "shared/" .. name .. ".lua",
+        "../shared/" .. name .. ".lua"
     }
     if typeof(readfile) == "function" and typeof(isfile) == "function" then
         for _, path in ipairs(localPaths) do
@@ -106,32 +119,40 @@ local function loadModule(name)
         return result
     end
 
+    -- 3. Fallback: Shared Module dari GitHub Cloud
+    local sShared, rShared = pcall(function()
+        local url = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/" .. name .. ".lua?t=" .. tostring(os.time())
+        return loadstring(game:HttpGet(url))()
+    end)
+    if sShared and rShared then
+        print("🌐 [Ritod Hub] Loaded shared cloud module: " .. name)
+        return rShared
+    end
+
     warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name .. " -> " .. tostring(result))
     return nil
 end
 
+local ConfigManager  = loadModule("config_manager")
 local AFKModule      = loadModule("anti_afk")
 local PinkRemover    = loadModule("pink_remover")
 local GraphicsModule = loadModule("graphics")
 local AutoClaim      = loadModule("auto_claim")
 local AutoTutorial   = loadModule("auto_tutorial")
 local AutoDelete     = loadModule("auto_delete")
-local AutoBuyEgg    = loadModule("auto_buy_egg") or loadModule("Auto buy Egg")
-local AutoBuyGear   = loadModule("auto_buy_gear_and_merchant")
-local AutoGift      = loadModule("auto_gift")
+local AutoBuyEgg     = loadModule("auto_buy_egg") or loadModule("Auto buy Egg")
+local AutoBuyGear    = loadModule("auto_buy_gear_and_merchant")
+local AutoGift       = loadModule("auto_gift")
 local ModernSettings = loadModule("modern_settings")
 
 -- =================================================================
--- 💾 CONFIG MANAGER (PER-USER JSON FILE PERSISTENCE)
+-- 💾 CONFIG MANAGER (UNIVERSAL SINGLE-FILE PERSISTENCE)
 -- =================================================================
 local ROOT_FOLDER = "RitodHub"
 local GAME_FOLDER = "RitodHub/Capybara"
-local CONFIG_PATH = string.format("RitodHub/Capybara/%s.json", LocalPlayer.Name)
+local CONFIG_PATH = (ConfigManager and ConfigManager.ConfigPath) or "RitodHub/Capybara/config.json"
 
-local ConfigManager = {}
-ConfigManager.ConfigPath = CONFIG_PATH
-
-local DEFAULT_CONFIG = {
+local DEFAULT_CONFIG = (ConfigManager and ConfigManager.DefaultConfig) or {
     AutoTutorial       = true,
     AutoCollectMoney   = false,
     AutoDelete         = false,
@@ -188,7 +209,54 @@ local function deepCopy(orig)
     return copy
 end
 
-local CurrentConfig = deepCopy(DEFAULT_CONFIG)
+local CurrentConfig = (ConfigManager and ConfigManager.Load()) or deepCopy(DEFAULT_CONFIG)
+
+-- Fallback jika ConfigManager belum terdefinisi
+if not ConfigManager then
+    ConfigManager = {
+        ConfigPath = CONFIG_PATH,
+        DefaultConfig = DEFAULT_CONFIG,
+        CurrentConfig = CurrentConfig,
+        Save = function(customCfg)
+            local cfgToSave = customCfg or CurrentConfig
+            local success, err = pcall(function()
+                if typeof(writefile) == "function" then
+                    if typeof(makefolder) == "function" and typeof(isfolder) == "function" then
+                        if not isfolder(ROOT_FOLDER) then makefolder(ROOT_FOLDER) end
+                        if not isfolder(GAME_FOLDER) then makefolder(GAME_FOLDER) end
+                    end
+                    local jsonString = HttpService:JSONEncode(cfgToSave)
+                    writefile(CONFIG_PATH, jsonString)
+                end
+            end)
+            return success
+        end,
+        Load = function()
+            pcall(function()
+                if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(CONFIG_PATH) then
+                    local content = readfile(CONFIG_PATH)
+                    if content and #content > 0 then
+                        local data = HttpService:JSONDecode(content)
+                        if typeof(data) == "table" then
+                            for k, v in pairs(data) do CurrentConfig[k] = v end
+                        end
+                    end
+                end
+            end)
+            return CurrentConfig
+        end,
+        Reset = function()
+            pcall(function()
+                if typeof(delfile) == "function" and typeof(isfile) == "function" and isfile(CONFIG_PATH) then
+                    delfile(CONFIG_PATH)
+                end
+            end)
+            for k in pairs(CurrentConfig) do CurrentConfig[k] = nil end
+            for k, v in pairs(DEFAULT_CONFIG) do CurrentConfig[k] = deepCopy(v) end
+            return CurrentConfig
+        end
+    }
+end
 
 -- Override with getgenv().RitodConfig / getgenv().UserConfig / getgenv().Config
 local USER_CFG = (typeof(getgenv) == "function" and (getgenv().RitodConfig or getgenv().UserConfig or getgenv().Config)) or _G.Config
@@ -217,67 +285,6 @@ if typeof(USER_CFG) == "table" then
     if USER_CFG["JumpPower"] ~= nil then CurrentConfig.JumpPower = USER_CFG["JumpPower"] end
     if USER_CFG["InfJump"] ~= nil then CurrentConfig.InfJump = USER_CFG["InfJump"] end
     if USER_CFG["FPS Cap"] ~= nil and GraphicsModule then GraphicsModule.ApplyFpsCap(USER_CFG["FPS Cap"]) end
-end
-
-local function ensureFolders()
-    pcall(function()
-        if typeof(makefolder) == "function" and typeof(isfolder) == "function" then
-            if not isfolder(ROOT_FOLDER) then makefolder(ROOT_FOLDER) end
-            if not isfolder(GAME_FOLDER) then makefolder(GAME_FOLDER) end
-        end
-    end)
-end
-
-function ConfigManager.Save(customCfg)
-    local cfgToSave = customCfg or CurrentConfig
-    local success, err = pcall(function()
-        if typeof(writefile) == "function" then
-            ensureFolders()
-            local jsonString = HttpService:JSONEncode(cfgToSave)
-            writefile(CONFIG_PATH, jsonString)
-        end
-    end)
-
-    if success then
-        print("💾 [ConfigManager] Config tersimpan ke: " .. CONFIG_PATH)
-    else
-        warn("⚠️ [ConfigManager] Gagal menyimpan config: " .. tostring(err))
-    end
-    return success
-end
-
-function ConfigManager.Load()
-    ensureFolders()
-    local success, err = pcall(function()
-        if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(CONFIG_PATH) then
-            local content = readfile(CONFIG_PATH)
-            if content and #content > 0 then
-                local data = HttpService:JSONDecode(content)
-                if typeof(data) == "table" then
-                    for k, v in pairs(data) do
-                        CurrentConfig[k] = v
-                    end
-                    print("💾 [ConfigManager] Berhasil memuat config dari: " .. CONFIG_PATH)
-                end
-            end
-        end
-    end)
-
-    if not success then
-        warn("⚠️ [ConfigManager] Gagal membaca config: " .. tostring(err))
-    end
-    return CurrentConfig
-end
-
-function ConfigManager.Reset()
-    pcall(function()
-        if typeof(delfile) == "function" and typeof(isfile) == "function" and isfile(CONFIG_PATH) then
-            delfile(CONFIG_PATH)
-        end
-    end)
-    CurrentConfig = deepCopy(DEFAULT_CONFIG)
-    print("🗑️ [ConfigManager] Config direset ke default.")
-    return CurrentConfig
 end
 
 -- Muat config tersimpan di disk
@@ -2718,25 +2725,128 @@ local function applyLoadedConfig(loaded)
     end
 end
 
-if ModernSettings then
+if ModernSettings and typeof(ModernSettings.CreateProfileManager) == "function" then
     local ProfileManager = ModernSettings.CreateProfileManager(
         "RitodHub/Capybara",
         DEFAULT_CONFIG,
-        function() return CurrentConfig end,
+        function()
+            local cfg = {}
+            for k, v in pairs(CurrentConfig) do
+                if type(v) == "table" then
+                    local sub = {}
+                    for sk, sv in pairs(v) do sub[sk] = sv end
+                    cfg[k] = sub
+                else
+                    cfg[k] = v
+                end
+            end
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                cfg.WalkSpeed = LocalPlayer.Character.Humanoid.WalkSpeed
+                cfg.JumpPower = LocalPlayer.Character.Humanoid.JumpPower
+            end
+            cfg.InfJump = _G.InfJump or CurrentConfig.InfJump or false
+            return cfg
+        end,
         applyLoadedConfig,
         Notify
     )
     ModernSettings.BuildUI(
         SettingsTab.Page,
         ProfileManager,
-        "https://raw.githubusercontent.com/RyuZeed/capybara/main/main.lua",
+        "https://raw.githubusercontent.com/RyuZeed/capybara/main/capybara.lua",
         Notify
     )
+else
+    -- Fallback jika ModernSettings gagal dimuat
+    SettingsTab:AddSection("Pengaturan Config File")
+    SettingsTab:AddButton("💾 Simpan Config (Save Config)", function()
+        if ConfigManager then
+            local success = ConfigManager.Save(CurrentConfig)
+            if success then
+                Notify("💾 Config Saved", string.format("Berhasil disimpan ke %s!", ConfigManager.ConfigPath), 3.5)
+            else
+                Notify("Config Error", "Gagal menyimpan file config!", 3)
+            end
+        else
+            Notify("Config Error", "Modul ConfigManager tidak ditemukan!", 2)
+        end
+    end)
+
+    SettingsTab:AddButton("🔄 Muat Ulang Config (Reload Config)", function()
+        if ConfigManager then
+            local loaded = ConfigManager.Load()
+            if loaded then
+                applyLoadedConfig(loaded)
+                Notify("🔄 Config Reloaded", "Pengaturan berhasil dimuat ulang dari file!", 3)
+            end
+        end
+    end)
+
+    SettingsTab:AddButton("🗑️ Reset Config ke Default", function()
+        if ConfigManager then
+            local def = ConfigManager.Reset()
+            applyLoadedConfig(def)
+            Notify("🗑️ Config Reset", "Pengaturan telah direset ke nilai default!", 3)
+        end
+    end)
 end
 
 SettingsTab:AddSection("Kontrol GUI")
 SettingsTab:AddButton("➖ Minimize GUI", function() toggleHub() end)
+SettingsTab:AddButton("Copy Discord Link", function()
+    if setclipboard then setclipboard("https://discord.gg/ritodhub") end
+    Notify("Discord", "Link copied to clipboard!", 3)
+end)
+SettingsTab:AddButton("Rejoin Server", function()
+    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+end)
 SettingsTab:AddButton("🛑 Tutup & Unload Script", function() showUnloadModal() end)
+
+-- =================================================================
+-- 💾 AUTO-SAVE BACKGROUND DAEMON (Setiap 5 detik otomatis simpan setting)
+-- =================================================================
+_G.AutoSaveDaemonThread = task.spawn(function()
+    while task.wait(5) do
+        pcall(function()
+            if ConfigManager and typeof(ConfigManager.Save) == "function" then
+                ConfigManager.Save(CurrentConfig)
+            end
+        end)
+    end
+end)
+
+-- =================================================================
+-- 🧹 GLOBAL CLEANUP DESTRUCTOR (DIPANGGIL SAAT RE-EXECUTE)
+-- =================================================================
+_G.RitodHubCleanup = function()
+    pcall(function()
+        if _G.AutoSaveDaemonThread then
+            task.cancel(_G.AutoSaveDaemonThread)
+            _G.AutoSaveDaemonThread = nil
+        end
+        if AutoClaim and typeof(AutoClaim.Stop) == "function" then
+            AutoClaim.Stop()
+        end
+        if AutoTutorial and typeof(AutoTutorial.Stop) == "function" then
+            AutoTutorial.Stop()
+        end
+        if AutoBuyEgg and typeof(AutoBuyEgg.Stop) == "function" then
+            AutoBuyEgg.Stop()
+        end
+        if AutoBuyGear and typeof(AutoBuyGear.Stop) == "function" then
+            AutoBuyGear.Stop()
+        end
+        if AutoDelete and typeof(AutoDelete.Stop) == "function" then
+            AutoDelete.Stop()
+        end
+        if AutoGift and typeof(AutoGift.Stop) == "function" then
+            AutoGift.Stop()
+        end
+        if GraphicsModule and typeof(GraphicsModule.SetFarmMode) == "function" then
+            GraphicsModule.SetFarmMode(false)
+        end
+    end)
+end
 
 -- =================================================================
 -- ⚡ INITIAL EXECUTION BERDASARKAN CONFIG TERSIMPAN
