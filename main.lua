@@ -9,7 +9,7 @@
 	===============================================================
 ]]
 
-if not game:IsLoaded() then game.Loaded:Wait() end
+if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
 task.wait(0.3)
 
 -- 🔇 SILENT MODE: Matikan seluruh text/log terminal
@@ -25,14 +25,19 @@ local PLACE_IDS = {
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/"
 
 local function executeScript(filename)
-    -- 1. Load langsung dari GitHub Cloud (Raw dengan Cache Buster)
-    local success, result = pcall(function()
-        local url = BASE_URL .. filename .. "?t=" .. tostring(os.time())
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result ~= false then
-        print("🌐 [Ritod Launcher] Sukses memuat script cloud: " .. filename)
-        return true
+    -- 1. Load langsung dari GitHub Cloud (Raw dengan Cache Buster & Clean Fallback)
+    local urls = {
+        BASE_URL .. filename .. "?t=" .. tostring(os.time()),
+        BASE_URL .. filename
+    }
+    for _, url in ipairs(urls) do
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet(url))()
+        end)
+        if success and result ~= false then
+            print("🌐 [Ritod Launcher] Sukses memuat script cloud: " .. filename)
+            return true
+        end
     end
 
     -- 2. Fallback jika offline: coba load dari file lokal di folder workspace executor
@@ -46,7 +51,7 @@ local function executeScript(filename)
         end
     end
 
-    warn("⚠️ [Ritod Launcher] Gagal memuat " .. filename .. " -> " .. tostring(result))
+    warn("⚠️ [Ritod Launcher] Gagal memuat " .. filename)
     return false
 end
 

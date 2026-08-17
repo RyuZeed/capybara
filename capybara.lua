@@ -29,8 +29,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
 
-local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    local t = tick()
+    while not Players.LocalPlayer and (tick() - t) < 3 do task.wait(0.1) end
+    LocalPlayer = Players.LocalPlayer
+end
+local Remotes = ReplicatedStorage:FindFirstChild("Remotes") or (pcall(function() return ReplicatedStorage:WaitForChild("Remotes", 3) end) and ReplicatedStorage:FindFirstChild("Remotes"))
 
 -- 🧹 HAPUS PAKSA UI LAMA BILA ADA (gethui, CoreGui & PlayerGui) & CLEANUP
 pcall(function()
@@ -83,7 +88,24 @@ local function loadModule(name)
         return globalMaps[name]
     end
 
-    -- 1. Prioritaskan file lokal di workspace executor jika ada
+    -- 1. Prioritaskan GitHub Cloud (dengan cache buster & clean fallback)
+    local urls = {
+        BASE_URL .. name .. ".lua?t=" .. tostring(os.time()),
+        BASE_URL .. name .. ".lua",
+        "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/" .. name .. ".lua?t=" .. tostring(os.time()),
+        "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/" .. name .. ".lua"
+    }
+    for _, url in ipairs(urls) do
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet(url))()
+        end)
+        if success and result then
+            print("🌐 [Ritod Hub] Loaded cloud module: " .. name)
+            return result
+        end
+    end
+
+    -- 2. Fallback: File lokal di workspace executor jika ada
     local localPaths = {
         "modules/capybara/" .. name .. ".lua",
         name .. ".lua",
@@ -109,27 +131,7 @@ local function loadModule(name)
         end
     end
 
-    -- 2. Fallback: Load dari GitHub Cloud (Raw dengan Cache Buster)
-    local success, result = pcall(function()
-        local url = BASE_URL .. name .. ".lua?t=" .. tostring(os.time())
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result then
-        print("🌐 [Ritod Hub] Loaded cloud module: " .. name)
-        return result
-    end
-
-    -- 3. Fallback: Shared Module dari GitHub Cloud
-    local sShared, rShared = pcall(function()
-        local url = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/" .. name .. ".lua?t=" .. tostring(os.time())
-        return loadstring(game:HttpGet(url))()
-    end)
-    if sShared and rShared then
-        print("🌐 [Ritod Hub] Loaded shared cloud module: " .. name)
-        return rShared
-    end
-
-    warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name .. " -> " .. tostring(result))
+    warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name)
     return nil
 end
 

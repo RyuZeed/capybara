@@ -14,8 +14,12 @@ local Tween   = game:GetService("TweenService")
 local Teleport = game:GetService("TeleportService")
 local GuiSvc  = game:GetService("GuiService")
 local CoreGui = game:GetService("CoreGui")
-local Players = game:GetService("Players")
-local LP      = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
+local LP = Players.LocalPlayer
+if not LP then
+	local t = tick()
+	while not Players.LocalPlayer and (tick() - t) < 3 do task.wait(0.1) end
+	LP = Players.LocalPlayer
+end
 
 -- ─── Cached tween infos ────────────────────────────────────────
 local TW_FAST  = TweenInfo.new(0.15)
