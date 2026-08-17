@@ -303,52 +303,34 @@ local function playerHasBattlepass(bpFrame)
     return false
 end
 
-local function isBattlepassCardClaimable(card, hasPremium)
-    if not card or not card:IsA("GuiObject") or not card.Visible then return false end
-    if isTemplateObject(card) then return false end
-    if card.AbsoluteSize.X < 24 or card.AbsoluteSize.Y < 24 then return false end
+-- =================================================================
+-- 🔍 HELPER: BATTLEPASS REWARD CARD CLAIM CHECKER
+-- =================================================================
+local function isRewardItemClaimable(rewardItem)
+    if not rewardItem or not rewardItem:IsA("GuiObject") then return false end
+    if isTemplateObject(rewardItem) then return false end
 
-    -- Cek apakah card berada di track/row Premium
-    local isPremiumTrack = false
-    local cur = card
-    while cur and cur.Parent and cur.Name ~= "Battlepass" do
-        local cn = cur.Name:lower()
-        if cn:find("premium") or cn:find("vip") or cn:find("paid") then
-            isPremiumTrack = true
-            break
-        end
-        cur = cur.Parent
-    end
-
-    -- Jika berada di track Premium dan player TIDAK memiliki premium pass, SKIP!
-    if isPremiumTrack and not hasPremium then
-        return false
-    end
-
-    -- Cek indikator Lock (🔒 Terkunci / Belum Terbuka)
-    for _, desc in ipairs(card:GetDescendants()) do
+    -- 1. Cek apakah ada indikator centang hijau / Claimed (✔️)
+    for _, desc in ipairs(rewardItem:GetDescendants()) do
         if desc:IsA("GuiObject") and desc.Visible then
-            local dName = desc.Name:lower()
-            if dName:find("lock") or dName:find("padlock") or dName:find("kunci") then
-                return false
-            end
-            if desc:IsA("ImageLabel") and desc.Image:lower():find("lock") then
-                return false
-            end
-            if desc:IsA("TextLabel") and desc.Text:lower():find("lock") then
-                return false
-            end
-        end
-    end
-
-    -- Cek indikator Checkmark (✔️ Sudah Diklaim / Claimed)
-    for _, desc in ipairs(card:GetDescendants()) do
-        if desc:IsA("GuiObject") and desc.Visible then
-            local dName = desc.Name:lower()
-            if dName:find("check") or dName:find("claimed") or dName:find("tick") or dName:find("done") or dName:find("centang") then
+            local n = desc.Name:lower()
+            if n:find("check") or n:find("tick") or n:find("claim") or n:find("done") or n:find("centang") then
                 return false
             end
             if desc:IsA("ImageLabel") and (desc.Image:lower():find("check") or desc.Image:lower():find("tick") or desc.Image:lower():find("claimed")) then
+                return false
+            end
+        end
+    end
+
+    -- 2. Cek apakah ada gembok (🔒)
+    for _, desc in ipairs(rewardItem:GetDescendants()) do
+        if desc:IsA("GuiObject") and desc.Visible then
+            local n = desc.Name:lower()
+            if n:find("lock") or n:find("padlock") or n:find("kunci") then
+                return false
+            end
+            if desc:IsA("ImageLabel") and (desc.Image:lower():find("lock") or desc.Image:lower():find("padlock")) then
                 return false
             end
         end
@@ -358,77 +340,52 @@ local function isBattlepassCardClaimable(card, hasPremium)
 end
 
 -- =================================================================
--- 2. 🏆 AUTO CLAIM BATTLEPASS TIER REWARDS (SMART FREE & PREMIUM)
+-- 2. 🏆 AUTO CLAIM BATTLEPASS TIER REWARDS (EXACT HIERARCHY)
 -- =================================================================
 function AutoClaim.ClaimBattlepass()
     if not AutoClaim.Config.Battlepass then return end
     pcall(function()
         local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-        local mainUI = pGui and (pGui:FindFirstChild("MainUI") or pGui:FindFirstChild("Main") or pGui:FindFirstChild("GameUI") or pGui:FindFirstChild("ScreenGui"))
-        local bpFrame = nil
-        
-        if mainUI then
-            bpFrame = (mainUI:FindFirstChild("Frames") and mainUI.Frames:FindFirstChild("Battlepass")) or mainUI:FindFirstChild("Battlepass", true)
-        end
-        if not bpFrame and pGui then
-            bpFrame = pGui:FindFirstChild("Battlepass", true)
-        end
+        if not pGui then return end
+
+        local mainUI = pGui:FindFirstChild("MainUI")
+        local bpFrame = mainUI and mainUI:FindFirstChild("Frames") and mainUI.Frames:FindFirstChild("Battlepass")
+        if not bpFrame then return end
+
+        local bpMain = bpFrame:FindFirstChild("Frame") and bpFrame.Frame:FindFirstChild("Main") and bpFrame.Frame.Main:FindFirstChild("Battlepass")
+        if not bpMain then return end
+
+        local scrollingFrame = bpMain:FindFirstChild("ScrollingFrame")
+        local content = scrollingFrame and scrollingFrame:FindFirstChild("Content")
+        local rewards = content and content:FindFirstChild("Rewards")
+        if not rewards then return end
 
         local hasPremium = playerHasBattlepass(bpFrame)
+        local now = tick()
 
-        -- 1. Coba Server Remote Claim (jika tersedia)
-        local bpFolder = ReplicatedStorage:FindFirstChild("Modules") 
-            and ReplicatedStorage.Modules:FindFirstChild("Battlepass")
-        if not bpFolder then
-            for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
-                if desc.Name == "Battlepass" and (desc:IsA("Folder") or desc:IsA("ModuleScript")) then
-                    bpFolder = desc
-                    break
-                end
-            end
-        end
-        if bpFolder then
-            local claimRemote = bpFolder:FindFirstChild("ClaimReward") or bpFolder:FindFirstChild("ClaimTier") or bpFolder:FindFirstChild("ClaimBattlepass")
-            if claimRemote then
-                pcall(function()
-                    for tier = 1, 100 do
-                        if claimRemote:IsA("RemoteEvent") then
-                            claimRemote:FireServer(tier, "Free")
-                            if hasPremium then claimRemote:FireServer(tier, "Premium") end
-                        elseif claimRemote:IsA("RemoteFunction") then
-                            claimRemote:InvokeServer(tier, "Free")
-                            if hasPremium then claimRemote:InvokeServer(tier, "Premium") end
-                        end
+        -- Scan seluruh BattlepassReward di folder Rewards
+        for _, item in ipairs(rewards:GetChildren()) do
+            if item.Name == "BattlepassReward" and item:IsA("Frame") then
+                -- 1. Free Track Frame
+                local freeFrame = item:FindFirstChild("Free")
+                if freeFrame and freeFrame.Visible and isRewardItemClaimable(freeFrame) then
+                    local fKey = "BP_FREE_" .. freeFrame:GetFullName()
+                    if not claimedHistory[fKey] and (not clickDebounce[fKey] or (now - clickDebounce[fKey] > 8)) then
+                        clickDebounce[fKey] = now
+                        local targetBtn = freeFrame:FindFirstChildOfClass("GuiButton") or freeFrame:FindFirstChild("Button", true) or freeFrame
+                        clickButton(targetBtn)
+                        task.wait(0.15)
                     end
-                end)
-            end
-        end
-
-        -- 2. Scan Langsung Kartu Battlepass di UI
-        if bpFrame then
-            local now = tick()
-            
-            -- Pastikan Tab Rewards aktif
-            for _, tabBtn in ipairs(bpFrame:GetDescendants()) do
-                if tabBtn:IsA("TextButton") and tabBtn.Text:upper():find("REWARD") then
-                    pcall(function() clickButton(tabBtn) end)
-                    break
                 end
-            end
 
-            -- Scan seluruh reward card (Free & Unlocked Premium)
-            for _, desc in ipairs(bpFrame:GetDescendants()) do
-                if desc:IsA("GuiObject") and desc.Visible and desc.AbsoluteSize.X > 28 and desc.AbsoluteSize.Y > 28 then
-                    if isBattlepassCardClaimable(desc, hasPremium) then
-                        local cardKey = "BP_CARD_" .. desc:GetFullName()
-                        if not claimedHistory[cardKey] and (not clickDebounce[cardKey] or (now - clickDebounce[cardKey] > 8)) then
-                            clickDebounce[cardKey] = now
-                            
-                            local targetBtn = (desc:IsA("GuiButton") and desc)
-                                or desc:FindFirstChildOfClass("GuiButton")
-                                or desc:FindFirstChild("Button", true)
-                                or desc
-                            
+                -- 2. Premium Track Frame (Hanya diklaim jika player punya Pass)
+                if hasPremium then
+                    local premFrame = item:FindFirstChild("Premium")
+                    if premFrame and premFrame.Visible and isRewardItemClaimable(premFrame) then
+                        local pKey = "BP_PREM_" .. premFrame:GetFullName()
+                        if not claimedHistory[pKey] and (not clickDebounce[pKey] or (now - clickDebounce[pKey] > 8)) then
+                            clickDebounce[pKey] = now
+                            local targetBtn = premFrame:FindFirstChildOfClass("GuiButton") or premFrame:FindFirstChild("Button", true) or premFrame
                             clickButton(targetBtn)
                             task.wait(0.15)
                         end
