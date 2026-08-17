@@ -56,7 +56,21 @@ end)
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/roll_anime/"
 
 local function loadModule(name)
-    -- 1. Prioritaskan file lokal di workspace executor jika ada
+    -- 1. Prioritaskan GitHub Cloud (Selalu ter-update realtime)
+    local urls = {
+        BASE_URL .. name .. ".lua?t=" .. tostring(os.time()),
+        "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/" .. name .. ".lua?t=" .. tostring(os.time())
+    }
+    for _, url in ipairs(urls) do
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet(url))()
+        end)
+        if success and result then
+            return result
+        end
+    end
+
+    -- 2. Fallback: File lokal di workspace jika koneksi gagal
     local localPaths = {
         "modules/roll_anime/" .. name .. ".lua",
         name .. ".lua",
@@ -77,20 +91,6 @@ local function loadModule(name)
                     return lResult
                 end
             end
-        end
-    end
-
-    -- 2. Fallback: Load dari GitHub Cloud
-    local urls = {
-        BASE_URL .. name .. ".lua?t=" .. tostring(os.time()),
-        "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/" .. name .. ".lua?t=" .. tostring(os.time())
-    }
-    for _, url in ipairs(urls) do
-        local success, result = pcall(function()
-            return loadstring(game:HttpGet(url))()
-        end)
-        if success and result then
-            return result
         end
     end
 
