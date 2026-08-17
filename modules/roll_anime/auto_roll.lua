@@ -461,13 +461,20 @@ function AutoRollModule.Stop()
     isRunning = false
     local myPlot = AutoRollModule.FindMyPlot()
     if myPlot then
-        local rollPrompt = AutoRollModule.GetRollPrompt(myPlot)
-        if rollPrompt then
-            pcall(function()
-                rollPrompt.Enabled = true
-                rollPrompt.Style = Enum.ProximityPromptStyle.Default
-                rollPrompt.UIOffset = Vector2.new(0, 0)
-            end)
+        for _, p in ipairs(myPlot:GetDescendants()) do
+            if p:IsA("ProximityPrompt") then
+                local pName = tostring(p.Name):lower()
+                local act = tostring(p.ActionText):lower()
+                if pName:find("roll") or act:find("summon") or act:find("roll") then
+                    pcall(function()
+                        p.Enabled = true
+                        p.Style = Enum.ProximityPromptStyle.Default
+                        p.MaxActivationDistance = 10
+                        p.UIOffset = Vector2.new(0, 0)
+                        p.HoldDuration = 0.5
+                    end)
+                end
+            end
         end
     end
 end
