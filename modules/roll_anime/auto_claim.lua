@@ -136,24 +136,20 @@ local function isTemplateObject(obj)
         if cName == "template" or cName == "templates" or cName == "configuration" then
             return true
         end
-        if cur:IsA("GuiObject") and not cur.Visible then
-            return true
-        end
         cur = cur.Parent
     end
     return false
 end
 
 local function isClaimableButton(btn)
-    if not btn or not btn:IsA("GuiObject") then return false end
-    if not btn.Visible or isTemplateObject(btn) then return false end
+    if not btn or not btn:IsA("GuiObject") or isTemplateObject(btn) then return false end
 
     local text = ""
     if btn:IsA("TextButton") or btn:IsA("TextLabel") then
         text = tostring(btn.Text):lower()
     end
     for _, desc in ipairs(btn:GetDescendants()) do
-        if desc:IsA("TextLabel") and desc.Visible and #desc.Text > 0 then
+        if desc:IsA("TextLabel") and #desc.Text > 0 then
             text = text .. " " .. desc.Text:lower()
         end
     end
