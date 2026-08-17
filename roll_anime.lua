@@ -231,70 +231,81 @@ notifList.Padding = UDim.new(0, 10)
 notifList.Parent = notifHolder
 
 local function Notify(title, desc, duration)
-	duration = duration or 3.5
-	local n = Instance.new("Frame")
-	n.Size = UDim2.new(1, 0, 0, 64)
-	n.BackgroundColor3 = Color3.fromRGB(18, 14, 24)
-	n.BackgroundTransparency = 0.1
-	n.BorderSizePixel = 0
-	n.Position = UDim2.new(1, 100, 0, 0)
-	n.ZIndex = 201
-	n.Parent = notifHolder
+	task.spawn(function()
+		pcall(function()
+			duration = duration or 3.5
+			local n = Instance.new("Frame")
+			n.Size = UDim2.new(1, 0, 0, 64)
+			n.BackgroundColor3 = Color3.fromRGB(18, 14, 24)
+			n.BackgroundTransparency = 0.1
+			n.BorderSizePixel = 0
+			n.Position = UDim2.new(1, 100, 0, 0)
+			n.ZIndex = 201
+			n.Parent = notifHolder
 
-	local nCorner = Instance.new("UICorner")
-	nCorner.CornerRadius = UDim.new(0, 12)
-	nCorner.Parent = n
+			local nCorner = Instance.new("UICorner")
+			nCorner.CornerRadius = UDim.new(0, 12)
+			nCorner.Parent = n
 
-	local nStroke = Instance.new("UIStroke")
-	nStroke.Thickness = 1.4
-	nStroke.Color = Color3.fromRGB(185, 90, 255)
-	nStroke.Parent = n
+			local nStroke = Instance.new("UIStroke")
+			nStroke.Thickness = 1.4
+			nStroke.Color = Color3.fromRGB(185, 90, 255)
+			nStroke.Parent = n
 
-	local nGlow = Instance.new("Frame")
-	nGlow.Size = UDim2.new(0, 4, 1, -16)
-	nGlow.Position = UDim2.new(0, 8, 0, 8)
-	nGlow.BackgroundColor3 = Color3.fromRGB(185, 90, 255)
-	nGlow.BorderSizePixel = 0
-	nGlow.ZIndex = 202
-	nGlow.Parent = n
+			local nGlow = Instance.new("Frame")
+			nGlow.Size = UDim2.new(0, 4, 1, -16)
+			nGlow.Position = UDim2.new(0, 8, 0, 8)
+			nGlow.BackgroundColor3 = Color3.fromRGB(185, 90, 255)
+			nGlow.BorderSizePixel = 0
+			nGlow.ZIndex = 202
+			nGlow.Parent = n
 
-	local ngCorner = Instance.new("UICorner")
-	ngCorner.CornerRadius = UDim.new(1, 0)
-	ngCorner.Parent = nGlow
+			local ngCorner = Instance.new("UICorner")
+			ngCorner.CornerRadius = UDim.new(1, 0)
+			ngCorner.Parent = nGlow
 
-	local nTitle = Instance.new("TextLabel")
-	nTitle.Position = UDim2.new(0, 22, 0, 10)
-	nTitle.Size = UDim2.new(1, -30, 0, 18)
-	nTitle.BackgroundTransparency = 1
-	nTitle.Text = title
-	nTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-	nTitle.TextSize = 14
-	nTitle.Font = Enum.Font.GothamBold
-	nTitle.TextXAlignment = Enum.TextXAlignment.Left
-	nTitle.ZIndex = 202
-	nTitle.Parent = n
+			local nTitle = Instance.new("TextLabel")
+			nTitle.Position = UDim2.new(0, 22, 0, 10)
+			nTitle.Size = UDim2.new(1, -30, 0, 18)
+			nTitle.BackgroundTransparency = 1
+			nTitle.Text = tostring(title)
+			nTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+			nTitle.TextSize = 14
+			nTitle.Font = Enum.Font.GothamBold
+			nTitle.TextXAlignment = Enum.TextXAlignment.Left
+			nTitle.ZIndex = 202
+			nTitle.Parent = n
 
-	local nDesc = Instance.new("TextLabel")
-	nDesc.Position = UDim2.new(0, 22, 0, 30)
-	nDesc.Size = UDim2.new(1, -30, 0, 22)
-	nDesc.BackgroundTransparency = 1
-	nDesc.Text = desc
-	nDesc.TextColor3 = Color3.fromRGB(190, 175, 205)
-	nDesc.TextSize = 12
-	nDesc.Font = Enum.Font.GothamMedium
-	nDesc.TextXAlignment = Enum.TextXAlignment.Left
-	nDesc.TextWrapped = true
-	nDesc.ZIndex = 202
-	nDesc.Parent = n
+			local nDesc = Instance.new("TextLabel")
+			nDesc.Position = UDim2.new(0, 22, 0, 30)
+			nDesc.Size = UDim2.new(1, -30, 0, 22)
+			nDesc.BackgroundTransparency = 1
+			nDesc.Text = tostring(desc)
+			nDesc.TextColor3 = Color3.fromRGB(180, 165, 205)
+			nDesc.TextSize = 12
+			nDesc.Font = Enum.Font.Gotham
+			nDesc.TextXAlignment = Enum.TextXAlignment.Left
+			nDesc.TextTruncate = Enum.TextTruncate.AtEnd
+			nDesc.ZIndex = 202
+			nDesc.Parent = n
 
-	TweenService:Create(n, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+			TweenService:Create(n, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0, 0, 0, 0)
+			}):Play()
 
-	task.delay(duration, function()
-		if n and n.Parent then
-			local out = TweenService:Create(n, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(1, 150, 0, 0)})
-			out:Play()
-			out.Completed:Connect(function() n:Destroy() end)
-		end
+			task.delay(duration, function()
+				pcall(function()
+					local outTween = TweenService:Create(n, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+						Position = UDim2.new(1, 100, 0, 0),
+						BackgroundTransparency = 1
+					})
+					outTween:Play()
+					outTween.Completed:Connect(function()
+						pcall(function() n:Destroy() end)
+					end)
+				end)
+			end)
+		end)
 	end)
 end
 
