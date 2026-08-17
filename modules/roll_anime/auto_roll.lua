@@ -361,13 +361,7 @@ function AutoRollModule.Start(options)
         end
         
         rollPrompt.Enabled = true
-        
-        -- Hanya posisikan jika pemain berada terlalu jauh dari plot (> 80 studs)
-        local hrp = AutoRollModule.GetHRP()
-        if hrp and rollBtn and (hrp.Position - rollBtn.Position).Magnitude > 80 then
-            AutoRollModule.MoveToRollButton(rollBtn, 0)
-        end
-        task.wait(0.3)
+        task.wait(0.2)
         
         local rollCount = 0
         
