@@ -353,7 +353,46 @@ local function freezeUnitModel(model)
 end
 
 -- =================================================================
--- 6. 🧹 TARGETED OTHER-PLOT & OTHER-PLAYER HIDER (MAP PRESERVED)
+-- 6. ⚡ UNIT FREEZER & SKILL EFFECT / VFX REMOVER (ULTRA SMOOTH)
+-- =================================================================
+local function disableSkillEffects(parent)
+    if not parent then return end
+    pcall(function()
+        for _, desc in ipairs(parent:GetDescendants()) do
+            local cls = desc.ClassName
+            if cls == "ParticleEmitter" then
+                pcall(function() desc.Enabled = false desc.Rate = 0 end)
+            elseif cls == "Trail" or cls == "Beam" or cls == "Highlight" or cls == "Fire" or cls == "Smoke" or cls == "Sparkles" then
+                pcall(function() desc.Enabled = false end)
+            elseif cls == "PointLight" or cls == "SpotLight" or cls == "SurfaceLight" then
+                pcall(function() desc.Enabled = false end)
+            elseif cls == "Sound" then
+                pcall(function() desc.Volume = 0 desc.Playing = false end)
+            end
+        end
+    end)
+end
+
+local function freezeAllUnitsAndSkills()
+    -- 1. Freeze seluruh unit & NPC di Workspace
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("Model") and not isProtectedObject(obj) then
+            freezeUnitModel(obj)
+            disableSkillEffects(obj)
+        end
+    end
+
+    -- 2. Matikan efek skill di folder Effects / VFX / Debris jika ada
+    for _, folderName in ipairs({"Effects", "VFX", "Debris", "Skills", "Projectiles", "Spells"}) do
+        local folder = Workspace:FindFirstChild(folderName) or ReplicatedStorage:FindFirstChild(folderName)
+        if folder then
+            disableSkillEffects(folder)
+        end
+    end
+end
+
+-- =================================================================
+-- 7. 🧹 TARGETED OTHER-PLOT & OTHER-PLAYER HIDER (MAP PRESERVED)
 -- =================================================================
 local function hideOtherPlots()
     local myPlot = findMyPlot()
@@ -369,6 +408,7 @@ local function hideOtherPlots()
                             desc.CanTouch = false
                             desc.CanQuery = false
                             desc.CastShadow = false
+                            desc.Anchored = true
                         end)
                     elseif desc:IsA("Decal") or desc:IsA("Texture") then
                         pcall(function() desc.Transparency = 1 end)
@@ -378,6 +418,8 @@ local function hideOtherPlots()
                         pcall(function() desc.Enabled = false end)
                     elseif desc:IsA("Humanoid") then
                         pcall(function()
+                            desc.WalkSpeed = 0
+                            desc.JumpPower = 0
                             desc.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
                             desc.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
                         end)
@@ -392,15 +434,17 @@ local function hideOtherPlayers()
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and not isProtectedObject(p.Character) then
             freezeUnitModel(p.Character)
+            disableSkillEffects(p.Character)
         end
     end
 end
 
 -- =================================================================
--- 7. 🥔 POTATO GRAPHICS CONTROLLER (ZERO MAP CORRUPTION)
+-- 8. 🥔 POTATO GRAPHICS CONTROLLER (ZERO MAP CORRUPTION)
 -- =================================================================
 local potatoSweeperThread = nil
 local playerAddedConn = nil
+local vfxDescendantConn = nil
 
 local function runTargetedClean()
     task.spawn(function()
@@ -415,7 +459,10 @@ local function runTargetedClean()
         -- 2. Sembunyikan karakter pemain lain
         hideOtherPlayers()
 
-        -- 3. Clean RAM
+        -- 3. Freeze seluruh unit & hilangkan efek skill
+        freezeAllUnitsAndSkills()
+
+        -- 4. Clean RAM
         pcall(function() collectgarbage("collect") end)
     end)
 end
@@ -426,14 +473,32 @@ function GraphicsModule.EnablePotato(enable)
     if enable then
         runTargetedClean()
 
-        -- Lightweight Sweeper (setiap 6s untuk membersihkan pemain baru / plot baru)
+        -- Real-time Skill VFX Muter (Langsung matikan partikel skill baru saat spawn)
+        if not vfxDescendantConn then
+            vfxDescendantConn = Workspace.DescendantAdded:Connect(function(v)
+                if States.PotatoGraphics and not isProtectedObject(v) then
+                    local cls = v.ClassName
+                    if cls == "ParticleEmitter" then
+                        pcall(function() v.Enabled = false v.Rate = 0 end)
+                    elseif cls == "Trail" or cls == "Beam" or cls == "Highlight" or cls == "Fire" or cls == "Smoke" or cls == "Sparkles" then
+                        pcall(function() v.Enabled = false end)
+                    elseif cls == "AnimationTrack" then
+                        pcall(function() v:Stop(0) v:AdjustSpeed(0) end)
+                    end
+                end
+            end)
+            table.insert(Connections, vfxDescendantConn)
+        end
+
+        -- Lightweight Sweeper (setiap 5s untuk membersihkan unit / pemain baru)
         if not potatoSweeperThread then
             potatoSweeperThread = task.spawn(function()
                 while States.PotatoGraphics do
-                    task.wait(6)
+                    task.wait(5)
                     if not States.PotatoGraphics then break end
                     hideOtherPlots()
                     hideOtherPlayers()
+                    freezeAllUnitsAndSkills()
                 end
                 potatoSweeperThread = nil
             end)
@@ -443,9 +508,10 @@ function GraphicsModule.EnablePotato(enable)
             playerAddedConn = Players.PlayerAdded:Connect(function(p)
                 p.CharacterAdded:Connect(function(char)
                     if States.PotatoGraphics then
-                        task.wait(1)
+                        task.wait(0.5)
                         if p ~= LocalPlayer and char then
                             freezeUnitModel(char)
+                            disableSkillEffects(char)
                         end
                     end
                 end)
@@ -456,6 +522,10 @@ function GraphicsModule.EnablePotato(enable)
         if potatoSweeperThread then
             task.cancel(potatoSweeperThread)
             potatoSweeperThread = nil
+        end
+        if vfxDescendantConn then
+            vfxDescendantConn:Disconnect()
+            vfxDescendantConn = nil
         end
         pcall(function()
             settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
