@@ -51,14 +51,18 @@ function AutoRollModule.GetHRP()
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
-function AutoRollModule.MoveToRollButton(rollBtn)
+function AutoRollModule.MoveToRollButton(rollBtn, maxDist)
+    maxDist = maxDist or 0
     local hrp = AutoRollModule.GetHRP()
     if hrp and rollBtn and rollBtn:IsA("BasePart") then
         local btnPos = rollBtn.Position
-        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        hrp.CFrame = CFrame.new(btnPos + Vector3.new(0, 0.5, 3), btnPos)
-        task.wait(0.15)
+        local currentDist = (hrp.Position - btnPos).Magnitude
+        if maxDist <= 0 or currentDist > maxDist then
+            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            hrp.CFrame = CFrame.new(btnPos + Vector3.new(0, 0.5, 3), btnPos)
+            task.wait(0.1)
+        end
     end
 end
 
@@ -280,6 +284,16 @@ end
 function AutoRollModule.BuySpecificTarget(target, rollBtn)
     if not target or not target.prompt or not target.prompt.Parent then return false end
     local p = target.prompt
+    local hrp = AutoRollModule.GetHRP()
+    
+    -- 1. Teleport ke depan unit target untuk menjamin interaksi prompt
+    if hrp and target.part and target.part:IsA("BasePart") then
+        local partPos = target.part.Position
+        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        hrp.CFrame = CFrame.new(partPos + Vector3.new(0, 0.5, 2.5), partPos)
+        task.wait(0.08)
+    end
     
     pcall(function()
         p.HoldDuration = 0
@@ -295,11 +309,14 @@ function AutoRollModule.BuySpecificTarget(target, rollBtn)
     
     pcall(function()
         p:InputHoldBegin()
-        task.wait(0.8)
+        task.wait(0.4)
         p:InputHoldEnd()
     end)
     
-    AutoRollModule.MoveToRollButton(rollBtn)
+    -- 2. Teleport kembali ke posisi tombol roll awal
+    if rollBtn then
+        AutoRollModule.MoveToRollButton(rollBtn, 0)
+    end
     
     local isGone = (p == nil) or (p.Parent == nil) or (not p:IsDescendantOf(workspace))
     return isGone
@@ -341,8 +358,8 @@ function AutoRollModule.Start(options)
         end
         
         rollPrompt.Enabled = true
-        AutoRollModule.MoveToRollButton(rollBtn)
-        task.wait(0.5)
+        AutoRollModule.MoveToRollButton(rollBtn, 0)
+        task.wait(0.4)
         
         local rollCount = 0
         
@@ -367,7 +384,8 @@ function AutoRollModule.Start(options)
                 
                 onStatus(string.format("Status: 🎰 Roll #%d%s | Plot: %s", rollCount, modeText, myPlot.Name), "rolling", rollCount)
                 
-                AutoRollModule.MoveToRollButton(rollBtn)
+                -- Cek jarak: Jika masih dalam radius 8 studs, tidak perlu teleport ulang
+                AutoRollModule.MoveToRollButton(rollBtn, 8)
                 AutoRollModule.TriggerRoll(rollPrompt)
             end
             
@@ -400,12 +418,12 @@ function AutoRollModule.Start(options)
                     end
                     
                     onBought(t)
-                    task.wait(0.4)
+                    task.wait(0.3)
                 end
                 
-                if rollBtn then AutoRollModule.MoveToRollButton(rollBtn) end
+                if rollBtn then AutoRollModule.MoveToRollButton(rollBtn, 0) end
                 onStatus("Status: 🎉 Sukses Beli! Melanjutkan Hunt...", "resuming")
-                task.wait(1.5)
+                task.wait(1.2)
             end
         end
         
