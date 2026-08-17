@@ -1492,7 +1492,68 @@ end
 -- 3. TAB 🏃 PLAYER & TELEPORT
 local PlayerTab = RitodLib:CreateTab("Player", "🏃")
 
-PlayerTab:AddSection("Movement & Safety")
+local function teleportToTargetObject(targetObject, machineName)
+	if not targetObject then return false end
+	local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		Notify("Teleport Error", "Karakter belum siap!", 2)
+		return false
+	end
+
+	local targetPart = targetObject:FindFirstChild("Part", true)
+		or targetObject:FindFirstChildWhichIsA("BasePart", true)
+		or (targetObject:IsA("BasePart") and targetObject)
+
+	local targetCFrame = nil
+	if targetObject:IsA("Model") and targetObject.PrimaryPart then
+		targetCFrame = targetObject:GetPivot()
+	elseif targetPart then
+		targetCFrame = targetPart.CFrame
+	elseif targetObject:IsA("Model") then
+		targetCFrame = targetObject:GetPivot()
+	end
+
+	if targetCFrame then
+		local pos = targetCFrame.Position
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+		hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 5), pos)
+		Notify("Teleport Berhasil", "Teleported ke " .. machineName .. "!", 2.5)
+		return true
+	end
+	return false
+end
+
+local function findTargetMachine(keywords)
+	local ws = game:GetService("Workspace")
+	local machines = ws:FindFirstChild("Machines") or ws:FindFirstChild("machines")
+	if machines then
+		for _, child in ipairs(machines:GetChildren()) do
+			local cName = child.Name:lower()
+			for _, kw in ipairs(keywords) do
+				if cName:find(kw) then
+					return child
+				end
+			end
+		end
+	end
+
+	-- Fallback search across Workspace descendants
+	for _, obj in ipairs(ws:GetDescendants()) do
+		if obj:IsA("Model") or obj:IsA("Folder") or obj:IsA("BasePart") then
+			local oName = obj.Name:lower()
+			for _, kw in ipairs(keywords) do
+				if oName:find(kw) and (obj:FindFirstChildOfClass("ProximityPrompt", true) or oName:find("machine") or (machines and obj.Parent == machines)) then
+					return obj
+				end
+			end
+		end
+	end
+	return nil
+end
+
+PlayerTab:AddSection("📍 Teleport Fast Travel")
+
 PlayerTab:AddButton("📍 Teleport ke Depan Stasiun Roll", function()
 	if AutoRollModule then
 		local myPlot = AutoRollModule.FindMyPlot()
@@ -1507,6 +1568,29 @@ PlayerTab:AddButton("📍 Teleport ke Depan Stasiun Roll", function()
 	end
 	Notify("Teleport", "Plot belum ditemukan!", 2)
 end)
+
+PlayerTab:AddButton("🧬 Teleport ke Clone Machine", function()
+	local machine = findTargetMachine({"clone", "cloning", "dupe"})
+	if not machine or not teleportToTargetObject(machine, "Clone Machine") then
+		Notify("Teleport Error", "Clone Machine tidak ditemukan di map!", 2.5)
+	end
+end)
+
+PlayerTab:AddButton("⚡ Teleport ke Evolution Machine", function()
+	local machine = findTargetMachine({"evolution", "evolve", "evol"})
+	if not machine or not teleportToTargetObject(machine, "Evolution Machine") then
+		Notify("Teleport Error", "Evolution Machine tidak ditemukan di map!", 2.5)
+	end
+end)
+
+PlayerTab:AddButton("🎲 Teleport ke Trait Machine", function()
+	local machine = findTargetMachine({"trait", "reroll trait", "traits"})
+	if not machine or not teleportToTargetObject(machine, "Trait Machine") then
+		Notify("Teleport Error", "Trait Machine tidak ditemukan di map!", 2.5)
+	end
+end)
+
+PlayerTab:AddSection("🏃 Character Movement & Physics")
 
 local function applyPlayerWalkSpeed(val)
 	savedConfig.WalkSpeed = val
