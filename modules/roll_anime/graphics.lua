@@ -362,77 +362,76 @@ local function cleanObject(v)
 
     v:SetAttribute(PROCESSED_TAG, true)
 
-    local className = v.ClassName
+    pcall(function()
+        local className = v.ClassName
 
-    -- 1. Partikel & Efek Visual
-    if className == "ParticleEmitter" then
-        v.Enabled = false
-        v.Rate = 0
-        v:Destroy()
-        return
-    elseif className == "Trail" or className == "Beam" or className == "Fire"
-       or className == "Smoke" or className == "Sparkles" or className == "Highlight"
-       or className == "Explosion" then
-        v.Enabled = false
-        v:Destroy()
-        return
-    end
-
-    -- 2. Tekstur & Decal
-    if className == "Decal" or className == "Texture" or className == "SurfaceAppearance"
-       or className == "ShirtGraphic" or className == "PantsGraphic" then
-        v.Transparency = 1
-        v:Destroy()
-        return
-    end
-
-    -- 3. BasePart & Mesh
-    if v:IsA("BasePart") then
-        v.Material = Enum.Material.SmoothPlastic
-        v.Reflectance = 0
-        v.CastShadow = false
-        if className == "MeshPart" then
-            pcall(function() v.TextureID = "" end)
-            pcall(function() v.TextureId = "" end)
+        -- 1. Partikel & Efek Visual
+        if className == "ParticleEmitter" then
+            pcall(function() v.Enabled = false v.Rate = 0 v:Destroy() end)
+            return
+        elseif className == "Trail" or className == "Beam" or className == "Fire"
+           or className == "Smoke" or className == "Sparkles" or className == "Highlight"
+           or className == "Explosion" then
+            pcall(function() v.Enabled = false v:Destroy() end)
+            return
         end
-        return
-    elseif className == "SpecialMesh" then
-        pcall(function() v.TextureId = "" end)
-        return
-    end
 
-    -- 4. Efek Lighting & Sky
-    if v:IsA("Light") then
-        v.Enabled = false
-        v.Shadows = false
-        return
-    elseif className == "Sky" or className == "Atmosphere" or className == "Clouds" then
-        v:Destroy()
-        return
-    elseif v:IsA("PostEffect") or className == "DepthOfFieldEffect" or className == "BloomEffect"
-       or className == "BlurEffect" or className == "SunRaysEffect" or className == "ColorCorrectionEffect" then
-        v.Enabled = false
-        return
-    end
+        -- 2. Tekstur, Decal, & SurfaceAppearance
+        if className == "Decal" or className == "Texture" or className == "ShirtGraphic" or className == "PantsGraphic" then
+            pcall(function() v.Transparency = 1 end)
+            pcall(function() v:Destroy() end)
+            return
+        elseif className == "SurfaceAppearance" then
+            pcall(function() v:Destroy() end)
+            return
+        end
 
-    -- 5. Suara 3D Workspace
-    if className == "Sound" then
-        v.Volume = 0
-        v.Playing = false
-        return
-    end
+        -- 3. BasePart & Mesh
+        if v:IsA("BasePart") then
+            v.Material = Enum.Material.SmoothPlastic
+            v.Reflectance = 0
+            v.CastShadow = false
+            if className == "MeshPart" then
+                pcall(function() v.TextureID = "" end)
+                pcall(function() v.TextureId = "" end)
+            end
+            return
+        elseif className == "SpecialMesh" then
+            pcall(function() v.TextureId = "" end)
+            return
+        end
 
-    -- 6. Model Pemain Lain / Unit NPC
-    if className == "Model" then
-        freezeUnitModel(v)
-        return
-    end
+        -- 4. Efek Lighting & Sky
+        if v:IsA("Light") then
+            pcall(function() v.Enabled = false v.Shadows = false end)
+            return
+        elseif className == "Sky" or className == "Atmosphere" or className == "Clouds" then
+            pcall(function() v:Destroy() end)
+            return
+        elseif v:IsA("PostEffect") or className == "DepthOfFieldEffect" or className == "BloomEffect"
+           or className == "BlurEffect" or className == "SunRaysEffect" or className == "ColorCorrectionEffect" then
+            pcall(function() v.Enabled = false end)
+            return
+        end
 
-    -- 7. BillboardGui / SurfaceGui
-    if className == "BillboardGui" or className == "SurfaceGui" then
-        v.Enabled = false
-        return
-    end
+        -- 5. Suara 3D Workspace
+        if className == "Sound" then
+            pcall(function() v.Volume = 0 v.Playing = false end)
+            return
+        end
+
+        -- 6. Model Pemain Lain / Unit NPC
+        if className == "Model" then
+            freezeUnitModel(v)
+            return
+        end
+
+        -- 7. BillboardGui / SurfaceGui
+        if className == "BillboardGui" or className == "SurfaceGui" then
+            pcall(function() v.Enabled = false end)
+            return
+        end
+    end)
 end
 
 -- =================================================================
@@ -548,7 +547,7 @@ local function runSmoothBatchClean()
             if not States.PotatoGraphics then break end
             local item = descendants[i]
             if item and not item:GetAttribute(PROCESSED_TAG) then
-                cleanObject(item)
+                pcall(cleanObject, item)
                 count = count + 1
                 if count >= SETTINGS.BatchChunkSize then
                     count = 0
