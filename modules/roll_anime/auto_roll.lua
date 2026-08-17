@@ -281,7 +281,7 @@ function AutoRollModule.GetTargetUnitsOnPedestals(plot, selectedUnitsMap, allUni
     return targetsFound
 end
 
-function AutoRollModule.BuySpecificTarget(target, rollBtn)
+function AutoRollModule.BuySpecificTarget(target, returnCFrame)
     if not target or not target.prompt or not target.prompt.Parent then return false end
     local p = target.prompt
     local hrp = AutoRollModule.GetHRP()
@@ -292,7 +292,7 @@ function AutoRollModule.BuySpecificTarget(target, rollBtn)
         hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
         hrp.CFrame = CFrame.new(partPos + Vector3.new(0, 0.5, 2.5), partPos)
-        task.wait(0.08)
+        task.wait(0.1)
     end
     
     pcall(function()
@@ -309,13 +309,16 @@ function AutoRollModule.BuySpecificTarget(target, rollBtn)
     
     pcall(function()
         p:InputHoldBegin()
-        task.wait(0.4)
+        task.wait(0.3)
         p:InputHoldEnd()
     end)
     
-    -- 2. Teleport kembali ke posisi tombol roll awal
-    if rollBtn then
-        AutoRollModule.MoveToRollButton(rollBtn, 0)
+    -- 2. Teleport kembali ke posisi awal sebelum beli
+    if hrp and returnCFrame then
+        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        hrp.CFrame = returnCFrame
+        task.wait(0.08)
     end
     
     local isGone = (p == nil) or (p.Parent == nil) or (not p:IsDescendantOf(workspace))
@@ -358,8 +361,13 @@ function AutoRollModule.Start(options)
         end
         
         rollPrompt.Enabled = true
-        AutoRollModule.MoveToRollButton(rollBtn, 0)
-        task.wait(0.4)
+        
+        -- Hanya posisikan jika pemain berada terlalu jauh dari plot (> 80 studs)
+        local hrp = AutoRollModule.GetHRP()
+        if hrp and rollBtn and (hrp.Position - rollBtn.Position).Magnitude > 80 then
+            AutoRollModule.MoveToRollButton(rollBtn, 0)
+        end
+        task.wait(0.3)
         
         local rollCount = 0
         
@@ -384,8 +392,7 @@ function AutoRollModule.Start(options)
                 
                 onStatus(string.format("Status: 🎰 Roll #%d%s | Plot: %s", rollCount, modeText, myPlot.Name), "rolling", rollCount)
                 
-                -- Cek jarak: Jika masih dalam radius 8 studs, tidak perlu teleport ulang
-                AutoRollModule.MoveToRollButton(rollBtn, 8)
+                -- Trigger roll langsung tanpa teleportasi konstan
                 AutoRollModule.TriggerRoll(rollPrompt)
             end
             
@@ -398,6 +405,8 @@ function AutoRollModule.Start(options)
             
             if #targets > 0 then
                 onStatus(string.format("Status: 🎯 %d Unit Target Ditemukan! Membeli...", #targets), "found", #targets)
+                local curHrp = AutoRollModule.GetHRP()
+                local initialCF = curHrp and curHrp.CFrame
                 
                 for idx, t in ipairs(targets) do
                     onStatus(string.format("Status: 💰 Membeli [%s] %s ($%d)...", t.rarity, t.name, t.price), "buying", t)
@@ -412,7 +421,7 @@ function AutoRollModule.Start(options)
                     if not isRunning then break end
                     
                     for attempt = 1, 3 do
-                        local bought = AutoRollModule.BuySpecificTarget(t, rollBtn)
+                        local bought = AutoRollModule.BuySpecificTarget(t, initialCF)
                         if bought then break end
                         task.wait(0.3)
                     end
@@ -421,7 +430,6 @@ function AutoRollModule.Start(options)
                     task.wait(0.3)
                 end
                 
-                if rollBtn then AutoRollModule.MoveToRollButton(rollBtn, 0) end
                 onStatus("Status: 🎉 Sukses Beli! Melanjutkan Hunt...", "resuming")
                 task.wait(1.2)
             end
