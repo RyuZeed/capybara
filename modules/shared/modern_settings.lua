@@ -8,6 +8,7 @@
 ]]
 
 local ModernSettings = {}
+_G.ModernSettings = ModernSettings
 local Http    = game:GetService("HttpService")
 local Tween   = game:GetService("TweenService")
 local Teleport = game:GetService("TeleportService")

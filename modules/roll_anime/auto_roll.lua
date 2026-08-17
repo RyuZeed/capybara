@@ -156,11 +156,12 @@ end
 
 function AutoRollModule.GetTargetUnitsOnPedestals(plot, selectedUnitsMap, allUnitsMap, autoSecretGod)
     local targetsFound = {}
+    local seenModels = {}
     local roll = plot:FindFirstChild("Roll")
     local rollOrigin = roll and roll:GetPivot().Position or plot:GetPivot().Position
     
     for _, model in ipairs(plot:GetDescendants()) do
-        if model:IsA("Model") then
+        if model:IsA("Model") and not seenModels[model] then
             local buyPrompt = nil
             for _, p in ipairs(model:GetDescendants()) do
                 if p:IsA("ProximityPrompt") then
@@ -180,28 +181,52 @@ function AutoRollModule.GetTargetUnitsOnPedestals(plot, selectedUnitsMap, allUni
                 
                 local function findMatch(raw)
                     if not raw or #raw == 0 then return nil end
-                    local k1 = raw:lower():gsub("^%s+", ""):gsub("%s+$", "")
+                    local text = tostring(raw):gsub("%[.-%]", ""):gsub("%$[%d,]+", ""):gsub("^%s+", ""):gsub("%s+$", "")
+                    if #text == 0 then return nil end
+                    
+                    local k1 = text:lower()
                     local k2 = k1:gsub("%s+", "")
+                    local k3 = k1:gsub("[^%w%s]", ""):gsub("%s+", "")
                     
-                    local matchedData = allUnitsMap[k1] or allUnitsMap[k2]
-                    if not matchedData then return nil end
-                    
-                    -- Mode 1: Auto Secret / God Mode (Hanya unit dengan rarity Secret, God, atau Limited)
-                    if autoSecretGod then
-                        local r = matchedData.rarity
-                        if r == "Secret" or r == "God" or r == "Limited" then
-                            return matchedData
+                    local matched = allUnitsMap[k1] or allUnitsMap[k2] or allUnitsMap[k3] or allUnitsMap[text]
+                    if not matched then
+                        -- Check sub-string match from allUnitsMap
+                        for unitKey, uEntry in pairs(allUnitsMap) do
+                            if #unitKey > 3 and (k1 == unitKey or k2 == unitKey or k1:find(unitKey, 1, true)) then
+                                matched = uEntry
+                                break
+                            end
                         end
                     end
                     
-                    -- Mode 2: Manual Checklist (Hanya beli jika benar-benar dicentang di checklist)
-                    local rawLower = matchedData.name:lower()
-                    local dispLower = matchedData.displayName:lower()
-                    local rawClean = rawLower:gsub("%s+", "")
-                    local dispClean = dispLower:gsub("%s+", "")
+                    if not matched then return nil end
                     
-                    if selectedUnitsMap[rawLower] or selectedUnitsMap[dispLower] or selectedUnitsMap[rawClean] or selectedUnitsMap[dispClean] or selectedUnitsMap[matchedData.id] then
-                        return matchedData
+                    -- Mode 1: Auto Supreme / Secret / God / Limited / Divine
+                    if autoSecretGod then
+                        local r = tostring(matched.rarity):lower()
+                        if r == "supreme" or r == "secret" or r == "god" or r == "limited" or r == "divine" or r == "special" then
+                            return matched
+                        end
+                    end
+                    
+                    -- Mode 2: Manual Checklist (Hanya beli jika terpilih di checklist)
+                    if selectedUnitsMap and type(selectedUnitsMap) == "table" then
+                        local rawLower  = tostring(matched.name):lower()
+                        local dispLower = tostring(matched.displayName):lower()
+                        local rawClean  = rawLower:gsub("%s+", "")
+                        local dispClean = dispLower:gsub("%s+", "")
+                        local sid       = tostring(matched.id or "")
+                        
+                        local isSelected = (selectedUnitsMap[rawLower] == true)
+                            or (selectedUnitsMap[dispLower] == true)
+                            or (selectedUnitsMap[rawClean] == true)
+                            or (selectedUnitsMap[dispClean] == true)
+                            or (sid ~= "" and selectedUnitsMap[sid] == true)
+                            or (sid ~= "" and selectedUnitsMap[sid:lower()] == true)
+                            
+                        if isSelected then
+                            return matched
+                        end
                     end
                     
                     return nil
@@ -219,6 +244,7 @@ function AutoRollModule.GetTargetUnitsOnPedestals(plot, selectedUnitsMap, allUni
                 end
                 
                 if charData then
+                    seenModels[model] = true
                     local targetPart = model.PrimaryPart or 
                                        model:FindFirstChild("HumanoidRootPart") or 
                                        model:FindFirstChild("Head") or 

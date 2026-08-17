@@ -7,12 +7,13 @@
 	🎯 FEATURES:
 	- 📜 DATA-DRIVEN QUEST ENGINE (HANYA KLAIM SAAT STATUS READY):
 	  • Membaca data real-time dari BattlepassQuest.GetQuestData.
-	  • Verifikasi ketat: Hanya klaim jika (Completed == true dan Claimed == false).
-	  • Tidak ada blind spam ke server.
+	  • Verifikasi ketat: Hanya klaim jika (Completed == true dan Claimed ~= true).
+	  • Mengirim single-target remote yang terarah tanpa spam berulang.
 	- 🛑 ZERO SPAM & STRICT CACHE:
 	  • Item yang sudah berstatus Claimed dicatat permanen dalam session history.
+	  • Tombol yang memiliki teks 'Claimed', 'Locked', atau Timer dilewati secara otomatis.
 	- 🖱️ Multi-Vector Hardware/Event Click Dispatcher (firesignal + getconnections + VIM + VirtualUser + Activate).
-	- 🛡️ Template Filter: Mengabaikan tombol template non-aktif.
+	- 🛡️ Template & State Filter: Memvalidasi teks dan visual tombol sebelum dieksekusi.
 	===============================================================
 ]]
 
@@ -26,7 +27,8 @@ local warn = function(...) end
 
 local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local VirtualInputManager = nil
+pcall(function() VirtualInputManager = game:GetService("VirtualInputManager") end)
 local VirtualUser         = game:GetService("VirtualUser")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
@@ -37,13 +39,14 @@ AutoClaim.Config = {
     Battlepass    = true, -- Auto Claim Battlepass Tier Rewards
     FreeRewards   = true, -- Auto Claim Playtime Gifts & Free VIP/Group
     VIPAndGroup   = true,
-    CheckInterval = 3,    -- Interval pengecekan (detik)
+    CheckInterval = 10,   -- Interval pengecekan berkala (detik)
 }
 
 local isRunning        = false
 local loopThread       = nil
-local claimedHistory   = {} -- [key] = true (Tercatat jika sudah CLAIMED agar tidak spam)
+local claimedHistory   = {} -- [key] = true (Tercatat jika sudah CLAIMED agar tidak pernah di-spam)
 local clickDebounce    = {} -- [key] = timestamp (Cooldown klik per item)
+local lastQuestQuery   = 0
 
 -- =================================================================
 -- 🛠️ MULTI-VECTOR HARDWARE & EVENT CLICK DISPATCHER
@@ -86,22 +89,19 @@ local function clickButton(btn)
     pcall(function()
         local pos = btn.AbsolutePosition
         local size = btn.AbsoluteSize
-        if size.X > 0 and size.Y > 0 then
+        if size.X > 0 and size.Y > 0 and VirtualInputManager then
             local cx = math.floor(pos.X + size.X / 2)
             local cy = math.floor(pos.Y + size.Y / 2)
-
-            if typeof(VirtualInputManager) == "userdata" or typeof(VirtualInputManager) == "table" then
-                pcall(function()
-                    VirtualInputManager:SendTouchEvent(1, 0, cx, cy)
-                    task.wait(0.02)
-                    VirtualInputManager:SendTouchEvent(1, 2, cx, cy)
-                end)
-                pcall(function()
-                    VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
-                    task.wait(0.02)
-                    VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
-                end)
-            end
+            pcall(function()
+                VirtualInputManager:SendTouchEvent(1, 0, cx, cy)
+                task.wait(0.02)
+                VirtualInputManager:SendTouchEvent(1, 2, cx, cy)
+            end)
+            pcall(function()
+                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+                task.wait(0.02)
+                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+            end)
         end
     end)
 
@@ -126,16 +126,59 @@ local function clickButton(btn)
 end
 
 -- =================================================================
--- 🔍 HELPER: TEMPLATE DETECTOR
+-- 🔍 HELPER: TEMPLATE & CLAIMABLE DETECTOR
 -- =================================================================
 local function isTemplateObject(obj)
     if not obj then return true end
-    if obj.Parent and (obj.Parent.Name:lower() == "template" or obj.Parent.Name:lower() == "templates" or obj.Parent.Name:lower() == "configuration") then
+    local cur = obj
+    while cur and cur ~= game do
+        local cName = tostring(cur.Name):lower()
+        if cName == "template" or cName == "templates" or cName == "configuration" then
+            return true
+        end
+        if cur:IsA("GuiObject") and not cur.Visible then
+            return true
+        end
+        cur = cur.Parent
+    end
+    return false
+end
+
+local function isClaimableButton(btn)
+    if not btn or not btn:IsA("GuiObject") then return false end
+    if not btn.Visible or isTemplateObject(btn) then return false end
+
+    local text = ""
+    if btn:IsA("TextButton") or btn:IsA("TextLabel") then
+        text = tostring(btn.Text):lower()
+    end
+    for _, desc in ipairs(btn:GetDescendants()) do
+        if desc:IsA("TextLabel") and desc.Visible and #desc.Text > 0 then
+            text = text .. " " .. desc.Text:lower()
+        end
+    end
+    
+    text = text:gsub("^%s+", ""):gsub("%s+$", "")
+    
+    -- JANGAN KLIK jika teks kosong!
+    if #text == 0 then return false end
+    
+    -- Filter out explicitly unclaimable states
+    if text:find("claimed") or text:find("terklaim") or text:find("completed") or text:find("selesai") or text:find("sudah") then
+        return false
+    end
+    if text:find("lock") or text:find("kunci") or text:find("tier") or text:find("level") then
+        return false
+    end
+    if text:find(":") then -- Timer like 01:23:45
+        return false
+    end
+
+    -- Match positive claim words ONLY
+    if text:find("claim") or text:find("klaim") or text:find("collect") or text:find("ambil") then
         return true
     end
-    if obj:IsA("GuiObject") and not obj.Visible then
-        return true
-    end
+
     return false
 end
 
@@ -144,6 +187,10 @@ end
 -- =================================================================
 function AutoClaim.ClaimQuests()
     pcall(function()
+        local now = tick()
+        if now - lastQuestQuery < 6 then return end
+        lastQuestQuery = now
+
         local bpQuestFolder = ReplicatedStorage:FindFirstChild("Modules") 
             and ReplicatedStorage.Modules:FindFirstChild("Battlepass") 
             and ReplicatedStorage.Modules.Battlepass:FindFirstChild("BattlepassQuest")
@@ -157,50 +204,68 @@ function AutoClaim.ClaimQuests()
             end
         end
 
-        if not bpQuestFolder then return end
+        if bpQuestFolder then
+            local getQuestFunc = bpQuestFolder:FindFirstChild("GetQuestData")
+            local claimRemote = bpQuestFolder:FindFirstChild("ClaimQuest")
 
-        local getQuestFunc = bpQuestFolder:FindFirstChild("GetQuestData")
-        local claimRemote = bpQuestFolder:FindFirstChild("ClaimQuest")
+            if claimRemote and getQuestFunc and getQuestFunc:IsA("RemoteFunction") then
+                local s, questData = pcall(function() return getQuestFunc:InvokeServer() end)
+                if s and type(questData) == "table" then
+                    local categories = {}
+                    if AutoClaim.Config.DailyQuest and type(questData.Daily) == "table" then
+                        categories["Daily"] = questData.Daily
+                    end
+                    if AutoClaim.Config.WeeklyQuest and type(questData.Weekly) == "table" then
+                        categories["Weekly"] = questData.Weekly
+                    end
 
-        if not claimRemote or not claimRemote:IsA("RemoteEvent") then return end
-        if not getQuestFunc or not getQuestFunc:IsA("RemoteFunction") then return end
+                    for category, list in pairs(categories) do
+                        for idx, qInfo in ipairs(list) do
+                            if type(qInfo) == "table" then
+                                local isDone = (qInfo.Completed == true) or (qInfo.Progress and qInfo.Requirement and qInfo.Progress >= qInfo.Requirement)
+                                local isNotClaimed = (qInfo.Claimed ~= true)
+                                local questIdentifier = qInfo.ID or qInfo.UniqueName or idx
+                                local cacheKey = category .. "_" .. tostring(questIdentifier)
 
-        -- Ambil data quest real-time pemain dari server
-        local s, questData = pcall(function() return getQuestFunc:InvokeServer() end)
-        if not (s and type(questData) == "table") then return end
-
-        local categories = {}
-        if AutoClaim.Config.DailyQuest and type(questData.Daily) == "table" then
-            categories["Daily"] = questData.Daily
-        end
-        if AutoClaim.Config.WeeklyQuest and type(questData.Weekly) == "table" then
-            categories["Weekly"] = questData.Weekly
-        end
-
-        -- 🎯 HANYA KLAIM JIKA: Status Selesai (Completed == true) dan Belum Diklaim (Claimed == false)
-        for category, list in pairs(categories) do
-            for idx, qInfo in ipairs(list) do
-                if type(qInfo) == "table" then
-                    local isDone = (qInfo.Completed == true) or (qInfo.Progress and qInfo.Requirement and qInfo.Progress >= qInfo.Requirement)
-                    local isNotClaimed = (qInfo.Claimed == false)
-                    local cacheKey = category .. "_" .. tostring(qInfo.ID or idx)
-
-                    if isDone and isNotClaimed and not claimedHistory[cacheKey] then
-                        local now = tick()
-                        if not clickDebounce[cacheKey] or (now - clickDebounce[cacheKey] > 2) then
-                            clickDebounce[cacheKey] = now
-                            
-                            -- Tembak Remote Resmi Game
-                            pcall(function() claimRemote:FireServer(category, idx) end)
-                            if qInfo.ID then
-                                pcall(function() claimRemote:FireServer(category, qInfo.ID) end)
-                            end
-                            if qInfo.UniqueName then
-                                pcall(function() claimRemote:FireServer(category, qInfo.UniqueName) end)
+                                if isDone and isNotClaimed and not claimedHistory[cacheKey] then
+                                    local curTime = tick()
+                                    if not clickDebounce[cacheKey] or (curTime - clickDebounce[cacheKey] > 8) then
+                                        clickDebounce[cacheKey] = curTime
+                                        
+                                        pcall(function()
+                                            if claimRemote:IsA("RemoteEvent") then
+                                                claimRemote:FireServer(category, questIdentifier)
+                                            elseif claimRemote:IsA("RemoteFunction") then
+                                                claimRemote:InvokeServer(category, questIdentifier)
+                                            end
+                                        end)
+                                        
+                                        claimedHistory[cacheKey] = true
+                                        task.wait(0.2)
+                                    end
+                                elseif qInfo.Claimed == true then
+                                    claimedHistory[cacheKey] = true
+                                end
                             end
                         end
-                    elseif qInfo.Claimed == true then
-                        claimedHistory[cacheKey] = true
+                    end
+                end
+            end
+        end
+
+        -- Fallback: Scan tombol quest langsung di UI
+        local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local mainUI = pGui and pGui:FindFirstChild("MainUI")
+        local bpFrame = mainUI and mainUI:FindFirstChild("Frames") and mainUI.Frames:FindFirstChild("Battlepass")
+        if bpFrame then
+            for _, desc in ipairs(bpFrame:GetDescendants()) do
+                if desc:IsA("GuiButton") and isClaimableButton(desc) then
+                    local btnKey = "UI_Q_" .. desc:GetFullName()
+                    if not claimedHistory[btnKey] and (not clickDebounce[btnKey] or (now - clickDebounce[btnKey] > 10)) then
+                        clickDebounce[btnKey] = now
+                        clickButton(desc)
+                        claimedHistory[btnKey] = true
+                        task.wait(0.2)
                     end
                 end
             end
@@ -218,28 +283,16 @@ function AutoClaim.ClaimBattlepass()
         local mainUI = pGui and pGui:FindFirstChild("MainUI")
         local bpFrame = mainUI and mainUI:FindFirstChild("Frames") and mainUI.Frames:FindFirstChild("Battlepass")
         
-        local bpContent = bpFrame and bpFrame:FindFirstChild("Frame")
-            and bpFrame.Frame:FindFirstChild("Main")
-            and bpFrame.Frame.Main:FindFirstChild("Battlepass")
-            and bpFrame.Frame.Main.Battlepass:FindFirstChild("ScrollingFrame")
-            and bpFrame.Frame.Main.Battlepass.ScrollingFrame:FindFirstChild("Content")
-            and bpFrame.Frame.Main.Battlepass.ScrollingFrame.Content:FindFirstChild("Rewards")
-
-        if bpContent then
-            for _, bpReward in ipairs(bpContent:GetChildren()) do
-                if bpReward.Name == "BattlepassReward" and not isTemplateObject(bpReward) then
-                    for _, btn in ipairs(bpReward:GetDescendants()) do
-                        if btn:IsA("GuiButton") and btn.Visible and btn.Active and not isTemplateObject(btn) then
-                            local txt = tostring(btn:IsA("TextButton") and btn.Text or ""):lower()
-                            if txt:find("claim") or txt == "" then
-                                local btnKey = "BP_" .. btn:GetDebugId()
-                                local now = tick()
-                                if not clickDebounce[btnKey] or (now - clickDebounce[btnKey] > 5) then
-                                    clickDebounce[btnKey] = now
-                                    clickButton(btn)
-                                end
-                            end
-                        end
+        if bpFrame then
+            local now = tick()
+            for _, desc in ipairs(bpFrame:GetDescendants()) do
+                if desc:IsA("GuiButton") and isClaimableButton(desc) then
+                    local btnKey = "BP_BTN_" .. desc:GetFullName()
+                    if not claimedHistory[btnKey] and (not clickDebounce[btnKey] or (now - clickDebounce[btnKey] > 12)) then
+                        clickDebounce[btnKey] = now
+                        clickButton(desc)
+                        claimedHistory[btnKey] = true
+                        task.wait(0.2)
                     end
                 end
             end
@@ -257,32 +310,21 @@ function AutoClaim.ClaimFreeRewards()
         local frames = mainUI and mainUI:FindFirstChild("Frames")
         local now = tick()
 
-        -- 1. VIP Claim (Hanya jika belum diklaim dan tombol aktif)
-        if AutoClaim.Config.VIPAndGroup and frames and frames:FindFirstChild("VIPRewards") then
-            local vipBtn = frames.VIPRewards:FindFirstChild("Frame")
-                and frames.VIPRewards.Frame:FindFirstChild("Main")
-                and frames.VIPRewards.Frame.Main:FindFirstChild("Claim")
-                and frames.VIPRewards.Frame.Main.Claim:FindFirstChild("Claim")
-
-            if vipBtn and vipBtn:IsA("GuiButton") and vipBtn.Visible and vipBtn.Active and not isTemplateObject(vipBtn) then
-                if not clickDebounce["VIP"] or (now - clickDebounce["VIP"] > 60) then
-                    clickDebounce["VIP"] = now
-                    clickButton(vipBtn)
-                end
-            end
-        end
-
-        -- 2. Group Claim (Hanya jika belum diklaim dan tombol aktif)
-        if AutoClaim.Config.VIPAndGroup and frames and frames:FindFirstChild("GroupRewards") then
-            local grpBtn = frames.GroupRewards:FindFirstChild("Frame")
-                and frames.GroupRewards.Frame:FindFirstChild("Main")
-                and frames.GroupRewards.Frame.Main:FindFirstChild("Claim")
-                and frames.GroupRewards.Frame.Main.Claim:FindFirstChild("Start")
-
-            if grpBtn and grpBtn:IsA("GuiButton") and grpBtn.Visible and grpBtn.Active and not isTemplateObject(grpBtn) then
-                if not clickDebounce["Group"] or (now - clickDebounce["Group"] > 60) then
-                    clickDebounce["Group"] = now
-                    clickButton(grpBtn)
+        if frames then
+            for _, fName in ipairs({"VIPRewards", "GroupRewards", "FreeRewards", "PlaytimeRewards", "DailyRewards"}) do
+                local frame = frames:FindFirstChild(fName)
+                if frame then
+                    for _, desc in ipairs(frame:GetDescendants()) do
+                        if desc:IsA("GuiButton") and isClaimableButton(desc) then
+                            local bKey = "FREE_" .. fName .. "_" .. desc:GetFullName()
+                            if not claimedHistory[bKey] and (not clickDebounce[bKey] or (now - clickDebounce[bKey] > 30)) then
+                                clickDebounce[bKey] = now
+                                clickButton(desc)
+                                claimedHistory[bKey] = true
+                                task.wait(0.2)
+                            end
+                        end
+                    end
                 end
             end
         end
@@ -301,28 +343,15 @@ function AutoClaim.ScanAndClaimUI()
         local frames = mainUI and mainUI:FindFirstChild("Frames")
         local now = tick()
 
-        -- Scan Quest UI Button jika ada quest aktif di tampilan
-        if AutoClaim.Config.DailyQuest or AutoClaim.Config.WeeklyQuest then
-            local bpFrame = frames and frames:FindFirstChild("Battlepass")
-            local questContent = bpFrame and bpFrame:FindFirstChild("Frame")
-                and bpFrame.Frame:FindFirstChild("Main")
-                and bpFrame.Frame.Main:FindFirstChild("Quest")
-                and bpFrame.Frame.Main.Quest:FindFirstChild("ScrollingFrame")
-                and bpFrame.Frame.Main.Quest.ScrollingFrame:FindFirstChild("Content")
-                and bpFrame.Frame.Main.Quest.ScrollingFrame.Content:FindFirstChild("Rewards")
-
-            if questContent then
-                for _, questReward in ipairs(questContent:GetChildren()) do
-                    if (questReward.Name == "QuestReward" or questReward.Name:find("Quest")) and not isTemplateObject(questReward) then
-                        for _, desc in ipairs(questReward:GetDescendants()) do
-                            if desc:IsA("GuiButton") and desc.Visible and desc.Active and not isTemplateObject(desc) then
-                                local bKey = "UIQ_" .. desc:GetDebugId()
-                                if not clickDebounce[bKey] or (now - clickDebounce[bKey] > 4) then
-                                    clickDebounce[bKey] = now
-                                    clickButton(desc)
-                                end
-                            end
-                        end
+        if frames then
+            for _, desc in ipairs(frames:GetDescendants()) do
+                if desc:IsA("GuiButton") and isClaimableButton(desc) then
+                    local bKey = "DEEP_UI_" .. desc:GetFullName()
+                    if not claimedHistory[bKey] and (not clickDebounce[bKey] or (now - clickDebounce[bKey] > 15)) then
+                        clickDebounce[bKey] = now
+                        clickButton(desc)
+                        claimedHistory[bKey] = true
+                        task.wait(0.2)
                     end
                 end
             end
@@ -348,27 +377,27 @@ function AutoClaim.Start(customConfig)
             if AutoClaim.Config.DailyQuest or AutoClaim.Config.WeeklyQuest then
                 AutoClaim.ClaimQuests()
             end
-            task.wait(1)
+            task.wait(1.5)
 
             if not isRunning then break end
 
             if AutoClaim.Config.Battlepass then
                 AutoClaim.ClaimBattlepass()
             end
-            task.wait(1)
+            task.wait(1.5)
 
             if not isRunning then break end
 
             if AutoClaim.Config.FreeRewards or AutoClaim.Config.VIPAndGroup then
                 AutoClaim.ClaimFreeRewards()
             end
-            task.wait(1)
+            task.wait(1.5)
 
             if not isRunning then break end
 
             AutoClaim.ScanAndClaimUI()
 
-            task.wait(AutoClaim.Config.CheckInterval or 3)
+            task.wait(AutoClaim.Config.CheckInterval or 10)
         end
     end)
 end

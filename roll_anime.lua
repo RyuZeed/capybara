@@ -56,26 +56,16 @@ end)
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/roll_anime/"
 
 local function loadModule(name)
-    -- 0. Cek jika modul sudah diload di global memory _G
-    local globalMaps = {
-        ["anti_afk"]        = _G.AntiAFK or _G.AFKModule,
-        ["config_manager"]  = _G.ConfigManager,
-        ["catalog"]         = _G.CatalogModule or _G.Catalog,
-        ["auto_roll"]       = _G.AutoRoll or _G.AutoRollModule,
-        ["auto_claim"]      = _G.AutoClaim or _G.AutoClaimModule,
-        ["graphics"]        = _G.GraphicsOptimizer or _G.GraphicsModule,
-        ["modern_settings"] = _G.ModernSettings,
-    }
-    if globalMaps[name] and typeof(globalMaps[name]) == "table" then
-        return globalMaps[name]
-    end
-
     -- 1. Prioritaskan file lokal di workspace executor jika ada
     local localPaths = {
         "modules/roll_anime/" .. name .. ".lua",
         name .. ".lua",
         "RitodHub/modules/roll_anime/" .. name .. ".lua",
-        "lucid-shannon/modules/roll_anime/" .. name .. ".lua"
+        "lucid-shannon/modules/roll_anime/" .. name .. ".lua",
+        "modules/shared/" .. name .. ".lua",
+        "RitodHub/modules/shared/" .. name .. ".lua",
+        "lucid-shannon/modules/shared/" .. name .. ".lua",
+        "shared/" .. name .. ".lua"
     }
     if typeof(readfile) == "function" and typeof(isfile) == "function" then
         for _, path in ipairs(localPaths) do
@@ -91,12 +81,17 @@ local function loadModule(name)
     end
 
     -- 2. Fallback: Load dari GitHub Cloud
-    local success, result = pcall(function()
-        local url = BASE_URL .. name .. ".lua?t=" .. tostring(os.time())
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result then
-        return result
+    local urls = {
+        BASE_URL .. name .. ".lua?t=" .. tostring(os.time()),
+        "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/" .. name .. ".lua?t=" .. tostring(os.time())
+    }
+    for _, url in ipairs(urls) do
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet(url))()
+        end)
+        if success and result then
+            return result
+        end
     end
 
     return nil
@@ -108,7 +103,8 @@ local CatalogModule   = loadModule("catalog")
 local AutoRollModule  = loadModule("auto_roll")
 local AutoClaimModule = loadModule("auto_claim")
 local GraphicsModule  = loadModule("graphics")
-local ModernSettings  = loadModule("modern_settings")
+local ModernSettings      = loadModule("modern_settings")
+local PrivateServerModule = loadModule("private_server")
 
 -- Auto-start Anti-AFK
 if AFKModule then
@@ -1044,6 +1040,19 @@ function RitodLib:CreateTab(name, icon)
 				setSlider(input)
 			end
 		end)
+
+		return {
+			Set = function(self, newVal, fireCallback)
+				val = math.clamp(newVal, min, max)
+				local ratio = (val - min) / math.max(max - min, 1)
+				barFill.Size = UDim2.new(ratio, 0, 1, 0)
+				valLabel.Text = tostring(val)
+				if fireCallback and callback then callback(val) end
+			end,
+			Get = function(self)
+				return val
+			end
+		}
 	end
 
 	function elements:AddInput(placeholder, callback)
@@ -1331,6 +1340,18 @@ local function stopHunt()
 	Notify("Auto Hunt", "Auto Roll dihentikan.", 2)
 end
 
+local autoSecretGodToggleRef = nil
+local rollDelaySliderRef = nil
+local walkSpeedSliderRef = nil
+local jumpPowerSliderRef = nil
+local infJumpToggleRef = nil
+local questToggleRef = nil
+local rewardsToggleRef = nil
+local farmModeToggleRef = nil
+local potatoToggleRef = nil
+local antiLagToggleRef = nil
+local autoPrivateServerToggleRef = nil
+
 huntToggleRef = RollTab:AddToggle("Auto Hunt (Continuous Roll & Sniper)", savedConfig.AutoHuntEnabled or false, function(state)
 	if state then
 		startHunt()
@@ -1339,15 +1360,15 @@ huntToggleRef = RollTab:AddToggle("Auto Hunt (Continuous Roll & Sniper)", savedC
 	end
 end)
 
-RollTab:AddToggle("👑 Auto Buy Secret/God/Limited (Tanpa List)", savedConfig.AutoSecretGod or false, function(state)
+autoSecretGodToggleRef = RollTab:AddToggle("👑 Auto Buy Supreme/God/Secret/Limited (Tanpa List)", savedConfig.AutoSecretGod or false, function(state)
 	savedConfig.AutoSecretGod = state
 	if ConfigManager then
 		ConfigManager.Save({ AutoSecretGod = state })
 	end
-	Notify("Auto Secret/God", state and "Mode Auto Secret & God AKTIF!" or "Mode Auto Secret & God NONAKTIF", 2)
+	Notify("Auto Supreme/God", state and "Mode Auto Supreme & God AKTIF!" or "Mode Auto Supreme & God NONAKTIF", 2)
 end)
 
-RollTab:AddSlider("Roll Delay (Detik)", 1, 5, math.floor(rollInterval), function(val)
+rollDelaySliderRef = RollTab:AddSlider("Roll Delay (Detik)", 1, 5, math.floor(rollInterval), function(val)
 	rollInterval = val
 	if ConfigManager then
 		ConfigManager.Save({ RollInterval = val })
@@ -1356,29 +1377,32 @@ end)
 
 RollTab:AddSection("Quick Rarity Select")
 
-local secretNum = CatalogModule and #(CatalogModule.UnitsByRarity["Secret"] or {}) or 16
+local supremeNum = CatalogModule and #(CatalogModule.UnitsByRarity["Supreme"] or {}) or 0
 local godNum = CatalogModule and #(CatalogModule.UnitsByRarity["God"] or {}) or 22
+local secretNum = CatalogModule and #(CatalogModule.UnitsByRarity["Secret"] or {}) or 16
 
-RollTab:AddButton(string.format("🌟 Pilih Semua Secret (%d) & God (%d)", secretNum, godNum), function()
+RollTab:AddButton(string.format("🌟 Pilih Semua Supreme (%d) & God (%d)", supremeNum, godNum), function()
 	selectedUnits = {}
 	if CatalogModule then
-		for _, u in ipairs(CatalogModule.UnitsByRarity["Secret"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
+		for _, u in ipairs(CatalogModule.UnitsByRarity["Supreme"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
 		for _, u in ipairs(CatalogModule.UnitsByRarity["God"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
 	end
 	for _, item in ipairs(unitCheckUpdaterCallbacks) do item.sync() end
 	if ConfigManager then ConfigManager.Save({ SelectedUnits = selectedUnits }) end
-	Notify("Preset Target", "Target diatur ke Secret & God saja!", 2.5)
+	Notify("Preset Target", "Target diatur ke Supreme & God saja!", 2.5)
 end)
 
-RollTab:AddButton("🔥 Pilih Secret, God, & Mythic", function()
+RollTab:AddButton("🔥 Pilih Supreme, God, Secret, & Mythic", function()
+	selectedUnits = {}
 	if CatalogModule then
-		for _, u in ipairs(CatalogModule.UnitsByRarity["Secret"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
+		for _, u in ipairs(CatalogModule.UnitsByRarity["Supreme"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
 		for _, u in ipairs(CatalogModule.UnitsByRarity["God"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
+		for _, u in ipairs(CatalogModule.UnitsByRarity["Secret"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
 		for _, u in ipairs(CatalogModule.UnitsByRarity["Mythic"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
 	end
 	for _, item in ipairs(unitCheckUpdaterCallbacks) do item.sync() end
 	if ConfigManager then ConfigManager.Save({ SelectedUnits = selectedUnits }) end
-	Notify("Preset Target", "Target ditambah Mythic!", 2.5)
+	Notify("Preset Target", "Target ditambah Supreme, Secret & Mythic!", 2.5)
 end)
 
 RollTab:AddButton("🧹 Hapus Semua Pilihan (Deselect All)", function()
@@ -1432,31 +1456,61 @@ PlayerTab:AddButton("📍 Teleport ke Depan Stasiun Roll", function()
 	Notify("Teleport", "Plot belum ditemukan!", 2)
 end)
 
-PlayerTab:AddSlider("WalkSpeed", 16, 250, savedConfig.WalkSpeed or 16, function(val)
-	if ConfigManager then ConfigManager.Save({ WalkSpeed = val }) end
+local function applyPlayerWalkSpeed(val)
+	savedConfig.WalkSpeed = val
 	if player.Character and player.Character:FindFirstChild("Humanoid") then
 		player.Character.Humanoid.WalkSpeed = val
 	end
-end)
+end
 
-PlayerTab:AddSlider("JumpPower", 50, 350, savedConfig.JumpPower or 50, function(val)
-	if ConfigManager then ConfigManager.Save({ JumpPower = val }) end
+local function applyPlayerJumpPower(val)
+	savedConfig.JumpPower = val
 	if player.Character and player.Character:FindFirstChild("Humanoid") then
 		player.Character.Humanoid.JumpPower = val
 	end
+end
+
+walkSpeedSliderRef = PlayerTab:AddSlider("WalkSpeed", 16, 250, savedConfig.WalkSpeed or 16, function(val)
+	applyPlayerWalkSpeed(val)
+	if ConfigManager then ConfigManager.Save({ WalkSpeed = val }) end
 end)
 
-PlayerTab:AddToggle("Infinite Jump", savedConfig.InfJump or false, function(state)
+jumpPowerSliderRef = PlayerTab:AddSlider("JumpPower", 50, 350, savedConfig.JumpPower or 50, function(val)
+	applyPlayerJumpPower(val)
+	if ConfigManager then ConfigManager.Save({ JumpPower = val }) end
+end)
+
+infJumpToggleRef = PlayerTab:AddToggle("Infinite Jump", savedConfig.InfJump or false, function(state)
+	savedConfig.InfJump = state
 	if ConfigManager then ConfigManager.Save({ InfJump = state }) end
 	_G.InfJump = state
 	if state then
-		_G.InfJumpConn = UserInputService.JumpRequest:Connect(function()
-			if _G.InfJump and player.Character and player.Character:FindFirstChild("Humanoid") then
-				player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-			end
-		end)
+		if not _G.InfJumpConn then
+			_G.InfJumpConn = UserInputService.JumpRequest:Connect(function()
+				if _G.InfJump and player.Character and player.Character:FindFirstChild("Humanoid") then
+					player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+				end
+			end)
+		end
 	else
-		if _G.InfJumpConn then _G.InfJumpConn:Disconnect() end
+		if _G.InfJumpConn then
+			_G.InfJumpConn:Disconnect()
+			_G.InfJumpConn = nil
+		end
+	end
+end)
+
+-- Auto re-apply movement on respawn
+player.CharacterAdded:Connect(function(char)
+	local hum = char:WaitForChild("Humanoid", 10)
+	if hum then
+		task.wait(0.5)
+		if savedConfig.WalkSpeed and savedConfig.WalkSpeed ~= 16 then
+			hum.WalkSpeed = savedConfig.WalkSpeed
+		end
+		if savedConfig.JumpPower and savedConfig.JumpPower ~= 50 then
+			hum.JumpPower = savedConfig.JumpPower
+		end
 	end
 end)
 
@@ -1465,7 +1519,7 @@ local QuestTab = RitodLib:CreateTab("Quests", "🎁")
 
 QuestTab:AddSection("Daily & Weekly Quests")
 
-QuestTab:AddToggle("📜 Auto Claim Daily & Weekly Quests", savedConfig.AutoClaimQuests ~= false, function(state)
+questToggleRef = QuestTab:AddToggle("📜 Auto Claim Daily & Weekly Quests", savedConfig.AutoClaimQuests ~= false, function(state)
 	savedConfig.AutoClaimQuests = state
 	if ConfigManager then ConfigManager.Save({ AutoClaimQuests = state }) end
 	if AutoClaimModule then
@@ -1486,7 +1540,7 @@ end)
 
 QuestTab:AddSection("Battlepass & Free Gifts")
 
-QuestTab:AddToggle("🏆 Auto Claim Battlepass Tier", savedConfig.AutoClaimRewards ~= false, function(state)
+rewardsToggleRef = QuestTab:AddToggle("🏆 Auto Claim Battlepass Tier", savedConfig.AutoClaimRewards ~= false, function(state)
 	savedConfig.AutoClaimRewards = state
 	if ConfigManager then ConfigManager.Save({ AutoClaimRewards = state }) end
 	if AutoClaimModule then
@@ -1524,27 +1578,46 @@ end)
 -- 5. TAB ⚙️ SETTINGS & CONFIG
 local MiscTab = RitodLib:CreateTab("Settings", "⚙️")
 
+MiscTab:AddSection("Server & Private Server")
+
+autoPrivateServerToggleRef = MiscTab:AddToggle("🔒 Auto Join Private Server (Saat Load/Execute)", savedConfig.AutoPrivateServer or false, function(state)
+	savedConfig.AutoPrivateServer = state
+	if ConfigManager then ConfigManager.Save({ AutoPrivateServer = state }) end
+	Notify("Private Server", state and "Auto Join Private Server AKTIF!" or "Auto Join Private Server NONAKTIF", 2)
+end)
+
+MiscTab:AddButton("🏠 Masuk / Relog ke Private Server (Menu Game)", function()
+	if PrivateServerModule then
+		PrivateServerModule.JoinPrivateServer(Notify)
+	else
+		Notify("Private Server", "Modul Private Server belum dimuat.", 2)
+	end
+end)
+
 MiscTab:AddSection("Graphics & Performance")
 
-local updateFarmModeBtn
-updateFarmModeBtn = MiscTab:AddToggle("🚜 Farm Mode (3D Render Off)", savedConfig.FarmMode or false, function(state)
+farmModeToggleRef = MiscTab:AddToggle("🚜 Farm Mode (3D Render Off)", savedConfig.FarmMode or false, function(state)
+	savedConfig.FarmMode = state
 	if ConfigManager then ConfigManager.Save({ FarmMode = state }) end
 	if GraphicsModule then
 		GraphicsModule.SetFarmMode(state, function(newState)
+			savedConfig.FarmMode = newState
 			if ConfigManager then ConfigManager.Save({ FarmMode = newState }) end
-			if updateFarmModeBtn then updateFarmModeBtn:Set(newState, false) end
+			if farmModeToggleRef then farmModeToggleRef:Set(newState, false) end
 		end)
 	end
 end)
 
-MiscTab:AddToggle("🥔 Low Graphics / Potato Mode", savedConfig.PotatoGraphics or false, function(state)
+potatoToggleRef = MiscTab:AddToggle("🥔 Low Graphics / Potato Mode", savedConfig.PotatoGraphics or false, function(state)
+	savedConfig.PotatoGraphics = state
 	if ConfigManager then ConfigManager.Save({ PotatoGraphics = state }) end
 	if GraphicsModule then
 		GraphicsModule.EnablePotato(state)
 	end
 end)
 
-MiscTab:AddToggle("❄️ Anti-Lag (FPS Cap 5)", savedConfig.AntiLag or false, function(state)
+antiLagToggleRef = MiscTab:AddToggle("❄️ Anti-Lag (FPS Cap 5)", savedConfig.AntiLag or false, function(state)
+	savedConfig.AntiLag = state
 	if ConfigManager then ConfigManager.Save({ AntiLag = state }) end
 	if GraphicsModule then
 		GraphicsModule.SetAntiLag(state)
@@ -1552,65 +1625,129 @@ MiscTab:AddToggle("❄️ Anti-Lag (FPS Cap 5)", savedConfig.AntiLag or false, f
 end)
 
 local function applyRollAnimeConfig(loaded)
-	if not loaded then return end
+	if not loaded or type(loaded) ~= "table" then return end
 	for k, v in pairs(loaded) do
 		savedConfig[k] = v
 	end
 
-	if loaded.SelectedUnits then
-		selectedUnits = {}
-		for name, val in pairs(loaded.SelectedUnits) do
-			if val then selectedUnits[name:lower()] = true end
+	if huntToggleRef and loaded.AutoHuntEnabled ~= nil then
+		huntToggleRef:Set(loaded.AutoHuntEnabled, false)
+		if loaded.AutoHuntEnabled then
+			task.spawn(startHunt)
+		else
+			task.spawn(stopHunt)
 		end
-		for _, item in ipairs(unitCheckUpdaterCallbacks) do item.sync() end
 	end
 
-	if loaded.WalkSpeed and player.Character and player.Character:FindFirstChild("Humanoid") then
-		player.Character.Humanoid.WalkSpeed = loaded.WalkSpeed
+	if autoSecretGodToggleRef and loaded.AutoSecretGod ~= nil then
+		autoSecretGodToggleRef:Set(loaded.AutoSecretGod, false)
+		savedConfig.AutoSecretGod = loaded.AutoSecretGod
 	end
-	if loaded.JumpPower and player.Character and player.Character:FindFirstChild("Humanoid") then
-		player.Character.Humanoid.JumpPower = loaded.JumpPower
+
+	if rollDelaySliderRef and loaded.RollInterval then
+		rollDelaySliderRef:Set(loaded.RollInterval, false)
+		rollInterval = loaded.RollInterval
 	end
-	if loaded.InfJump ~= nil then
+
+	if walkSpeedSliderRef and loaded.WalkSpeed then
+		walkSpeedSliderRef:Set(loaded.WalkSpeed, false)
+		applyPlayerWalkSpeed(loaded.WalkSpeed)
+	end
+
+	if jumpPowerSliderRef and loaded.JumpPower then
+		jumpPowerSliderRef:Set(loaded.JumpPower, false)
+		applyPlayerJumpPower(loaded.JumpPower)
+	end
+
+	if infJumpToggleRef and loaded.InfJump ~= nil then
+		infJumpToggleRef:Set(loaded.InfJump, false)
 		_G.InfJump = loaded.InfJump
 	end
 
-	if loaded.PotatoGraphics ~= nil and GraphicsModule then
-		GraphicsModule.EnablePotato(loaded.PotatoGraphics)
+	if autoPrivateServerToggleRef and loaded.AutoPrivateServer ~= nil then
+		autoPrivateServerToggleRef:Set(loaded.AutoPrivateServer, false)
+		savedConfig.AutoPrivateServer = loaded.AutoPrivateServer
 	end
-	if loaded.AntiLag ~= nil and GraphicsModule then
-		GraphicsModule.SetAntiLag(loaded.AntiLag)
+
+	if questToggleRef and loaded.AutoClaimQuests ~= nil then
+		questToggleRef:Set(loaded.AutoClaimQuests, false)
+		savedConfig.AutoClaimQuests = loaded.AutoClaimQuests
+		if AutoClaimModule then
+			AutoClaimModule.Config.DailyQuest = loaded.AutoClaimQuests
+			AutoClaimModule.Config.WeeklyQuest = loaded.AutoClaimQuests
+		end
 	end
-	if loaded.FarmMode ~= nil and GraphicsModule then
-		GraphicsModule.SetFarmMode(loaded.FarmMode)
+
+	if rewardsToggleRef and loaded.AutoClaimRewards ~= nil then
+		rewardsToggleRef:Set(loaded.AutoClaimRewards, false)
+		savedConfig.AutoClaimRewards = loaded.AutoClaimRewards
+		if AutoClaimModule then
+			AutoClaimModule.Config.Battlepass = loaded.AutoClaimRewards
+			AutoClaimModule.Config.FreeRewards = loaded.AutoClaimRewards
+			AutoClaimModule.Config.VIPAndGroup = loaded.AutoClaimRewards
+		end
+	end
+
+	if potatoToggleRef and loaded.PotatoGraphics ~= nil then
+		potatoToggleRef:Set(loaded.PotatoGraphics, false)
+		savedConfig.PotatoGraphics = loaded.PotatoGraphics
+		if GraphicsModule then GraphicsModule.EnablePotato(loaded.PotatoGraphics) end
+	end
+
+	if antiLagToggleRef and loaded.AntiLag ~= nil then
+		antiLagToggleRef:Set(loaded.AntiLag, false)
+		savedConfig.AntiLag = loaded.AntiLag
+		if GraphicsModule then GraphicsModule.SetAntiLag(loaded.AntiLag) end
+	end
+
+	if farmModeToggleRef and loaded.FarmMode ~= nil then
+		farmModeToggleRef:Set(loaded.FarmMode, false)
+		savedConfig.FarmMode = loaded.FarmMode
+		if GraphicsModule then GraphicsModule.SetFarmMode(loaded.FarmMode) end
+	end
+
+	if loaded.SelectedUnits and type(loaded.SelectedUnits) == "table" then
+		selectedUnits = {}
+		for name, val in pairs(loaded.SelectedUnits) do
+			if val then selectedUnits[tostring(name):lower()] = true end
+		end
+		for _, item in ipairs(unitCheckUpdaterCallbacks) do item.sync() end
 	end
 end
 
-if ModernSettings then
+if ModernSettings and typeof(ModernSettings.CreateProfileManager) == "function" then
 	local ProfileManager = ModernSettings.CreateProfileManager(
 		"RitodHub/RollAnimeForFight",
 		{
-			AutoHuntEnabled = false,
-			RollInterval = 2.5,
-			SelectedUnits = selectedUnits,
-			WalkSpeed = 16,
-			JumpPower = 50,
-			InfJump = false,
-			PotatoGraphics = false,
-			FarmMode = false,
-			AntiLag = false
+			AutoHuntEnabled   = false,
+			AutoSecretGod     = false,
+			AutoPrivateServer = false,
+			AutoClaimQuests   = true,
+			AutoClaimRewards  = true,
+			RollInterval      = 2.5,
+			SelectedUnits     = selectedUnits,
+			WalkSpeed         = 16,
+			JumpPower         = 50,
+			InfJump           = false,
+			PotatoGraphics    = false,
+			FarmMode          = false,
+			AntiLag           = false
 		},
 		function()
 			return {
-				AutoHuntEnabled = AutoRollModule and AutoRollModule.IsRunning() or false,
-				RollInterval = rollInterval or 2.5,
-				SelectedUnits = selectedUnits,
-				WalkSpeed = (player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.WalkSpeed) or 16,
-				JumpPower = (player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.JumpPower) or 50,
-				InfJump = _G.InfJump or false,
-				PotatoGraphics = savedConfig.PotatoGraphics or false,
-				FarmMode = savedConfig.FarmMode or false,
-				AntiLag = savedConfig.AntiLag or false
+				AutoHuntEnabled   = AutoRollModule and AutoRollModule.IsRunning() or false,
+				AutoSecretGod     = savedConfig.AutoSecretGod or false,
+				AutoPrivateServer = savedConfig.AutoPrivateServer or false,
+				AutoClaimQuests   = savedConfig.AutoClaimQuests ~= false,
+				AutoClaimRewards  = savedConfig.AutoClaimRewards ~= false,
+				RollInterval      = rollInterval or 2.5,
+				SelectedUnits     = selectedUnits,
+				WalkSpeed         = (player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.WalkSpeed) or savedConfig.WalkSpeed or 16,
+				JumpPower         = (player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.JumpPower) or savedConfig.JumpPower or 50,
+				InfJump           = _G.InfJump or false,
+				PotatoGraphics    = savedConfig.PotatoGraphics or false,
+				FarmMode          = savedConfig.FarmMode or false,
+				AntiLag           = savedConfig.AntiLag or false
 			}
 		end,
 		applyRollAnimeConfig,
@@ -1639,7 +1776,7 @@ MiscTab:AddButton("Unload Script", function()
 end)
 
 -- ==========================================
--- 🚀 AUTO-RESUME JIKA TERAKHIR KALI AUTO-HUNT / GRAPHICS AKTIF
+-- 🚀 AUTO-RESUME JIKA TERAKHIR KALI AUTO-HUNT / GRAPHICS / PRIVATE SERVER AKTIF
 -- ==========================================
 if savedConfig.PotatoGraphics and GraphicsModule then
 	task.spawn(function()
@@ -1662,6 +1799,16 @@ if savedConfig.FarmMode and GraphicsModule then
 	end)
 end
 
+if savedConfig.AutoPrivateServer and PrivateServerModule then
+	task.spawn(function()
+		task.wait(2.5)
+		if not PrivateServerModule.IsPrivateServer() then
+			Notify("Auto Private Server", "Mendeteksi server publik, berpindah ke Private Server...", 3)
+			PrivateServerModule.JoinPrivateServer(Notify)
+		end
+	end)
+end
+
 if savedConfig.AutoHuntEnabled then
 	task.spawn(function()
 		task.wait(2.5)
@@ -1675,6 +1822,8 @@ if savedConfig.AutoHuntEnabled then
 end
 
 -- Pop up notifikasi awal
-local activeCfgPath = (ConfigManager and ConfigManager.ConfigPath) or string.format("RitodHub/RollAnimeForFight/%s.json", player.Name)
+local activeCfgPath = (ConfigManager and ConfigManager.ConfigPath) or "RitodHub/RollAnimeForFight/config.json"
 Notify("⚡RITOD HUB⚡", "Loaded! File Config: " .. activeCfgPath, 4)
+
+
 
