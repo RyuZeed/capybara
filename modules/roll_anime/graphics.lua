@@ -353,236 +353,104 @@ local function freezeUnitModel(model)
 end
 
 -- =================================================================
--- 6. 🧹 FAST POTATO OBJECT CLEANER (ZERO ALLOCATIONS)
+-- 6. 🧹 TARGETED OTHER-PLOT & OTHER-PLAYER HIDER (MAP PRESERVED)
 -- =================================================================
-local function cleanObject(v)
-    if not v or not v.Parent then return end
-    if v:GetAttribute(PROCESSED_TAG) then return end
-    if isProtectedObject(v) then return end
-
-    v:SetAttribute(PROCESSED_TAG, true)
-
-    pcall(function()
-        local className = v.ClassName
-
-        -- 1. Partikel & Efek Visual
-        if className == "ParticleEmitter" then
-            pcall(function() v.Enabled = false v.Rate = 0 v:Destroy() end)
-            return
-        elseif className == "Trail" or className == "Beam" or className == "Fire"
-           or className == "Smoke" or className == "Sparkles" or className == "Highlight"
-           or className == "Explosion" then
-            pcall(function() v.Enabled = false v:Destroy() end)
-            return
-        end
-
-        -- 2. Tekstur, Decal, & SurfaceAppearance
-        if className == "Decal" or className == "Texture" or className == "ShirtGraphic" or className == "PantsGraphic" then
-            pcall(function() v.Transparency = 1 end)
-            pcall(function() v:Destroy() end)
-            return
-        elseif className == "SurfaceAppearance" then
-            pcall(function() v:Destroy() end)
-            return
-        end
-
-        -- 3. BasePart & Mesh
-        if v:IsA("BasePart") then
-            v.Material = Enum.Material.SmoothPlastic
-            v.Reflectance = 0
-            v.CastShadow = false
-            if className == "MeshPart" then
-                pcall(function() v.TextureID = "" end)
-                pcall(function() v.TextureId = "" end)
-            end
-            return
-        elseif className == "SpecialMesh" then
-            pcall(function() v.TextureId = "" end)
-            return
-        end
-
-        -- 4. Efek Lighting & Sky
-        if v:IsA("Light") then
-            pcall(function() v.Enabled = false v.Shadows = false end)
-            return
-        elseif className == "Sky" or className == "Atmosphere" or className == "Clouds" then
-            pcall(function() v:Destroy() end)
-            return
-        elseif v:IsA("PostEffect") or className == "DepthOfFieldEffect" or className == "BloomEffect"
-           or className == "BlurEffect" or className == "SunRaysEffect" or className == "ColorCorrectionEffect" then
-            pcall(function() v.Enabled = false end)
-            return
-        end
-
-        -- 5. Suara 3D Workspace
-        if className == "Sound" then
-            pcall(function() v.Volume = 0 v.Playing = false end)
-            return
-        end
-
-        -- 6. Model Pemain Lain / Unit NPC
-        if className == "Model" then
-            freezeUnitModel(v)
-            return
-        end
-
-        -- 7. BillboardGui / SurfaceGui
-        if className == "BillboardGui" or className == "SurfaceGui" then
-            pcall(function() v.Enabled = false end)
-            return
-        end
-    end)
-end
-
--- =================================================================
--- 7. ⚡ BATCHED EVENT QUEUE (ANTI LAG-SPIKE SAAT GACHA / MASS SPAWN)
--- =================================================================
-local addQueue = {}
-local isQueueProcessing = false
-
-local function processBatchQueue()
-    if isQueueProcessing then return end
-    isQueueProcessing = true
-
-    task.spawn(function()
-        while #addQueue > 0 and States.PotatoGraphics do
-            local batchSize = math.min(#addQueue, 40)
-            for _ = 1, batchSize do
-                local item = table.remove(addQueue, 1)
-                if item and item.Parent and not item:GetAttribute(PROCESSED_TAG) then
-                    pcall(cleanObject, item)
-                end
-            end
-            task.wait()
-        end
-        isQueueProcessing = false
-    end)
-end
-
-local potatoDescConn = nil
-local function setupDescendantListener(enable)
-    if enable then
-        if not potatoDescConn then
-            potatoDescConn = Workspace.DescendantAdded:Connect(function(v)
-                if States.PotatoGraphics and not isProtectedObject(v) then
-                    if #addQueue < 400 then
-                        table.insert(addQueue, v)
-                        if not isQueueProcessing then
-                            processBatchQueue()
-                        end
+local function hideOtherPlots()
+    local myPlot = findMyPlot()
+    local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("plots") or Workspace:FindFirstChild("Bases")
+    if plots then
+        for _, plot in ipairs(plots:GetChildren()) do
+            if plot ~= myPlot and not isProtectedObject(plot) then
+                for _, desc in ipairs(plot:GetDescendants()) do
+                    if desc:IsA("BasePart") then
+                        pcall(function()
+                            desc.Transparency = 1
+                            desc.CanCollide = false
+                            desc.CanTouch = false
+                            desc.CanQuery = false
+                            desc.CastShadow = false
+                        end)
+                    elseif desc:IsA("Decal") or desc:IsA("Texture") then
+                        pcall(function() desc.Transparency = 1 end)
+                    elseif desc:IsA("ParticleEmitter") or desc:IsA("Trail") or desc:IsA("Beam") or desc:IsA("Highlight") or desc:IsA("Light") then
+                        pcall(function() desc.Enabled = false end)
+                    elseif desc:IsA("BillboardGui") or desc:IsA("SurfaceGui") then
+                        pcall(function() desc.Enabled = false end)
+                    elseif desc:IsA("Humanoid") then
+                        pcall(function()
+                            desc.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                            desc.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+                        end)
                     end
                 end
-            end)
-            table.insert(Connections, potatoDescConn)
+            end
         end
-    else
-        if potatoDescConn then
-            potatoDescConn:Disconnect()
-            potatoDescConn = nil
+    end
+end
+
+local function hideOtherPlayers()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and not isProtectedObject(p.Character) then
+            freezeUnitModel(p.Character)
         end
-        table.clear(addQueue)
     end
 end
 
 -- =================================================================
--- 8. 🥔 POTATO GRAPHICS RUNNER & PERIODIC SWEEPER
+-- 7. 🥔 POTATO GRAPHICS CONTROLLER (ZERO MAP CORRUPTION)
 -- =================================================================
 local potatoSweeperThread = nil
+local playerAddedConn = nil
 
-local function runSmoothBatchClean()
+local function runTargetedClean()
     task.spawn(function()
         pcall(function()
             settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-            settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Always
             Lighting.GlobalShadows = false
-            Lighting.Outlines = false
-            Lighting.FogEnd = 9e9
-            Lighting.Technology = Enum.Technology.Compatibility
         end)
 
-        local terrain = Workspace:FindFirstChildOfClass("Terrain")
-        if terrain then
-            pcall(function()
-                terrain.WaterWaveSize = 0
-                terrain.WaterWaveSpeed = 0
-                terrain.WaterReflectance = 0
-                terrain.WaterTransparency = 0
-                terrain.Decoration = false
-            end)
-        end
+        -- 1. Sembunyikan plot pemain lain
+        hideOtherPlots()
 
-        -- 1. Sembunyikan dan freeze plot pemain lain
-        local myPlot = findMyPlot()
-        local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("plots")
-        if plots then
-            for _, plot in ipairs(plots:GetChildren()) do
-                if plot ~= myPlot and not isProtectedObject(plot) then
-                    for _, obj in ipairs(plot:GetChildren()) do
-                        if obj:IsA("Model") then
-                            freezeUnitModel(obj)
-                        else
-                            cleanObject(obj)
-                        end
-                    end
-                end
-            end
-        end
+        -- 2. Sembunyikan karakter pemain lain
+        hideOtherPlayers()
 
-        -- 2. Freeze semua pemain lain
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character then
-                freezeUnitModel(p.Character)
-            end
-        end
-
-        -- 3. Bersihkan Lighting
-        for _, obj in ipairs(Lighting:GetChildren()) do
-            cleanObject(obj)
-        end
-
-        -- 4. Bersihkan Workspace dengan chunking aman
-        local descendants = Workspace:GetDescendants()
-        local count = 0
-        for i = 1, #descendants do
-            if not States.PotatoGraphics then break end
-            local item = descendants[i]
-            if item and not item:GetAttribute(PROCESSED_TAG) then
-                pcall(cleanObject, item)
-                count = count + 1
-                if count >= SETTINGS.BatchChunkSize then
-                    count = 0
-                    task.wait()
-                end
-            end
-        end
-
-        -- Clean RAM
+        -- 3. Clean RAM
         pcall(function() collectgarbage("collect") end)
     end)
 end
 
 function GraphicsModule.EnablePotato(enable)
     States.PotatoGraphics = enable
-    setupDescendantListener(enable)
 
     if enable then
-        runSmoothBatchClean()
+        runTargetedClean()
 
-        -- Lightweight Sweeper (setiap 10s untuk membersihkan objek baru yang lolos)
+        -- Lightweight Sweeper (setiap 6s untuk membersihkan pemain baru / plot baru)
         if not potatoSweeperThread then
             potatoSweeperThread = task.spawn(function()
                 while States.PotatoGraphics do
-                    task.wait(10)
+                    task.wait(6)
                     if not States.PotatoGraphics then break end
-                    -- Scan pemain baru & plot
-                    for _, p in ipairs(Players:GetPlayers()) do
-                        if p ~= LocalPlayer and p.Character and not p.Character:GetAttribute(FROZEN_TAG) then
-                            freezeUnitModel(p.Character)
-                        end
-                    end
+                    hideOtherPlots()
+                    hideOtherPlayers()
                 end
                 potatoSweeperThread = nil
             end)
+        end
+
+        if not playerAddedConn then
+            playerAddedConn = Players.PlayerAdded:Connect(function(p)
+                p.CharacterAdded:Connect(function(char)
+                    if States.PotatoGraphics then
+                        task.wait(1)
+                        if p ~= LocalPlayer and char then
+                            freezeUnitModel(char)
+                        end
+                    end
+                end)
+            end)
+            table.insert(Connections, playerAddedConn)
         end
     else
         if potatoSweeperThread then
@@ -591,7 +459,6 @@ function GraphicsModule.EnablePotato(enable)
         end
         pcall(function()
             settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
-            settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Default
             Lighting.GlobalShadows = true
         end)
     end
