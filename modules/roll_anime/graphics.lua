@@ -488,8 +488,8 @@ local function runTargetedClean()
             Lighting.FogEnd = 9e9
         end)
 
-        -- 1. Buka FPS Cap ke 240
-        applyFpsCap(240)
+        -- 1. Set FPS Cap ke 60
+        applyFpsCap(60)
 
         -- 2. Sembunyikan plot pemain lain & nonaktifkan fisika unanchored
         hideOtherPlots()
