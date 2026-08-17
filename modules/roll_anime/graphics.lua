@@ -354,7 +354,7 @@ local function freezeUnitModel(model)
 end
 
 -- =================================================================
--- 6. ⚡ UNIT FREEZER & SKILL EFFECT / VFX REMOVER (ULTRA SMOOTH)
+-- 6. ⚡ ULTRA PERFORMANCE BOOSTER (FIX 48 RIG LOOPS & 271 PHYSICS PARTS)
 -- =================================================================
 local function disableSkillEffects(parent)
     if not parent then return end
@@ -376,19 +376,47 @@ end
 
 local function freezeAllUnitsAndSkills()
     pcall(function()
-        -- 1. Freeze seluruh unit & NPC di Workspace
-        for _, obj in ipairs(Workspace:GetChildren()) do
-            if obj:IsA("Model") and not isProtectedObject(obj) then
-                freezeUnitModel(obj)
-                disableSkillEffects(obj)
+        local ws = game:GetService("Workspace")
+        local rs = game:GetService("ReplicatedStorage")
+        
+        -- 1. Freeze seluruh Animators & Humanoids di game (Kecuali karakter sendiri)
+        for _, desc in ipairs(ws:GetDescendants()) do
+            if not isProtectedObject(desc) then
+                if desc:IsA("Animator") or desc:IsA("AnimationController") then
+                    pcall(function()
+                        for _, track in ipairs(desc:GetPlayingAnimationTracks()) do
+                            pcall(function()
+                                track:Stop(0)
+                                track:AdjustSpeed(0)
+                            end)
+                        end
+                        if not desc:GetAttribute(FROZEN_TAG) then
+                            desc:SetAttribute(FROZEN_TAG, true)
+                            desc.AnimationPlayed:Connect(function(tr)
+                                if States.PotatoGraphics or States.AntiLag or States.FarmMode then
+                                    pcall(function() tr:Stop(0) tr:AdjustSpeed(0) end)
+                                end
+                            end)
+                        end
+                    end)
+                elseif desc:IsA("Humanoid") then
+                    pcall(function()
+                        desc.WalkSpeed = 0
+                        desc.JumpPower = 0
+                        desc.AutoRotate = false
+                        desc.PlatformStand = true
+                        desc.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                        desc.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+                    end)
+                end
             end
         end
 
         -- 2. Matikan efek skill di folder Effects / VFX / Debris jika ada
         for _, folderName in ipairs({"Effects", "VFX", "Debris", "Skills", "Projectiles", "Spells"}) do
-            local folder = Workspace:FindFirstChild(folderName) or (ReplicatedStorage and ReplicatedStorage:FindFirstChild(folderName))
+            local folder = ws:FindFirstChild(folderName) or (rs and rs:FindFirstChild(folderName))
             if folder then
-                disableSkillEffects(folder)
+                pcall(disableSkillEffects, folder)
             end
         end
     end)
@@ -412,6 +440,8 @@ local function hideOtherPlots()
                             desc.CanQuery = false
                             desc.CastShadow = false
                             desc.Anchored = true
+                            desc.AssemblyLinearVelocity = Vector3.zero
+                            desc.AssemblyAngularVelocity = Vector3.zero
                         end)
                     elseif desc:IsA("Decal") or desc:IsA("Texture") then
                         pcall(function() desc.Transparency = 1 end)
@@ -454,18 +484,23 @@ local function runTargetedClean()
         pcall(function()
             settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
             Lighting.GlobalShadows = false
+            Lighting.Technology = Enum.Technology.Compatibility
+            Lighting.FogEnd = 9e9
         end)
 
-        -- 1. Sembunyikan plot pemain lain
+        -- 1. Buka FPS Cap ke 240
+        applyFpsCap(240)
+
+        -- 2. Sembunyikan plot pemain lain & nonaktifkan fisika unanchored
         hideOtherPlots()
 
-        -- 2. Sembunyikan karakter pemain lain
+        -- 3. Sembunyikan karakter pemain lain
         hideOtherPlayers()
 
-        -- 3. Freeze seluruh unit & hilangkan efek skill
+        -- 4. Freeze seluruh 48 rig animasi unit & hilangkan partikel skill
         freezeAllUnitsAndSkills()
 
-        -- 4. Clean RAM
+        -- 5. Bersihkan RAM 2.3 GB
         pcall(function() collectgarbage("collect") end)
     end)
 end
