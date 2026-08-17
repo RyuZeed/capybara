@@ -31,8 +31,38 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local player = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
--- 🧹 HAPUS PAKSA UI LAMA BILA ADA (gethui, CoreGui & PlayerGui)
+-- =================================================================
+-- 🛡️ ANTI DOUBLE-EXECUTE & FULL CLEANUP HANDLER
+-- =================================================================
 pcall(function()
+    -- 1. Panggil destructor sesi sebelumnya jika ada
+    if typeof(_G.RitodHubCleanup) == "function" then
+        _G.RitodHubCleanup()
+    end
+
+    -- 2. Hentikan seluruh modul dan thread background yang aktif
+    if _G.AutoRollModule and typeof(_G.AutoRollModule.Stop) == "function" then
+        pcall(function() _G.AutoRollModule.Stop() end)
+        if typeof(_G.AutoRollModule.StopAutoSniper) == "function" then
+            pcall(function() _G.AutoRollModule.StopAutoSniper() end)
+        end
+    end
+    if _G.AutoClaimModule and typeof(_G.AutoClaimModule.Stop) == "function" then
+        pcall(function() _G.AutoClaimModule.Stop() end)
+    end
+    if _G.GraphicsModule and typeof(_G.GraphicsModule.SetFarmMode) == "function" then
+        pcall(function() _G.GraphicsModule.SetFarmMode(false) end)
+    end
+    if _G.AutoSaveDaemonThread then
+        pcall(function() task.cancel(_G.AutoSaveDaemonThread) end)
+        _G.AutoSaveDaemonThread = nil
+    end
+    if _G.AutoPrivateServerThread then
+        pcall(function() task.cancel(_G.AutoPrivateServerThread) end)
+        _G.AutoPrivateServerThread = nil
+    end
+
+    -- 3. Hapus paksa seluruh ScreenGui UI lama (gethui, CoreGui & PlayerGui)
     if _G.RitodHubRollAnime and typeof(_G.RitodHubRollAnime) == "Instance" then
         pcall(function() _G.RitodHubRollAnime:Destroy() end)
     end
@@ -2038,14 +2068,15 @@ end)
 -- =================================================================
 -- 💾 AUTO-SAVE BACKGROUND DAEMON (Setiap 5 detik otomatis simpan setting)
 -- =================================================================
-task.spawn(function()
+_G.AutoSaveDaemonThread = task.spawn(function()
 	while task.wait(5) do
 		pcall(function()
 			if ConfigManager and typeof(ConfigManager.Save) == "function" then
 				ConfigManager.Save({
 					AutoHuntEnabled   = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
+					AutoSniperOnly    = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
 					AutoSecretGod     = savedConfig.AutoSecretGod or false,
-					AutoPrivateServer = savedConfig.AutoPrivateServer or false,
+					AutoPrivateServer = savedConfig.AutoPrivateServer ~= false,
 					AutoClaimQuests   = savedConfig.AutoClaimQuests ~= false,
 					AutoClaimRewards  = savedConfig.AutoClaimRewards ~= false,
 					RollInterval      = rollInterval or 2.5,
@@ -2061,6 +2092,36 @@ task.spawn(function()
 		end)
 	end
 end)
+
+-- =================================================================
+-- 🧹 GLOBAL CLEANUP DESTRUCTOR (DIPANGGIL SAAT RE-EXECUTE)
+-- =================================================================
+_G.RitodHubCleanup = function()
+	pcall(function()
+		if AutoRollModule then
+			pcall(function() AutoRollModule.Stop() end)
+			pcall(function() AutoRollModule.StopAutoSniper() end)
+		end
+		if AutoClaimModule then
+			pcall(function() AutoClaimModule.Stop() end)
+		end
+		if GraphicsModule then
+			pcall(function() GraphicsModule.SetFarmMode(false) end)
+		end
+		if _G.AutoSaveDaemonThread then
+			pcall(function() task.cancel(_G.AutoSaveDaemonThread) end)
+			_G.AutoSaveDaemonThread = nil
+		end
+		if _G.AutoPrivateServerThread then
+			pcall(function() task.cancel(_G.AutoPrivateServerThread) end)
+			_G.AutoPrivateServerThread = nil
+		end
+		if _G.InfJumpConn then
+			pcall(function() _G.InfJumpConn:Disconnect() end)
+			_G.InfJumpConn = nil
+		end
+	end)
+end
 
 -- Pop up notifikasi awal
 local activeCfgPath = (ConfigManager and ConfigManager.ConfigPath) or "RitodHub/RollAnimeForFight/config.json"
