@@ -143,8 +143,10 @@ function AutoRollModule.TriggerRoll(prompt)
     pcall(function()
         prompt.Enabled = true
         prompt.HoldDuration = 0
-        prompt.MaxActivationDistance = 100
+        prompt.MaxActivationDistance = 999999
         prompt.RequiresLineOfSight = false
+        prompt.Style = Enum.ProximityPromptStyle.Custom
+        prompt.UIOffset = Vector2.new(0, 99999)
     end)
     if typeof(fireproximityprompt) == "function" then
         pcall(function() fireproximityprompt(prompt, 0) end)
@@ -440,7 +442,13 @@ function AutoRollModule.Stop()
     local myPlot = AutoRollModule.FindMyPlot()
     if myPlot then
         local rollPrompt = AutoRollModule.GetRollPrompt(myPlot)
-        if rollPrompt then rollPrompt.Enabled = true end
+        if rollPrompt then
+            pcall(function()
+                rollPrompt.Enabled = true
+                rollPrompt.Style = Enum.ProximityPromptStyle.Default
+                rollPrompt.UIOffset = Vector2.new(0, 0)
+            end)
+        end
     end
 end
 
