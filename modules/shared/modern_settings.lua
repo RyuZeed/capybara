@@ -201,10 +201,12 @@ function ModernSettings.CreateProfileManager(gameFolder, defaultCfg, getActiveCf
             return true
         end
         if notify then notify("Import Error", "Format JSON tidak valid!", 2.5) end
-        return false
-    end
-
     Mgr.LoadIdx()
+    if S.AutoLoad and S.AutoLoad ~= "None" and S.Profiles[S.AutoLoad] then
+        task.defer(function()
+            if applyCfg then applyCfg(S.Profiles[S.AutoLoad]) end
+        end)
+    end
     return Mgr
 end
 

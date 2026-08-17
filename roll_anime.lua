@@ -1832,6 +1832,43 @@ if savedConfig.AutoHuntEnabled then
 	end)
 end
 
+-- =================================================================
+-- 🔄 AUTO-APPLY SAVED CONFIG TO SYNC ALL TOGGLES, SLIDERS & CHECKBOXES
+-- =================================================================
+task.spawn(function()
+	task.wait(0.1)
+	if applyRollAnimeConfig and savedConfig then
+		applyRollAnimeConfig(savedConfig)
+	end
+end)
+
+-- =================================================================
+-- 💾 AUTO-SAVE BACKGROUND DAEMON (Setiap 5 detik otomatis simpan setting)
+-- =================================================================
+task.spawn(function()
+	while task.wait(5) do
+		pcall(function()
+			if ConfigManager and typeof(ConfigManager.Save) == "function" then
+				ConfigManager.Save({
+					AutoHuntEnabled   = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
+					AutoSecretGod     = savedConfig.AutoSecretGod or false,
+					AutoPrivateServer = savedConfig.AutoPrivateServer or false,
+					AutoClaimQuests   = savedConfig.AutoClaimQuests ~= false,
+					AutoClaimRewards  = savedConfig.AutoClaimRewards ~= false,
+					RollInterval      = rollInterval or 2.5,
+					SelectedUnits     = selectedUnits,
+					WalkSpeed         = savedConfig.WalkSpeed or 16,
+					JumpPower         = savedConfig.JumpPower or 50,
+					InfJump           = savedConfig.InfJump or false,
+					PotatoGraphics    = savedConfig.PotatoGraphics or false,
+					FarmMode          = savedConfig.FarmMode or false,
+					AntiLag           = savedConfig.AntiLag or false
+				})
+			end
+		end)
+	end
+end)
+
 -- Pop up notifikasi awal
 local activeCfgPath = (ConfigManager and ConfigManager.ConfigPath) or "RitodHub/RollAnimeForFight/config.json"
 Notify("⚡RITOD HUB⚡", "Loaded! File Config: " .. activeCfgPath, 4)
