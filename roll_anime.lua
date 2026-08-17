@@ -1647,7 +1647,7 @@ MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
 			AutoClaimRewards  = savedConfig.AutoClaimRewards ~= false,
 			RollInterval      = rollInterval or 2.5,
 			SelectedUnits     = selectedUnits,
-			WalkSpeed         = savedConfig.WalkSpeed or 16,
+			WalkSpeed         = savedConfig.WalkSpeed or 40,
 			JumpPower         = savedConfig.JumpPower or 50,
 			InfJump           = savedConfig.InfJump or false,
 			PotatoGraphics    = savedConfig.PotatoGraphics or false,
