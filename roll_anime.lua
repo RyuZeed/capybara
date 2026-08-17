@@ -1351,6 +1351,39 @@ local function stopHunt()
 	Notify("Auto Hunt", "Auto Roll dihentikan.", 2)
 end
 
+local autoSniperToggleRef = nil
+
+local function startAutoSniper()
+	if not AutoRollModule then return end
+	AutoRollModule.StartAutoSniper({
+		SelectedUnits = selectedUnits,
+		AllUnitsMap = CatalogModule and CatalogModule.AllUnitsMap or {},
+		GetAutoSecretGod = function() return savedConfig.AutoSecretGod or false end,
+		OnStatus = function(text, stateType)
+			statusCard:SetStatus(text, Color3.fromRGB(80, 220, 255))
+		end,
+		OnBought = function(unit)
+			totalAcquiredCount += 1
+			Notify("🎯 Unit Ter-Snipe!", string.format("[%s] %s berhasil dibeli dari conveyor!", unit.rarity, unit.name), 3)
+		end
+	})
+	if ConfigManager then
+		ConfigManager.Save({ AutoSniperOnly = true })
+	end
+	Notify("Auto Sniper", "Auto Buy Standalone aktif! Memantau conveyor...", 2)
+end
+
+local function stopAutoSniper()
+	if AutoRollModule then
+		AutoRollModule.StopAutoSniper()
+	end
+	if ConfigManager then
+		ConfigManager.Save({ AutoSniperOnly = false })
+	end
+	statusCard:SetStatus("Status: ⚪ OFF (Idle)", Color3.fromRGB(180, 165, 205))
+	Notify("Auto Sniper", "Auto Buy Standalone dinonaktifkan.", 2)
+end
+
 local autoSecretGodToggleRef = nil
 local rollDelaySliderRef = nil
 local walkSpeedSliderRef = nil
@@ -1368,6 +1401,14 @@ huntToggleRef = RollTab:AddToggle("Auto Hunt (Continuous Roll & Sniper)", savedC
 		startHunt()
 	else
 		stopHunt()
+	end
+end)
+
+autoSniperToggleRef = RollTab:AddToggle("🎯 Auto Buy / Sniper (Hanya Beli Tanpa Roll)", savedConfig.AutoSniperOnly or false, function(state)
+	if state then
+		startAutoSniper()
+	else
+		stopAutoSniper()
 	end
 end)
 
@@ -1641,6 +1682,7 @@ MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
 	if ConfigManager then
 		local currentData = {
 			AutoHuntEnabled   = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
+			AutoSniperOnly    = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
 			AutoSecretGod     = savedConfig.AutoSecretGod or false,
 			AutoPrivateServer = savedConfig.AutoPrivateServer ~= false,
 			AutoClaimQuests   = savedConfig.AutoClaimQuests ~= false,
@@ -1698,6 +1740,15 @@ local function applyRollAnimeConfig(loaded)
 			task.spawn(startHunt)
 		else
 			task.spawn(stopHunt)
+		end
+	end
+
+	if autoSniperToggleRef and loaded.AutoSniperOnly ~= nil then
+		autoSniperToggleRef:Set(loaded.AutoSniperOnly, false)
+		if loaded.AutoSniperOnly then
+			task.spawn(startAutoSniper)
+		else
+			task.spawn(stopAutoSniper)
 		end
 	end
 

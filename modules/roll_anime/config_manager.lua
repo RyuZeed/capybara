@@ -35,18 +35,19 @@ local function deepCopy(orig)
 end
 
 ConfigManager.DefaultConfig = {
-    AutoHuntEnabled  = false,
-    AutoSecretGod    = false,
-    AutoClaimQuests  = true,
-    AutoClaimRewards = true,
-    RollInterval     = 2.5,
-    SelectedUnits    = {},
-    WalkSpeed        = 16,
-    JumpPower        = 50,
-    InfJump          = false,
-    PotatoGraphics   = false,
-    FarmMode         = false,
-    AntiLag          = false,
+    AutoHuntEnabled   = false,
+    AutoSniperOnly    = false,
+    AutoSecretGod     = false,
+    AutoClaimQuests   = true,
+    AutoClaimRewards  = true,
+    RollInterval      = 2.5,
+    SelectedUnits     = {},
+    WalkSpeed         = 16,
+    JumpPower         = 50,
+    InfJump           = false,
+    PotatoGraphics    = false,
+    FarmMode          = false,
+    AntiLag           = false,
     AutoPrivateServer = true
 }
 

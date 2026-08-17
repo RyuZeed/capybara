@@ -483,4 +483,77 @@ function AutoRollModule.IsRunning()
     return isRunning
 end
 
+-- =================================================================
+-- 🎯 STANDALONE AUTO BUY / SNIPER (NON-ROLLING / CONVEYOR WATCHER)
+-- =================================================================
+local isSniperRunning = false
+local sniperThread = nil
+
+function AutoRollModule.StartAutoSniper(options)
+    if isSniperRunning then return end
+    isSniperRunning = true
+
+    local selectedUnits = options.SelectedUnits or {}
+    local allUnitsMap = options.AllUnitsMap or {}
+    local getAutoSecretGod = options.GetAutoSecretGod or function() return options.AutoSecretGod or false end
+    local onBought = options.OnBought or function() end
+    local onStatus = options.OnStatus or function() end
+
+    sniperThread = task.spawn(function()
+        local myPlot = AutoRollModule.FindMyPlot(20)
+        onStatus("Status: 🎯 Auto Sniper Aktif (Memantau Conveyor)...", "sniper_active")
+
+        while isSniperRunning do
+            if not myPlot or not myPlot.Parent then
+                myPlot = AutoRollModule.FindMyPlot(5)
+            end
+
+            if myPlot then
+                local isAutoSG = (type(getAutoSecretGod) == "function" and getAutoSecretGod()) or (getAutoSecretGod == true)
+                local targets = AutoRollModule.GetTargetUnitsOnPedestals(myPlot, selectedUnits, allUnitsMap, isAutoSG)
+
+                if #targets > 0 then
+                    local curHrp = AutoRollModule.GetHRP()
+                    local initialCF = curHrp and curHrp.CFrame
+
+                    for _, t in ipairs(targets) do
+                        if not isSniperRunning then break end
+
+                        if t.price > 0 and AutoRollModule.GetGold() < t.price then
+                            onStatus(string.format("Sniper: ⏳ Menunggu gold ($%d / $%d)...", AutoRollModule.GetGold(), t.price), "waiting_gold")
+                            while isSniperRunning and AutoRollModule.GetGold() < t.price do
+                                task.wait(1.5)
+                            end
+                        end
+
+                        if not isSniperRunning then break end
+
+                        onStatus(string.format("Sniper: 💰 Membeli [%s] %s ($%d)...", t.rarity, t.name, t.price), "buying")
+                        for attempt = 1, 3 do
+                            local bought = AutoRollModule.BuySpecificTarget(t, initialCF)
+                            if bought then break end
+                            task.wait(0.2)
+                        end
+                        onBought(t)
+                        task.wait(0.3)
+                    end
+                end
+            end
+            task.wait(0.4)
+        end
+    end)
+end
+
+function AutoRollModule.StopAutoSniper()
+    isSniperRunning = false
+    if sniperThread then
+        task.cancel(sniperThread)
+        sniperThread = nil
+    end
+end
+
+function AutoRollModule.IsSniperRunning()
+    return isSniperRunning
+end
+
 return AutoRollModule
