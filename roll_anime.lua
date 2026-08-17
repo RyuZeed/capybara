@@ -1635,6 +1635,57 @@ antiLagToggleRef = MiscTab:AddToggle("❄️ Anti-Lag (FPS Cap 5)", savedConfig.
 	end
 end)
 
+MiscTab:AddSection("💾 Config File Manager")
+
+MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
+	if ConfigManager then
+		local currentData = {
+			AutoHuntEnabled   = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
+			AutoSecretGod     = savedConfig.AutoSecretGod or false,
+			AutoPrivateServer = savedConfig.AutoPrivateServer ~= false,
+			AutoClaimQuests   = savedConfig.AutoClaimQuests ~= false,
+			AutoClaimRewards  = savedConfig.AutoClaimRewards ~= false,
+			RollInterval      = rollInterval or 2.5,
+			SelectedUnits     = selectedUnits,
+			WalkSpeed         = savedConfig.WalkSpeed or 16,
+			JumpPower         = savedConfig.JumpPower or 50,
+			InfJump           = savedConfig.InfJump or false,
+			PotatoGraphics    = savedConfig.PotatoGraphics or false,
+			FarmMode          = savedConfig.FarmMode or false,
+			AntiLag           = savedConfig.AntiLag or false
+		}
+		local success = ConfigManager.Save(currentData)
+		if success then
+			local unitCount = 0
+			for _, v in pairs(selectedUnits) do if v then unitCount = unitCount + 1 end end
+			local targetUnits = math.floor(unitCount / 2) > 0 and math.floor(unitCount / 2) or unitCount
+			Notify("💾 Config Saved", string.format("Berhasil disimpan ke %s (%d unit target)!", ConfigManager.ConfigPath, targetUnits), 3.5)
+		else
+			Notify("Config Error", "Gagal menyimpan file config!", 3)
+		end
+	else
+		Notify("Config Error", "Modul ConfigManager tidak ditemukan!", 2)
+	end
+end)
+
+MiscTab:AddButton("🔄 Muat Ulang Config (Reload Config)", function()
+	if ConfigManager then
+		local loaded = ConfigManager.Load()
+		if loaded then
+			applyRollAnimeConfig(loaded)
+			Notify("🔄 Config Reloaded", "Pengaturan berhasil dimuat ulang dari file!", 3)
+		end
+	end
+end)
+
+MiscTab:AddButton("🗑️ Reset Config ke Default", function()
+	if ConfigManager then
+		local def = ConfigManager.Reset()
+		applyRollAnimeConfig(def)
+		Notify("🗑️ Config Reset", "Pengaturan telah direset ke nilai default!", 3)
+	end
+end)
+
 local function applyRollAnimeConfig(loaded)
 	if not loaded or type(loaded) ~= "table" then return end
 	for k, v in pairs(loaded) do
