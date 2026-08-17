@@ -112,6 +112,23 @@ function AutoRollModule.FindMyPlot(timeout)
     return nil
 end
 
+local ProximityPromptService = game:GetService("ProximityPromptService")
+pcall(function()
+    ProximityPromptService.PromptShown:Connect(function(p)
+        if isRunning and p then
+            local pName = tostring(p.Name):lower()
+            local act = tostring(p.ActionText):lower()
+            if pName:find("roll") or act:find("summon") or act:find("roll") then
+                pcall(function()
+                    p.Style = Enum.ProximityPromptStyle.Custom
+                    p.MaxActivationDistance = 0
+                    p.UIOffset = Vector2.new(0, 999999)
+                end)
+            end
+        end
+    end)
+end)
+
 function AutoRollModule.GetRollPrompt(plot, timeout)
     if not plot then return nil, nil end
     timeout = timeout or 0
@@ -123,7 +140,11 @@ function AutoRollModule.GetRollPrompt(plot, timeout)
                 local pName = p.Name:lower()
                 local act = tostring(p.ActionText):lower()
                 if pName == "rollprompt" or pName:find("roll") or act:find("summon") or act:find("roll") then
-                    p.Enabled = true
+                    pcall(function()
+                        p.Style = Enum.ProximityPromptStyle.Custom
+                        p.MaxActivationDistance = 0
+                        p.UIOffset = Vector2.new(0, 999999)
+                    end)
                     return p, p.Parent
                 end
             end
@@ -141,12 +162,11 @@ end
 function AutoRollModule.TriggerRoll(prompt)
     if not prompt then return end
     pcall(function()
-        prompt.Enabled = true
         prompt.HoldDuration = 0
-        prompt.MaxActivationDistance = 999999
+        prompt.MaxActivationDistance = 0
         prompt.RequiresLineOfSight = false
         prompt.Style = Enum.ProximityPromptStyle.Custom
-        prompt.UIOffset = Vector2.new(0, 99999)
+        prompt.UIOffset = Vector2.new(0, 999999)
     end)
     if typeof(fireproximityprompt) == "function" then
         pcall(function() fireproximityprompt(prompt, 0) end)
@@ -154,7 +174,7 @@ function AutoRollModule.TriggerRoll(prompt)
     else
         pcall(function()
             prompt:InputHoldBegin()
-            task.wait(0.2)
+            task.wait(0.1)
             prompt:InputHoldEnd()
         end)
     end
