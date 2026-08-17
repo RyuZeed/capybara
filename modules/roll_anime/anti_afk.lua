@@ -77,13 +77,12 @@ function AFKModule.Enable()
         simulateActivity()
     end)
 
-    -- 3. Loop terus-menerus: Disable koneksi CoreScript baru & kirim pulsa aktivitas tiap 15 detik
+    -- 3. Loop hemat daya: Disable koneksi CoreScript & standby
     if not afkThread then
         afkThread = task.spawn(function()
             while isEnabled do
                 disableIdledConnections()
-                simulateActivity()
-                task.wait(15)
+                task.wait(120)
             end
         end)
     end
