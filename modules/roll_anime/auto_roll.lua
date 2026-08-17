@@ -459,6 +459,10 @@ end
 
 function AutoRollModule.Stop()
     isRunning = false
+    if rollThread then
+        task.cancel(rollThread)
+        rollThread = nil
+    end
     local myPlot = AutoRollModule.FindMyPlot()
     if myPlot then
         for _, p in ipairs(myPlot:GetDescendants()) do

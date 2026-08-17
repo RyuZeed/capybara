@@ -729,6 +729,22 @@ task.spawn(function()
     end
 end)
 
+function GraphicsModule.Unload()
+    GraphicsModule.SetFarmMode(false)
+    GraphicsModule.EnablePotato(false)
+    GraphicsModule.SetAntiLag(false)
+    for _, conn in ipairs(Connections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    Connections = {}
+    if screenOffGui then
+        pcall(function() screenOffGui:Destroy() end)
+        screenOffGui = nil
+    end
+    applyFpsCap(SETTINGS.Normal_FPS_Cap or 60)
+    set3DRendering(true)
+end
+
 -- Alias
 function GraphicsModule.SetPotatoGraphics(enable)
     GraphicsModule.EnablePotato(enable)

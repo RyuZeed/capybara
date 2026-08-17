@@ -699,10 +699,28 @@ minBtn.Activated:Connect(function()
 end)
 
 yesBtn.Activated:Connect(function()
-	Notify("RITOD Hub", "Unloading script...", 2)
-	if AutoRollModule then AutoRollModule.Stop() end
-	if AFKModule then AFKModule.Disable() end
-	if _G.InfJumpConn then _G.InfJumpConn:Disconnect() end
+	Notify("RITOD Hub", "Unloading script & stopping all tasks...", 2)
+	
+	if typeof(_G.RitodHubCleanup) == "function" then
+		_G.RitodHubCleanup()
+	end
+	if AutoRollModule then
+		pcall(function() AutoRollModule.Stop() end)
+		pcall(function() AutoRollModule.StopAutoSniper() end)
+	end
+	if AutoClaimModule then
+		pcall(function() AutoClaimModule.Stop() end)
+	end
+	if GraphicsModule and typeof(GraphicsModule.Unload) == "function" then
+		pcall(function() GraphicsModule.Unload() end)
+	end
+	if AFKModule then
+		pcall(function() AFKModule.Disable() end)
+	end
+	if _G.InfJumpConn then
+		pcall(function() _G.InfJumpConn:Disconnect() end)
+		_G.InfJumpConn = nil
+	end
 	_G.InfJump = false
 	
 	TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
@@ -711,7 +729,8 @@ yesBtn.Activated:Connect(function()
 	TweenService:Create(floatWidget, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
 	
 	task.wait(0.35)
-	screenGui:Destroy()
+	pcall(function() screenGui:Destroy() end)
+	_G.RitodHubRollAnime = nil
 end)
 
 cancelBtn.Activated:Connect(function()
@@ -2105,8 +2124,8 @@ _G.RitodHubCleanup = function()
 		if AutoClaimModule then
 			pcall(function() AutoClaimModule.Stop() end)
 		end
-		if GraphicsModule then
-			pcall(function() GraphicsModule.SetFarmMode(false) end)
+		if GraphicsModule and typeof(GraphicsModule.Unload) == "function" then
+			pcall(function() GraphicsModule.Unload() end)
 		end
 		if _G.AutoSaveDaemonThread then
 			pcall(function() task.cancel(_G.AutoSaveDaemonThread) end)
