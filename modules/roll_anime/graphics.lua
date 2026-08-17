@@ -28,6 +28,7 @@ local Lighting          = game:GetService("Lighting")
 local Workspace         = game:GetService("Workspace")
 local Players           = game:GetService("Players")
 local CoreGui           = game:GetService("CoreGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer       = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
 
@@ -374,21 +375,23 @@ local function disableSkillEffects(parent)
 end
 
 local function freezeAllUnitsAndSkills()
-    -- 1. Freeze seluruh unit & NPC di Workspace
-    for _, obj in ipairs(Workspace:GetChildren()) do
-        if obj:IsA("Model") and not isProtectedObject(obj) then
-            freezeUnitModel(obj)
-            disableSkillEffects(obj)
+    pcall(function()
+        -- 1. Freeze seluruh unit & NPC di Workspace
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:IsA("Model") and not isProtectedObject(obj) then
+                freezeUnitModel(obj)
+                disableSkillEffects(obj)
+            end
         end
-    end
 
-    -- 2. Matikan efek skill di folder Effects / VFX / Debris jika ada
-    for _, folderName in ipairs({"Effects", "VFX", "Debris", "Skills", "Projectiles", "Spells"}) do
-        local folder = Workspace:FindFirstChild(folderName) or ReplicatedStorage:FindFirstChild(folderName)
-        if folder then
-            disableSkillEffects(folder)
+        -- 2. Matikan efek skill di folder Effects / VFX / Debris jika ada
+        for _, folderName in ipairs({"Effects", "VFX", "Debris", "Skills", "Projectiles", "Spells"}) do
+            local folder = Workspace:FindFirstChild(folderName) or (ReplicatedStorage and ReplicatedStorage:FindFirstChild(folderName))
+            if folder then
+                disableSkillEffects(folder)
+            end
         end
-    end
+    end)
 end
 
 -- =================================================================
