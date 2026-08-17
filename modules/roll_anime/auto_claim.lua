@@ -253,19 +253,18 @@ function AutoClaim.ClaimQuests()
             end
         end
 
-        -- Fallback: Scan tombol quest langsung di UI
+        -- Fallback: Scan tombol quest langsung di seluruh MainUI & Battlepass
         local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
         local mainUI = pGui and pGui:FindFirstChild("MainUI")
-        local bpFrame = mainUI and mainUI:FindFirstChild("Frames") and mainUI.Frames:FindFirstChild("Battlepass")
-        if bpFrame then
-            for _, desc in ipairs(bpFrame:GetDescendants()) do
+        if mainUI then
+            for _, desc in ipairs(mainUI:GetDescendants()) do
                 if desc:IsA("GuiButton") and isClaimableButton(desc) then
                     local btnKey = "UI_Q_" .. desc:GetFullName()
-                    if not claimedHistory[btnKey] and (not clickDebounce[btnKey] or (now - clickDebounce[btnKey] > 10)) then
+                    if not claimedHistory[btnKey] and (not clickDebounce[btnKey] or (now - clickDebounce[btnKey] > 5)) then
                         clickDebounce[btnKey] = now
                         clickButton(desc)
                         claimedHistory[btnKey] = true
-                        task.wait(0.2)
+                        task.wait(0.15)
                     end
                 end
             end
@@ -304,39 +303,36 @@ local function playerHasBattlepass(bpFrame)
 end
 
 -- =================================================================
--- 🔍 HELPER: BATTLEPASS REWARD CARD CLAIM CHECKER
+-- 🔍 HELPER: BATTLEPASS REWARD CARD CLAIM CHECKER (PRECISE DETECTOR)
 -- =================================================================
-local function isRewardItemClaimable(rewardItem)
-    if not rewardItem or not rewardItem:IsA("GuiObject") then return false end
-    if isTemplateObject(rewardItem) then return false end
+local function isSlotClaimable(slotFrame)
+    if not slotFrame or not slotFrame:IsA("GuiObject") then return false end
+    if isTemplateObject(slotFrame) then return false end
 
-    -- 1. Cek apakah ada indikator centang hijau / Claimed (✔️)
-    for _, desc in ipairs(rewardItem:GetDescendants()) do
-        if desc:IsA("GuiObject") and desc.Visible then
-            local n = desc.Name:lower()
-            if n:find("check") or n:find("tick") or n:find("claim") or n:find("done") or n:find("centang") then
-                return false
-            end
-            if desc:IsA("ImageLabel") and (desc.Image:lower():find("check") or desc.Image:lower():find("tick") or desc.Image:lower():find("claimed")) then
-                return false
-            end
-        end
+    -- 1. Cek indikator Gembok (Locked)
+    local locked = slotFrame:FindFirstChild("Locked", true)
+    if locked and locked.Visible and (not locked.ImageTransparency or locked.ImageTransparency < 0.9) then
+        return false -- Masih terkunci!
     end
 
-    -- 2. Cek apakah ada gembok (🔒)
-    for _, desc in ipairs(rewardItem:GetDescendants()) do
-        if desc:IsA("GuiObject") and desc.Visible then
-            local n = desc.Name:lower()
-            if n:find("lock") or n:find("padlock") or n:find("kunci") then
-                return false
-            end
-            if desc:IsA("ImageLabel") and (desc.Image:lower():find("lock") or desc.Image:lower():find("padlock")) then
-                return false
-            end
-        end
+    -- 2. Cek indikator Centang (Checked / Claimed)
+    local checked = slotFrame:FindFirstChild("Checked", true)
+    if checked and checked.Visible and (not checked.ImageTransparency or checked.ImageTransparency < 0.9) then
+        return false -- Sudah diklaim!
     end
 
-    return true
+    -- 3. Cari ImageButton / GuiButton bernama "Button"
+    local btn = slotFrame:FindFirstChild("Button", true)
+    if btn and btn:IsA("GuiButton") then
+        return true, btn
+    end
+
+    local fallbackBtn = slotFrame:IsA("GuiButton") and slotFrame or slotFrame:FindFirstChildOfClass("GuiButton")
+    if fallbackBtn then
+        return true, fallbackBtn
+    end
+
+    return false
 end
 
 -- =================================================================
@@ -361,33 +357,28 @@ function AutoClaim.ClaimBattlepass()
         if not rewards then return end
 
         local hasPremium = playerHasBattlepass(bpFrame)
-        local now = tick()
 
         -- Scan seluruh BattlepassReward di folder Rewards
         for _, item in ipairs(rewards:GetChildren()) do
             if item.Name == "BattlepassReward" and item:IsA("Frame") then
                 -- 1. Free Track Frame
                 local freeFrame = item:FindFirstChild("Free")
-                if freeFrame and freeFrame.Visible and isRewardItemClaimable(freeFrame) then
-                    local fKey = "BP_FREE_" .. freeFrame:GetFullName()
-                    if not claimedHistory[fKey] and (not clickDebounce[fKey] or (now - clickDebounce[fKey] > 8)) then
-                        clickDebounce[fKey] = now
-                        local targetBtn = freeFrame:FindFirstChildOfClass("GuiButton") or freeFrame:FindFirstChild("Button", true) or freeFrame
-                        clickButton(targetBtn)
-                        task.wait(0.15)
+                if freeFrame then
+                    local ok, btn = isSlotClaimable(freeFrame)
+                    if ok and btn then
+                        clickButton(btn)
+                        task.wait(0.12)
                     end
                 end
 
                 -- 2. Premium Track Frame (Hanya diklaim jika player punya Pass)
                 if hasPremium then
                     local premFrame = item:FindFirstChild("Premium")
-                    if premFrame and premFrame.Visible and isRewardItemClaimable(premFrame) then
-                        local pKey = "BP_PREM_" .. premFrame:GetFullName()
-                        if not claimedHistory[pKey] and (not clickDebounce[pKey] or (now - clickDebounce[pKey] > 8)) then
-                            clickDebounce[pKey] = now
-                            local targetBtn = premFrame:FindFirstChildOfClass("GuiButton") or premFrame:FindFirstChild("Button", true) or premFrame
-                            clickButton(targetBtn)
-                            task.wait(0.15)
+                    if premFrame then
+                        local ok, btn = isSlotClaimable(premFrame)
+                        if ok and btn then
+                            clickButton(btn)
+                            task.wait(0.12)
                         end
                     end
                 end
