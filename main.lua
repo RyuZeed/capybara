@@ -1,100 +1,47 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - UNIVERSAL MASTER LAUNCHER (V3.3)
+	⚡ RITOD HUB - UNIVERSAL MASTER LAUNCHER (V3.4)
 	GitHub: https://github.com/RyuZeed/capybara
-	===============================================================
-	- 🎮 PLACE ID DETECTION (INSTANT 100% ACCURATE):
-	  • 107653945083776 -> Roll Anime To fight (roll_anime.lua)
-	  • 104973076655377 -> Capybaras vs Plants (capybara.lua)
 	===============================================================
 ]]
 
 if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
-task.wait(0.3)
 
--- 🔇 SILENT MODE: Matikan seluruh text/log terminal
-local print = function(...) end
-local warn = function(...) end
-
--- 🎯 DAFTAR PLACE ID GAME RESMI
-local PLACE_IDS = {
-    ROLL_ANIME = 107653945083776,
-    CAPYBARA   = 104973076655377,
-}
-
+local PlaceId = game.PlaceId
+local GameId = game.GameId
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/"
 
-local function executeScript(filename)
-    -- 1. Load langsung dari GitHub Cloud (Direct raw URL)
-    local urls = {
-        BASE_URL .. filename,
-        BASE_URL .. filename .. "?t=" .. tostring(os.time())
-    }
-    for _, url in ipairs(urls) do
-        local ok, src = pcall(function() return game:HttpGet(url) end)
-        if ok and src and #src > 10 and not src:find("404: Not Found") then
-            local fn, err = loadstring(src)
-            if fn then
-                local execOk, execErr = pcall(fn)
-                if execOk then
-                    print("🌐 [Ritod Launcher] Sukses memuat script: " .. filename)
-                    return true
-                else
-                    warn("⚠️ [Ritod Launcher] Error eksekusi " .. filename .. ": " .. tostring(execErr))
-                end
-            end
-        end
+-- Deteksi game
+local isRollAnime = (PlaceId == 107653945083776 or GameId == 107653945083776)
+if not isRollAnime then
+    local rs = game:GetService("ReplicatedStorage")
+    if rs:FindFirstChild("Modules") and rs.Modules:FindFirstChild("Characters") then
+        isRollAnime = true
     end
-
-    -- 2. Fallback jika offline: coba load dari file lokal di folder workspace executor
-    if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(filename) then
-        local lSuccess, src = pcall(function() return readfile(filename) end)
-        if lSuccess and src then
-            local fn = loadstring(src)
-            if fn then
-                local execOk, execErr = pcall(fn)
-                if execOk then
-                    print("📁 [Ritod Launcher] Sukses memuat script lokal: " .. filename)
-                    return true
-                end
-            end
-        end
-    end
-
-    warn("⚠️ [Ritod Launcher] Gagal memuat " .. filename)
-    return false
 end
 
--- =================================================================
--- 🔍 DETEKSI GAME VIA PLACE ID
--- =================================================================
-local currentPlaceId = game.PlaceId
-print("🎮 [Ritod Launcher] Checking PlaceId: " .. tostring(currentPlaceId))
+local targetScript = isRollAnime and "roll_anime.lua" or "capybara.lua"
+local url = BASE_URL .. targetScript
 
-if currentPlaceId == PLACE_IDS.ROLL_ANIME then
-    print("⚡ [Ritod Launcher] Terdeteksi Game: Roll Anime To fight!")
-    executeScript("roll_anime.lua")
-
-elseif currentPlaceId == PLACE_IDS.CAPYBARA then
-    print("👑 [Ritod Launcher] Terdeteksi Game: Capybaras vs Plants!")
-    executeScript("capybara.lua")
-
-else
-    -- Fallback deteksi cepat tanpa recursive scan
-    local RS = game:GetService("ReplicatedStorage")
-    local WS = game:GetService("Workspace")
-
-    if RS:FindFirstChild("Modules") and RS.Modules:FindFirstChild("Characters") then
-        print("⚡ [Ritod Launcher] Fallback Terdeteksi: Roll Anime To fight!")
-        executeScript("roll_anime.lua")
-    elseif RS:FindFirstChild("Remotes") and (RS.Remotes:FindFirstChild("Sell") or RS.Remotes:FindFirstChild("EquipBestPlants") or RS.Remotes:FindFirstChild("BuyShopItem")) then
-        print("👑 [Ritod Launcher] Fallback Terdeteksi: Capybaras vs Plants!")
-        executeScript("capybara.lua")
-    elseif WS:FindFirstChild("EggShop") or WS:FindFirstChild("PottedPlants") then
-        print("👑 [Ritod Launcher] Fallback Terdeteksi: Capybaras vs Plants!")
-        executeScript("capybara.lua")
+task.spawn(function()
+    local success, src = pcall(function()
+        return game:HttpGet(url)
+    end)
+    
+    if success and src and #src > 10 and not src:find("404: Not Found") then
+        local fn = loadstring(src)
+        if fn then
+            fn()
+        end
     else
-        print("👑 [Ritod Launcher] Memuat script Capybaras vs Plants...")
-        executeScript("capybara.lua")
+        local s2, src2 = pcall(function()
+            return game:HttpGet(url .. "?t=" .. tostring(os.time()))
+        end)
+        if s2 and src2 and #src2 > 10 and not src2:find("404: Not Found") then
+            local fn2 = loadstring(src2)
+            if fn2 then
+                fn2()
+            end
+        end
     end
-end
+end)
