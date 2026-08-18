@@ -1,6 +1,6 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - UNIVERSAL MASTER LAUNCHER (V3.4)
+	⚡ RITOD HUB - UNIVERSAL MASTER LAUNCHER (V3.5)
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
 ]]
@@ -23,25 +23,4 @@ end
 local targetScript = isRollAnime and "roll_anime.lua" or "capybara.lua"
 local url = BASE_URL .. targetScript
 
-task.spawn(function()
-    local success, src = pcall(function()
-        return game:HttpGet(url)
-    end)
-    
-    if success and src and #src > 10 and not src:find("404: Not Found") then
-        local fn = loadstring(src)
-        if fn then
-            fn()
-        end
-    else
-        local s2, src2 = pcall(function()
-            return game:HttpGet(url .. "?t=" .. tostring(os.time()))
-        end)
-        if s2 and src2 and #src2 > 10 and not src2:find("404: Not Found") then
-            local fn2 = loadstring(src2)
-            if fn2 then
-                fn2()
-            end
-        end
-    end
-end)
+return loadstring(game:HttpGet(url))()

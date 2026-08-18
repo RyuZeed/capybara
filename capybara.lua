@@ -429,26 +429,12 @@ local function makeDraggable(frame, dragHandle, onClick)
             hasMoved = false
             dragStart = input.Position
             startPos = frame.Position
-
-            local endConn
-            endConn = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    endConn:Disconnect()
-                    if not hasMoved and onClick then onClick() end
-                end
-            end)
-        end
-    end)
-
-    dragHandle.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
 
     UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
             if delta.Magnitude > 6 then hasMoved = true end
             frame.Position = UDim2.new(
@@ -457,6 +443,15 @@ local function makeDraggable(frame, dragHandle, onClick)
                 startPos.Y.Scale,
                 startPos.Y.Offset + delta.Y
             )
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            dragging = false
+            if not hasMoved and onClick then
+                onClick()
+            end
         end
     end)
 end
@@ -836,14 +831,16 @@ yesBtn.Activated:Connect(function()
 end)
 
 -- Floating Widget
-local floatWidget = Instance.new("Frame")
+local floatWidget = Instance.new("TextButton")
 floatWidget.Name = "FloatWidget"
 floatWidget.AnchorPoint = Vector2.new(0, 0.5)
 floatWidget.Position = UDim2.new(0, 24, 0.5, 0)
-floatWidget.Size = UDim2.new(0, 60, 0, 60)
+floatWidget.Size = UDim2.new(0, 56, 0, 56)
 floatWidget.BackgroundColor3 = Color3.fromRGB(20, 14, 28)
 floatWidget.BorderSizePixel = 0
 floatWidget.ZIndex = 100
+floatWidget.AutoButtonColor = false
+floatWidget.Text = ""
 floatWidget.Active = true
 floatWidget.Parent = screenGui
 
@@ -937,6 +934,7 @@ local function toggleHub()
 end
 
 makeDraggable(floatWidget, floatWidget, function() toggleHub() end)
+floatWidget.Activated:Connect(function() toggleHub() end)
 minBtn.Activated:Connect(function() toggleHub() end)
 
 UserInputService.InputBegan:Connect(function(input, gpe)
