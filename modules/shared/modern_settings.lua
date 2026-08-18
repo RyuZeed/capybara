@@ -292,7 +292,7 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
         n("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,6)}, body)
 
         local open = true
-        hdr.MouseButton1Click:Connect(function()
+        hdr.Activated:Connect(function()
             open = not open; body.Visible = open; hca.Text = open and "⌃" or "⌄"
         end)
         return body
@@ -321,7 +321,7 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
         local OFF = primary and C.BTNPRI    or C.BGHOV
         btn.MouseEnter:Connect(function()  Tween:Create(btn, TW_FAST, {BackgroundColor3=ON}):Play()  end)
         btn.MouseLeave:Connect(function()  Tween:Create(btn, TW_FAST, {BackgroundColor3=OFF}):Play() end)
-        btn.MouseButton1Click:Connect(function() if cb then cb() end end)
+        btn.Activated:Connect(function() if cb then cb() end end)
         return btn
     end
 
@@ -395,7 +395,7 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
                     TextSize=11, Font=Enum.Font.GothamMedium,
                     TextXAlignment=Enum.TextXAlignment.Left, ZIndex=27}, scroll)
                 local idx = i
-                dropItems[i].MouseButton1Click:Connect(function()
+                dropItems[i].Activated:Connect(function()
                     S.Current = dropItems[idx].Text:sub(3)
                     selTxt.Text = S.Current; nameBox.Text = S.Current
                     dropFrame.Visible = false; caret.Text = "⌄"
@@ -414,7 +414,7 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
         end
     end
 
-    dropBtn.MouseButton1Click:Connect(function()
+    dropBtn.Activated:Connect(function()
         dropFrame.Visible = not dropFrame.Visible
         caret.Text = dropFrame.Visible and "⌃" or "⌄"
         if dropFrame.Visible then rebuildDrop() end
@@ -499,7 +499,7 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
             Tween:Create(kb, TW_MED, {Position=v and UDim2.new(1,-17,.5,0) or UDim2.new(0,3,.5,0)}):Play()
             if onChange then onChange(v) end
         end
-        sw.MouseButton1Click:Connect(function() apply(not cur) end)
+        sw.Activated:Connect(function() apply(not cur) end)
         return { Set=apply, Get=function() return cur end }
     end
 

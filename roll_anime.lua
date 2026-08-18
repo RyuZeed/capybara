@@ -895,7 +895,7 @@ function RitodLib:CreateTab(name, icon)
 		page.Visible = true
 	end
 
-	tabBtn.MouseButton1Click:Connect(selectTab)
+	tabBtn.Activated:Connect(selectTab)
 	tabs[name] = {btn = tabBtn, page = page, indicator = indicator}
 
 	if not activeTab then
@@ -952,7 +952,7 @@ function RitodLib:CreateTab(name, icon)
 			TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(26, 20, 34)}):Play()
 			TweenService:Create(bStroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(70, 50, 85)}):Play()
 		end)
-		btn.MouseButton1Click:Connect(function()
+		btn.Activated:Connect(function()
 			TweenService:Create(btn, TweenInfo.new(0.08), {Size = UDim2.new(0.98, 0, 0, 39)}):Play()
 			task.wait(0.08)
 			TweenService:Create(btn, TweenInfo.new(0.08), {Size = UDim2.new(1, 0, 0, 42)}):Play()
@@ -1024,7 +1024,7 @@ function RitodLib:CreateTab(name, icon)
 			if fireCallback and callback then callback(state) end
 		end
 
-		switch.MouseButton1Click:Connect(function()
+		switch.Activated:Connect(function()
 			state = not state
 			updateToggle(true)
 		end)
@@ -1334,7 +1334,7 @@ function RitodLib:CreateTab(name, icon)
 			end
 		end
 
-		checkBtn.MouseButton1Click:Connect(toggle)
+		checkBtn.Activated:Connect(toggle)
 
 		local fullClick = Instance.new("TextButton")
 		fullClick.Size = UDim2.new(1, 0, 1, 0)
@@ -1342,7 +1342,7 @@ function RitodLib:CreateTab(name, icon)
 		fullClick.Text = ""
 		fullClick.ZIndex = 14
 		fullClick.Parent = card
-		fullClick.MouseButton1Click:Connect(toggle)
+		fullClick.Activated:Connect(toggle)
 
 		local function syncUI()
 			local state = selectedUnits[unit.name:lower()] or selectedUnits[unit.displayName:lower()]

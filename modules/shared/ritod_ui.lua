@@ -619,7 +619,7 @@ function RitodUI:CreateWindow(options)
 			WindowObj.ActiveTab = tabData
 		end
 
-		tabBtn.MouseButton1Click:Connect(activateTab)
+		tabBtn.Activated:Connect(activateTab)
 
 		if not WindowObj.ActiveTab then
 			activateTab()
@@ -661,7 +661,7 @@ function RitodUI:CreateWindow(options)
 
 			btn.MouseEnter:Connect(function() TweenService:Create(btn, TW_FAST, {BackgroundColor3 = Color3.fromRGB(38, 28, 50), TextColor3 = Color3.fromRGB(255, 255, 255)}):Play() end)
 			btn.MouseLeave:Connect(function() TweenService:Create(btn, TW_FAST, {BackgroundColor3 = Color3.fromRGB(26, 20, 34), TextColor3 = Color3.fromRGB(235, 225, 245)}):Play() end)
-			btn.MouseButton1Click:Connect(function() if callback then callback() end end)
+			btn.Activated:Connect(function() if callback then callback() end end)
 			return btn
 		end
 
@@ -714,7 +714,7 @@ function RitodUI:CreateWindow(options)
 				if fireCallback and callback then callback(state) end
 			end
 
-			switch.MouseButton1Click:Connect(function()
+			switch.Activated:Connect(function()
 				state = not state
 				updateToggle(true)
 			end)

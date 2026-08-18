@@ -1051,7 +1051,7 @@ local function CreateTab(name, icon)
         page.Visible = true
     end
 
-    tabBtn.MouseButton1Click:Connect(selectTab)
+    tabBtn.Activated:Connect(selectTab)
     tabs[name] = {btn = tabBtn, page = page, indicator = indicator}
 
     if not activeTab then selectTab() end
@@ -1106,7 +1106,7 @@ local function CreateTab(name, icon)
             TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(26, 20, 34), TextColor3 = Color3.fromRGB(235, 225, 245)}):Play()
         end)
 
-        btn.MouseButton1Click:Connect(function()
+        btn.Activated:Connect(function()
             if callback then callback() end
         end)
         return btn
@@ -1175,7 +1175,7 @@ local function CreateTab(name, icon)
             if fireCallback and callback then callback(state) end
         end
 
-        switch.MouseButton1Click:Connect(function()
+        switch.Activated:Connect(function()
             state = not state
             updateToggle(true)
         end)
@@ -1359,7 +1359,7 @@ local function CreateTab(name, icon)
             if onStateChanged then onStateChanged(newState) end
         end
 
-        checkBtn.MouseButton1Click:Connect(toggle)
+        checkBtn.Activated:Connect(toggle)
 
         local fullClick = Instance.new("TextButton")
         fullClick.Size = UDim2.new(1, 0, 1, 0)
@@ -1367,7 +1367,7 @@ local function CreateTab(name, icon)
         fullClick.Text = ""
         fullClick.ZIndex = 14
         fullClick.Parent = card
-        fullClick.MouseButton1Click:Connect(toggle)
+        fullClick.Activated:Connect(toggle)
 
         return {
             SetChecked = function(self, val)
@@ -1862,7 +1862,7 @@ local function addEggChecklistCard(eggName, eggRarity)
         eggStatus.Text = "🥚 Telur Dicentang: " .. tostring(countSelectedEggs()) .. " jenis"
     end
 
-    checkBtn.MouseButton1Click:Connect(toggle)
+    checkBtn.Activated:Connect(toggle)
 
     local fullClick = Instance.new("TextButton")
     fullClick.Size = UDim2.new(1, 0, 1, 0)
@@ -1870,7 +1870,7 @@ local function addEggChecklistCard(eggName, eggRarity)
     fullClick.Text = ""
     fullClick.ZIndex = 14
     fullClick.Parent = card
-    fullClick.MouseButton1Click:Connect(toggle)
+    fullClick.Activated:Connect(toggle)
 
     return {
         SetChecked = function(self, val)
@@ -2367,7 +2367,7 @@ local function refreshGiftPlayerList()
         selBtn.ZIndex = 16
         Instance.new("UICorner", selBtn).CornerRadius = UDim.new(0, 6)
 
-        selBtn.MouseButton1Click:Connect(function()
+        selBtn.Activated:Connect(function()
             CurrentConfig.GiftTarget = p.Name
             if AutoGift and AutoGift.Config then
                 AutoGift.Config.TargetName = p.Name
@@ -2488,7 +2488,7 @@ local function refreshGiftCatalogCards()
         ghBtn.ZIndex = 16
         Instance.new("UICorner", ghBtn).CornerRadius = UDim.new(0, 4)
 
-        ghBtn.MouseButton1Click:Connect(function()
+        ghBtn.Activated:Connect(function()
             local newState = not allGrpSel
             for _, it in ipairs(group.items) do
                 CurrentConfig.SelectedGiftItems[it.name:lower()] = newState and true or nil
@@ -2552,7 +2552,7 @@ local function refreshGiftCatalogCards()
             chkBtn.ZIndex = 16
             Instance.new("UICorner", chkBtn).CornerRadius = UDim.new(0, 4)
 
-            chkBtn.MouseButton1Click:Connect(function()
+            chkBtn.Activated:Connect(function()
                 CurrentConfig.SelectedGiftItems[key] = not isSel and true or nil
                 if AutoGift and AutoGift.Config then AutoGift.Config.SelectedItems = CurrentConfig.SelectedGiftItems end
                 refreshGiftCatalogCards()
@@ -2561,7 +2561,7 @@ local function refreshGiftCatalogCards()
     end
 end
 
-gAllBtn.MouseButton1Click:Connect(function()
+gAllBtn.Activated:Connect(function()
     if not CurrentConfig.SelectedGiftItems then CurrentConfig.SelectedGiftItems = {} end
     if AutoGift and AutoGift.DIVINE_PLUS_LIST then
         for _, it in ipairs(AutoGift.DIVINE_PLUS_LIST) do
@@ -2573,7 +2573,7 @@ gAllBtn.MouseButton1Click:Connect(function()
     Notify("Checklist Gift", "Semua item Divine+ dipilih!", 2)
 end)
 
-gBagBtn.MouseButton1Click:Connect(function()
+gBagBtn.Activated:Connect(function()
     CurrentConfig.SelectedGiftItems = {}
     if AutoGift then
         local counts, _ = AutoGift.ScanInventoryDivineStats()
@@ -2589,7 +2589,7 @@ gBagBtn.MouseButton1Click:Connect(function()
     Notify("Checklist Gift", "Hanya item yang ada di tas dipilih!", 2)
 end)
 
-gClrBtn.MouseButton1Click:Connect(function()
+gClrBtn.Activated:Connect(function()
     CurrentConfig.SelectedGiftItems = {}
     if AutoGift and AutoGift.Config then AutoGift.Config.SelectedItems = CurrentConfig.SelectedGiftItems end
     refreshGiftCatalogCards()
