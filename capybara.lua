@@ -399,31 +399,41 @@ screenGui.Name = "RitodHubUltra"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local targetParents = {}
-if typeof(gethui) == "function" then
-    pcall(function() table.insert(targetParents, gethui()) end)
-end
-if CoreGui then
-    pcall(function() table.insert(targetParents, CoreGui) end)
-end
-if LocalPlayer then
-    local pg = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:FindFirstChildOfClass("PlayerGui")
-    if pg then table.insert(targetParents, pg) end
+local playerGui = LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer:FindFirstChildOfClass("PlayerGui")
+local parented = false
+
+-- 1. Prioritaskan PlayerGui langsung jika di Mobile / Delta agar pasti tampil
+if UserInputService.TouchEnabled and playerGui then
+    pcall(function()
+        screenGui.Parent = playerGui
+        parented = true
+    end)
 end
 
-local parented = false
-for _, p in ipairs(targetParents) do
-    local ok = pcall(function()
-        screenGui.Parent = p
-    end)
-    if ok and screenGui.Parent == p then
-        parented = true
-        break
+-- 2. Jika di PC, coba gethui atau CoreGui
+if not parented then
+    if typeof(gethui) == "function" then
+        pcall(function()
+            local h = gethui()
+            if h and (h:IsA("BasePlayerGui") or h:IsA("CoreGui") or h == CoreGui) then
+                screenGui.Parent = h
+                parented = true
+            end
+        end)
     end
 end
-if not parented then
+
+if not parented and CoreGui and not UserInputService.TouchEnabled then
     pcall(function()
-        screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui", 5)
+        screenGui.Parent = CoreGui
+        parented = true
+    end)
+end
+
+-- 3. Fallback akhir ke PlayerGui
+if not parented or not screenGui.Parent then
+    pcall(function()
+        screenGui.Parent = playerGui
     end)
 end
 _G.RitodHubGui = screenGui
@@ -2922,6 +2932,7 @@ task.spawn(function()
 
     if CurrentConfig.AutoTutorial and AutoTutorial then AutoTutorial.Start() end
     if CurrentConfig.AutoCollectMoney then setAutoCollectMoneyLoop(true) end
+    Notify("⚡ RITOD HUB", "Script Capybara berhasil dimuat!", 3.5)
 end)
 
 print("👑 [RITOD HUB] Capybaras vs Plants Ultra HD Loaded successfully with Config!")
