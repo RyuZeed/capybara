@@ -32,7 +32,14 @@ local function executeScript(filename)
     }
     for _, url in ipairs(urls) do
         local success, result = pcall(function()
-            return loadstring(game:HttpGet(url))()
+            local src = game:HttpGet(url)
+            if src and #src > 10 and not src:find("404: Not Found") then
+                local fn, err = loadstring(src)
+                if fn then
+                    return fn()
+                end
+            end
+            return false
         end)
         if success and result ~= false then
             print("🌐 [Ritod Launcher] Sukses memuat script cloud: " .. filename)
@@ -43,9 +50,12 @@ local function executeScript(filename)
     -- 2. Fallback jika offline: coba load dari file lokal di folder workspace executor
     if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(filename) then
         local lSuccess, lResult = pcall(function()
-            return loadstring(readfile(filename))()
+            local src = readfile(filename)
+            local fn = loadstring(src)
+            if fn then return fn() end
+            return false
         end)
-        if lSuccess then
+        if lSuccess and lResult ~= false then
             print("📁 [Ritod Launcher] Sukses memuat script lokal: " .. filename)
             return true
         end

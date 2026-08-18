@@ -175,24 +175,38 @@ if userGenConfig["FPS Cap"] ~= nil and GraphicsModule then GraphicsModule.ApplyF
 -- =================================================================
 -- 🎨 GUI INITIALIZATION (ULTRA HD 700x460)
 -- =================================================================
-local parentGui
-if typeof(gethui) == "function" then
-	parentGui = gethui()
-elseif run_secure_function or getexecutorname then
-	parentGui = CoreGui
-else
-	parentGui = player:FindFirstChildOfClass("PlayerGui") or CoreGui
-end
-
-if parentGui:FindFirstChild("RitodHubUltra") then
-	parentGui:FindFirstChild("RitodHubUltra"):Destroy()
-end
-
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "RitodHubUltra"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screenGui.Parent = parentGui
+
+local targetParents = {}
+if typeof(gethui) == "function" then
+	pcall(function() table.insert(targetParents, gethui()) end)
+end
+if CoreGui then
+	pcall(function() table.insert(targetParents, CoreGui) end)
+end
+if player then
+	local pg = player:FindFirstChild("PlayerGui") or player:FindFirstChildOfClass("PlayerGui")
+	if pg then table.insert(targetParents, pg) end
+end
+
+local parented = false
+for _, p in ipairs(targetParents) do
+	local ok = pcall(function()
+		screenGui.Parent = p
+	end)
+	if ok and screenGui.Parent == p then
+		parented = true
+		break
+	end
+end
+if not parented then
+	pcall(function()
+		screenGui.Parent = player:WaitForChild("PlayerGui", 5)
+	end)
+end
 _G.RitodHubRollAnime = screenGui
 _G.RitodHubGui = screenGui
 
