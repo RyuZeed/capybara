@@ -201,43 +201,23 @@ screenGui.Name = "RitodHubUltra"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local playerGui = player:WaitForChild("PlayerGui", 5) or player:FindFirstChildOfClass("PlayerGui")
-local parented = false
+local playerGui = player and (player:FindFirstChild("PlayerGui") or player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui", 5))
 
--- 1. Prioritaskan PlayerGui langsung jika di Mobile / Delta agar pasti tampil
-if UserInputService.TouchEnabled and playerGui then
-	pcall(function()
-		screenGui.Parent = playerGui
-		parented = true
-	end)
+local ok = false
+if playerGui then
+	ok = pcall(function() screenGui.Parent = playerGui end)
 end
-
--- 2. Jika di PC, coba gethui atau CoreGui
-if not parented then
+if not ok or not screenGui.Parent then
 	if typeof(gethui) == "function" then
-		pcall(function()
-			local h = gethui()
-			if h and (h:IsA("BasePlayerGui") or h:IsA("CoreGui") or h == CoreGui) then
-				screenGui.Parent = h
-				parented = true
-			end
-		end)
+		pcall(function() screenGui.Parent = gethui() end)
 	end
 end
-
-if not parented and CoreGui and not UserInputService.TouchEnabled then
-	pcall(function()
-		screenGui.Parent = CoreGui
-		parented = true
-	end)
+if not screenGui.Parent and CoreGui then
+	pcall(function() screenGui.Parent = CoreGui end)
 end
 
--- 3. Fallback akhir ke PlayerGui
-if not parented or not screenGui.Parent then
-	pcall(function()
-		screenGui.Parent = playerGui
-	end)
-end
+_G.RitodHubRollAnime = screenGui
+_G.RitodHubGui = screenGui
 _G.RitodHubRollAnime = screenGui
 _G.RitodHubGui = screenGui
 
@@ -387,11 +367,16 @@ end
 -- ==============================================================================
 -- 🖥️ MAIN HUB WINDOW (700x460)
 -- ==============================================================================
+local cam = workspace.CurrentCamera
+local vp = (cam and cam.ViewportSize) or Vector2.new(800, 600)
+local targetW = math.clamp(vp.X - 30, 340, 700)
+local targetH = math.clamp(vp.Y - 30, 260, 460)
+
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainHub"
 mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-mainFrame.Size = UDim2.new(0, 700, 0, 460)
+mainFrame.Size = UDim2.new(0, targetW, 0, targetH)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 12, 20)
 mainFrame.BackgroundTransparency = 0.05
 mainFrame.BorderSizePixel = 0
