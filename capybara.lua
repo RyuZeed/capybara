@@ -601,8 +601,8 @@ local hubTitle = Instance.new("TextLabel")
 hubTitle.Position = UDim2.new(0, 18, 0, 0)
 hubTitle.Size = UDim2.new(0, 360, 1, 0)
 hubTitle.BackgroundTransparency = 1
-hubTitle.Text = "⚡RITOD HUB⚡"
 hubTitle.RichText = true
+hubTitle.Text = "<b><font color=\"#C875FF\">RITOD</font> HUB</b>"
 hubTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 hubTitle.TextSize = 16
 hubTitle.Font = Enum.Font.GothamBlack
@@ -615,8 +615,7 @@ statsLabel.AnchorPoint = Vector2.new(1, 0.5)
 statsLabel.Position = UDim2.new(1, -95, 0.5, 0)
 statsLabel.Size = UDim2.new(0, 160, 0, 24)
 statsLabel.BackgroundTransparency = 1
-statsLabel.RichText = true
-sLabel.Text = "FPS: 60  |  PING: 35ms"
+statsLabel.Text = "FPS: 60  |  PING: 35ms"
 statsLabel.TextColor3 = Color3.fromRGB(160, 145, 175)
 statsLabel.TextSize = 11
 statsLabel.Font = Enum.Font.GothamMedium
@@ -633,8 +632,7 @@ task.spawn(function()
         if curTime - lastTime >= 1 then
             local fps = math.floor(frameCount / (curTime - lastTime))
             local ping = math.floor(LocalPlayer:GetNetworkPing() * 1000)
-            statsLabel.RichText = true
-sLabel.Text = string.format("FPS: %d  |  PING: %dms", fps, ping)
+            statsLabel.Text = string.format("FPS: %d  |  PING: %dms", fps, ping)
             frameCount = 0
             lastTime = curTime
         end
@@ -877,9 +875,9 @@ local floatIcon = Instance.new("TextLabel")
 floatIcon.Size = UDim2.new(1, 0, 1, 0)
 floatIcon.BackgroundTransparency = 1
 floatIcon.RichText = true
-floatIcon.Text = "⚡"
-floatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
-floatIcon.TextSize = 26
+floatIcon.Text = "<b>R</b>"
+floatIcon.TextColor3 = Color3.fromRGB(240, 200, 255)
+floatIcon.TextSize = 24
 floatIcon.Font = Enum.Font.GothamBlack
 floatIcon.ZIndex = 101
 floatIcon.Parent = floatWidget
@@ -987,10 +985,10 @@ local function CreateTab(name, icon)
     tabBtn.BackgroundTransparency = 1
     tabBtn.AutoButtonColor = false
     tabBtn.RichText = true
-tabBtn.Text = (icon and (icon .. "  ") or "") .. name
+    tabBtn.Text = name
     tabBtn.TextColor3 = Color3.fromRGB(160, 140, 175)
     tabBtn.TextSize = 12
-    tabBtn.Font = Enum.Font.GothamMedium
+    tabBtn.Font = Enum.Font.GothamBold
     tabBtn.TextXAlignment = Enum.TextXAlignment.Left
     tabBtn.ZIndex = 12
     tabBtn.Parent = sideBar
@@ -1072,8 +1070,7 @@ tabBtn.Text = (icon and (icon .. "  ") or "") .. name
         local sLabel = Instance.new("TextLabel")
         sLabel.Size = UDim2.new(1, 0, 1, 0)
         sLabel.BackgroundTransparency = 1
-        sLabel.RichText = true
-sLabel.Text = string.upper(title)
+        sLabel.Text = string.upper(title)
         sLabel.TextColor3 = Color3.fromRGB(180, 120, 255)
         sLabel.TextSize = 11
         sLabel.Font = Enum.Font.GothamBold
@@ -1134,8 +1131,7 @@ sLabel.Text = string.upper(title)
         tLabel.Position = UDim2.new(0, 12, 0, 0)
         tLabel.Size = UDim2.new(1, -70, 1, 0)
         tLabel.BackgroundTransparency = 1
-        tLabel.RichText = true
-tLabel.Text = text
+        tLabel.Text = text
         tLabel.TextColor3 = Color3.fromRGB(235, 225, 245)
         tLabel.TextSize = 12
         tLabel.Font = Enum.Font.GothamMedium
@@ -1212,8 +1208,7 @@ tLabel.Text = text
         sLabel.Position = UDim2.new(0, 12, 0, 8)
         sLabel.Size = UDim2.new(1, -80, 0, 16)
         sLabel.BackgroundTransparency = 1
-        sLabel.RichText = true
-sLabel.Text = text
+        sLabel.Text = text
         sLabel.TextColor3 = Color3.fromRGB(235, 225, 245)
         sLabel.TextSize = 12
         sLabel.Font = Enum.Font.GothamMedium
@@ -2240,8 +2235,7 @@ local giftStatusLabel = Instance.new("TextLabel")
 giftStatusLabel.Position = UDim2.new(0, 12, 0, 6)
 giftStatusLabel.Size = UDim2.new(1, -24, 0, 20)
 giftStatusLabel.BackgroundTransparency = 1
-giftStatusLabel.RichText = true
-sLabel.Text = "🎁 Status: Nonaktif"
+giftStatusLabel.Text = "🎁 Status: Nonaktif"
 giftStatusLabel.TextColor3 = Color3.fromRGB(255, 110, 130)
 giftStatusLabel.TextSize = 12
 giftStatusLabel.Font = Enum.Font.GothamBold
@@ -2265,12 +2259,10 @@ task.spawn(function()
     while giftCard and giftCard.Parent do
         if AutoGift and AutoGift.Stats then
             if AutoGift.Stats.IsRunning then
-                giftStatusLabel.RichText = true
-sLabel.Text = "🚀 Status: " .. tostring(AutoGift.Stats.LastStatus)
+                giftStatusLabel.Text = "🚀 Status: " .. tostring(AutoGift.Stats.LastStatus)
                 giftStatusLabel.TextColor3 = Color3.fromRGB(0, 230, 140)
             else
-                giftStatusLabel.RichText = true
-sLabel.Text = "🔴 Status: " .. tostring(AutoGift.Stats.LastStatus or "Nonaktif")
+                giftStatusLabel.Text = "🔴 Status: " .. tostring(AutoGift.Stats.LastStatus or "Nonaktif")
                 giftStatusLabel.TextColor3 = Color3.fromRGB(255, 110, 130)
             end
             local tName = AutoGift.Config.TargetName ~= "" and AutoGift.Config.TargetName or (CurrentConfig.GiftTarget ~= "" and CurrentConfig.GiftTarget or "(Auto Pick)")
