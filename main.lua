@@ -25,39 +25,39 @@ local PLACE_IDS = {
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/"
 
 local function executeScript(filename)
-    -- 1. Load langsung dari GitHub Cloud (Raw dengan Cache Buster & Clean Fallback)
+    -- 1. Load langsung dari GitHub Cloud (Direct raw URL)
     local urls = {
-        BASE_URL .. filename .. "?t=" .. tostring(os.time()),
-        BASE_URL .. filename
+        BASE_URL .. filename,
+        BASE_URL .. filename .. "?t=" .. tostring(os.time())
     }
     for _, url in ipairs(urls) do
-        local success, result = pcall(function()
-            local src = game:HttpGet(url)
-            if src and #src > 10 and not src:find("404: Not Found") then
-                local fn, err = loadstring(src)
-                if fn then
-                    return fn()
+        local ok, src = pcall(function() return game:HttpGet(url) end)
+        if ok and src and #src > 10 and not src:find("404: Not Found") then
+            local fn, err = loadstring(src)
+            if fn then
+                local execOk, execErr = pcall(fn)
+                if execOk then
+                    print("🌐 [Ritod Launcher] Sukses memuat script: " .. filename)
+                    return true
+                else
+                    warn("⚠️ [Ritod Launcher] Error eksekusi " .. filename .. ": " .. tostring(execErr))
                 end
             end
-            return false
-        end)
-        if success and result ~= false then
-            print("🌐 [Ritod Launcher] Sukses memuat script cloud: " .. filename)
-            return true
         end
     end
 
     -- 2. Fallback jika offline: coba load dari file lokal di folder workspace executor
     if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(filename) then
-        local lSuccess, lResult = pcall(function()
-            local src = readfile(filename)
+        local lSuccess, src = pcall(function() return readfile(filename) end)
+        if lSuccess and src then
             local fn = loadstring(src)
-            if fn then return fn() end
-            return false
-        end)
-        if lSuccess and lResult ~= false then
-            print("📁 [Ritod Launcher] Sukses memuat script lokal: " .. filename)
-            return true
+            if fn then
+                local execOk, execErr = pcall(fn)
+                if execOk then
+                    print("📁 [Ritod Launcher] Sukses memuat script lokal: " .. filename)
+                    return true
+                end
+            end
         end
     end
 
