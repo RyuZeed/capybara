@@ -14,6 +14,7 @@ local Tween   = game:GetService("TweenService")
 local Teleport = game:GetService("TeleportService")
 local GuiSvc  = game:GetService("GuiService")
 local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 if not LP then
 	local t = tick()
