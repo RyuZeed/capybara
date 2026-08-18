@@ -428,7 +428,8 @@ statsLabel.AnchorPoint = Vector2.new(1, 0.5)
 statsLabel.Position = UDim2.new(1, -95, 0.5, 0)
 statsLabel.Size = UDim2.new(0, 160, 0, 24)
 statsLabel.BackgroundTransparency = 1
-statsLabel.Text = "FPS: 60  |  PING: 35ms"
+statsLabel.RichText = true
+sLabel.Text = "FPS: 60  |  PING: 35ms"
 statsLabel.TextColor3 = Color3.fromRGB(160, 145, 175)
 statsLabel.TextSize = 11
 statsLabel.Font = Enum.Font.GothamMedium
@@ -445,7 +446,8 @@ task.spawn(function()
 		if curTime - lastTime >= 1 then
 			local fps = math.floor(frameCount / (curTime - lastTime))
 			local ping = math.floor(player:GetNetworkPing() * 1000)
-			statsLabel.Text = string.format("FPS: %d  |  PING: %dms", fps, ping)
+			statsLabel.RichText = true
+sLabel.Text = string.format("FPS: %d  |  PING: %dms", fps, ping)
 			frameCount = 0
 			lastTime = curTime
 		end
@@ -650,6 +652,7 @@ floatBgGrad.Parent = floatWidget
 local floatIcon = Instance.new("TextLabel")
 floatIcon.Size = UDim2.new(1, 0, 1, 0)
 floatIcon.BackgroundTransparency = 1
+floatIcon.RichText = true
 floatIcon.Text = "⚡"
 floatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
 floatIcon.TextSize = 26
@@ -827,7 +830,8 @@ function RitodLib:CreateTab(name, icon)
 	tabBtn.BackgroundColor3 = Color3.fromRGB(30, 22, 40)
 	tabBtn.BackgroundTransparency = 1
 	tabBtn.AutoButtonColor = false
-	tabBtn.Text = (icon and (icon .. "  ") or "") .. name
+	tabBtn.RichText = true
+tabBtn.Text = (icon and (icon .. "  ") or "") .. name
 	tabBtn.TextColor3 = Color3.fromRGB(160, 140, 175)
 	tabBtn.TextSize = 13
 	tabBtn.Font = Enum.Font.GothamMedium
@@ -914,7 +918,8 @@ function RitodLib:CreateTab(name, icon)
 		local sLabel = Instance.new("TextLabel")
 		sLabel.Size = UDim2.new(1, 0, 1, 0)
 		sLabel.BackgroundTransparency = 1
-		sLabel.Text = string.upper(title)
+		sLabel.RichText = true
+sLabel.Text = string.upper(title)
 		sLabel.TextColor3 = Color3.fromRGB(180, 120, 255)
 		sLabel.TextSize = 11
 		sLabel.Font = Enum.Font.GothamBold
@@ -978,7 +983,8 @@ function RitodLib:CreateTab(name, icon)
 		tLabel.Position = UDim2.new(0, 14, 0, 0)
 		tLabel.Size = UDim2.new(1, -80, 1, 0)
 		tLabel.BackgroundTransparency = 1
-		tLabel.Text = text
+		tLabel.RichText = true
+tLabel.Text = text
 		tLabel.TextColor3 = Color3.fromRGB(235, 225, 245)
 		tLabel.TextSize = 13
 		tLabel.Font = Enum.Font.GothamMedium
@@ -1057,7 +1063,8 @@ function RitodLib:CreateTab(name, icon)
 		sLabel.Position = UDim2.new(0, 14, 0, 10)
 		sLabel.Size = UDim2.new(1, -90, 0, 16)
 		sLabel.BackgroundTransparency = 1
-		sLabel.Text = text
+		sLabel.RichText = true
+sLabel.Text = text
 		sLabel.TextColor3 = Color3.fromRGB(235, 225, 245)
 		sLabel.TextSize = 13
 		sLabel.Font = Enum.Font.GothamMedium

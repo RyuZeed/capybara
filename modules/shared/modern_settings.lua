@@ -282,7 +282,7 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
             BackgroundTransparency=1, Text=title, TextColor3=C.TEXT, TextSize=13,
             Font=Enum.Font.GothamBold, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=16}, hdr)
         local hca = n("TextLabel", {AnchorPoint=Vector2.new(1,.5), Position=UDim2.new(1,-12,.5,0),
-            Size=UDim2.new(0,20,0,20), BackgroundTransparency=1, Text="⌃",
+            Size=UDim2.new(0,20,0,20), BackgroundTransparency=1, Text="^",
             TextColor3=C.CARET, TextSize=14, Font=Enum.Font.GothamBold, ZIndex=16}, hdr)
         htl:GetPropertyChangedSignal("Text") -- suppress unused warning
 
@@ -293,7 +293,7 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
 
         local open = true
         hdr.Activated:Connect(function()
-            open = not open; body.Visible = open; hca.Text = open and "⌃" or "⌄"
+            open = not open; body.Visible = open; hca.Text = open and "^" or "v"
         end)
         return body
     end
@@ -370,7 +370,7 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
         BackgroundTransparency=1, Text=S.Current or "Default", TextColor3=C.TEXT,
         TextSize=12, Font=Enum.Font.GothamMedium, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=18}, dropBtn)
     local caret  = n("TextLabel", {AnchorPoint=Vector2.new(1,.5), Position=UDim2.new(1,-10,.5,0),
-        Size=UDim2.new(0,16,0,16), BackgroundTransparency=1, Text="⌄",
+        Size=UDim2.new(0,16,0,16), BackgroundTransparency=1, Text="v",
         TextColor3=C.TEXTSUB, TextSize=14, Font=Enum.Font.GothamBold, ZIndex=18}, dropBtn)
 
     -- Dropdown list (built once, reused)
@@ -398,7 +398,7 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
                 dropItems[i].Activated:Connect(function()
                     S.Current = dropItems[idx].Text:sub(3)
                     selTxt.Text = S.Current; nameBox.Text = S.Current
-                    dropFrame.Visible = false; caret.Text = "⌄"
+                    dropFrame.Visible = false; caret.Text = "v"
                     rebuildDrop()  -- just recolor
                 end)
             end
@@ -416,7 +416,7 @@ function ModernSettings.BuildUI(page, mgr, scriptUrl, notify)
 
     dropBtn.Activated:Connect(function()
         dropFrame.Visible = not dropFrame.Visible
-        caret.Text = dropFrame.Visible and "⌃" or "⌄"
+        caret.Text = dropFrame.Visible and "^" or "v"
         if dropFrame.Visible then rebuildDrop() end
     end)
 
