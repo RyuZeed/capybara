@@ -67,6 +67,7 @@ end)
 -- 🌐 IMPORT MODUL CAPYBARA (LOCAL & GITHUB CLOUD SUPPORT)
 -- =================================================================
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/capybara/"
+local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/"
 
 local function loadModule(name)
     -- 0. Cek jika modul sudah diload di global _G
@@ -84,28 +85,37 @@ local function loadModule(name)
         ["modern_settings"] = _G.ModernSettings,
     }
     if globalMaps[name] and typeof(globalMaps[name]) == "table" and (name ~= "auto_buy_gear_and_merchant" or typeof(globalMaps[name].Toggle) == "function") then
-        print("⚡ [Ritod Hub] Loaded memory module: " .. name)
         return globalMaps[name]
     end
 
-    -- 1. Prioritaskan GitHub Cloud (dengan cache buster & clean fallback)
-    local urls = {
-        BASE_URL .. name .. ".lua?t=" .. tostring(os.time()),
-        BASE_URL .. name .. ".lua",
-        "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/" .. name .. ".lua?t=" .. tostring(os.time()),
-        "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/" .. name .. ".lua"
-    }
-    for _, url in ipairs(urls) do
-        local success, result = pcall(function()
-            return loadstring(game:HttpGet(url))()
-        end)
-        if success and result then
-            print("🌐 [Ritod Hub] Loaded cloud module: " .. name)
-            return result
+    -- 1. Prioritaskan GitHub Cloud langsung
+    local targetUrl = (name == "modern_settings" or name == "ritod_ui") and (SHARED_URL .. name .. ".lua") or (BASE_URL .. name .. ".lua")
+    local success, result = pcall(function()
+        local src = game:HttpGet(targetUrl)
+        if src and #src > 10 and not src:find("404: Not Found") then
+            local fn = loadstring(src)
+            if fn then return fn() end
         end
+        return nil
+    end)
+    if success and result then
+        return result
     end
 
-    -- 2. Fallback: File lokal di workspace executor jika ada
+    -- 2. Fallback Shared URL
+    local s2, r2 = pcall(function()
+        local src = game:HttpGet(SHARED_URL .. name .. ".lua")
+        if src and #src > 10 and not src:find("404: Not Found") then
+            local fn = loadstring(src)
+            if fn then return fn() end
+        end
+        return nil
+    end)
+    if s2 and r2 then
+        return r2
+    end
+
+    -- 3. Fallback: File lokal di workspace executor jika offline
     local localPaths = {
         "modules/capybara/" .. name .. ".lua",
         name .. ".lua",
@@ -121,17 +131,17 @@ local function loadModule(name)
         for _, path in ipairs(localPaths) do
             if isfile(path) then
                 local lSuccess, lResult = pcall(function()
-                    return loadstring(readfile(path))()
+                    local src = readfile(path)
+                    local fn = loadstring(src)
+                    if fn then return fn() end
                 end)
                 if lSuccess and lResult then
-                    print("📁 [Ritod Hub] Loaded local workspace module: " .. path)
                     return lResult
                 end
             end
         end
     end
 
-    warn("⚠️ [Ritod Hub] Gagal memuat modul: " .. name)
     return nil
 end
 

@@ -80,18 +80,21 @@ elseif currentPlaceId == PLACE_IDS.CAPYBARA then
     executeScript("capybara.lua")
 
 else
-    -- Fallback jika ada update PlaceId / sub-place
+    -- Fallback deteksi cepat tanpa recursive scan
     local RS = game:GetService("ReplicatedStorage")
     local WS = game:GetService("Workspace")
 
     if RS:FindFirstChild("Modules") and RS.Modules:FindFirstChild("Characters") then
         print("⚡ [Ritod Launcher] Fallback Terdeteksi: Roll Anime To fight!")
         executeScript("roll_anime.lua")
-    elseif WS:FindFirstChild("EggShop", true) or WS:FindFirstChild("PottedPlants", true) then
+    elseif RS:FindFirstChild("Remotes") and (RS.Remotes:FindFirstChild("Sell") or RS.Remotes:FindFirstChild("EquipBestPlants") or RS.Remotes:FindFirstChild("BuyShopItem")) then
+        print("👑 [Ritod Launcher] Fallback Terdeteksi: Capybaras vs Plants!")
+        executeScript("capybara.lua")
+    elseif WS:FindFirstChild("EggShop") or WS:FindFirstChild("PottedPlants") then
         print("👑 [Ritod Launcher] Fallback Terdeteksi: Capybaras vs Plants!")
         executeScript("capybara.lua")
     else
-        warn("⚠️ [Ritod Launcher] PlaceId tidak terdaftar (" .. tostring(currentPlaceId) .. "). Memuat default Roll Anime...")
-        executeScript("roll_anime.lua")
+        print("👑 [Ritod Launcher] Memuat script Capybaras vs Plants...")
+        executeScript("capybara.lua")
     end
 end
