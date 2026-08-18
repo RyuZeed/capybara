@@ -16,7 +16,7 @@ local Workspace = game:GetService("Workspace")
 local VIM = nil
 pcall(function() VIM = game:GetService("VirtualInputManager") end)
 
-local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
+local LocalPlayer = Players.LocalPlayer or (function() local t = tick() while not Players.LocalPlayer and (tick() - t) < 3 do task.wait(0.05) end return Players.LocalPlayer end)()
 
 local isEnabled = false
 local afkThread = nil

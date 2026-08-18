@@ -13,7 +13,7 @@ local warn = function(...) end
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.PlayerAdded:Wait()
+local LocalPlayer = Players.LocalPlayer or (function() local t = tick() while not Players.LocalPlayer and (tick() - t) < 3 do task.wait(0.05) end return Players.LocalPlayer end)()
 
 local ROOT_FOLDER = "RitodHub"
 local GAME_FOLDER = "RitodHub/RollAnimeForFight"
