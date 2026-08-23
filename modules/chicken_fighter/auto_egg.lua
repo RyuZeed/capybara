@@ -1,15 +1,15 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - GROW A CHICKEN FIGHTER (AUTO EGG & INCUBATOR)
+	⚡ RITOD HUB - GROW A CHICKEN FIGHTER (SMART AUTO EGG & INCUBATOR)
 	Module: modules/chicken_fighter/auto_egg.lua
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
-	🎯 FITUR UTAMA:
-	  1. 🧲 Egg Magnet Instant Touch (Tanpa Teleport Karakter / BAC Safe)
-	  2. 🥚 Smart Auto Hatch Owned Eggs (Remote HatchEgg)
-	  3. 🐣 Auto Claim Incubators (Slots 1-7 Spacing Aman)
+	🎯 FITUR UTAMA (100% SMART & SILENT):
+	  1. 🧲 Smart Egg Magnet (Event-Driven ChildAdded, Zero-Movement)
+	  2. 🐣 Smart Incubator Claim (Hanya Klaim Saat Server Timestamp Ready)
+	  3. 🤫 Silent Operation (Zero Spam Output / Zero Lag)
 	  4. ⚡ Instant 1x Trigger Buttons
-	  5. 📊 Live Statistics & Safe Destructor
+	  5. 📊 Live Statistics & Safe Cleanup
 	===============================================================
 ]]
 
@@ -29,9 +29,6 @@ end)()
 -- State
 AutoEgg.IsCollectingEggs = false
 AutoEgg.IsClaimingIncubator = false
-AutoEgg.EggInterval = 0.5
-AutoEgg.IncubatorInterval = 2.0
-AutoEgg.MaxIncubatorSlots = 7
 
 -- Stats
 AutoEgg.Stats = {
@@ -41,9 +38,9 @@ AutoEgg.Stats = {
     LastIncubatorTime = 0
 }
 
--- Threads
-local eggThread = nil
+-- Threads & Connections
 local incubatorThread = nil
+local nestEggConn = nil
 
 local function getHRP()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -54,6 +51,16 @@ local function getRemotes()
     return ReplicatedStorage:FindFirstChild("Remotes")
 end
 
+local function getServerTime()
+    local ok, serverTime = pcall(function()
+        return workspace:GetServerTimeNow()
+    end)
+    if ok and serverTime then
+        return serverTime
+    end
+    return os.time()
+end
+
 function AutoEgg.IsMyEgg(eggInstance)
     if not eggInstance or not eggInstance.Parent then return false end
     local owner = eggInstance:GetAttribute("owner")
@@ -61,7 +68,7 @@ function AutoEgg.IsMyEgg(eggInstance)
 end
 
 -- =================================================================
--- 🧲 EGG MAGNET & CLAIM (TANPA TELEPORT KARAKTER)
+-- 🧲 SMART EGG MAGNET & CLAIM (EVENT-DRIVEN)
 -- =================================================================
 function AutoEgg.CollectSingleEgg(eggInstance)
     if not eggInstance or not eggInstance.Parent or not AutoEgg.IsMyEgg(eggInstance) then return false end
@@ -69,7 +76,7 @@ function AutoEgg.CollectSingleEgg(eggInstance)
     local hrp = getHRP()
     if not hrp then return false end
 
-    -- 1. Tarik part telur ke posisi karakter (Magnet)
+    -- 1. Tarik part telur ke posisi karakter di client (Magnet)
     pcall(function()
         if eggInstance:IsA("BasePart") then
             eggInstance.CFrame = hrp.CFrame
@@ -78,7 +85,7 @@ function AutoEgg.CollectSingleEgg(eggInstance)
         end
     end)
 
-    -- 2. Trigger Remote HatchEgg langsung
+    -- 2. Trigger Remote HatchEgg langsung dari jarak 0
     local remotes = getRemotes()
     local hatchRemote = remotes and remotes:FindFirstChild("HatchEgg")
     if eggId and hatchRemote then
@@ -87,7 +94,7 @@ function AutoEgg.CollectSingleEgg(eggInstance)
         end)
     end
 
-    -- 3. Touch Interest bantuan
+    -- 3. Touch Interest backup
     if typeof(firetouchinterest) == "function" then
         pcall(function()
             local targetPart = eggInstance:IsA("BasePart") and eggInstance or eggInstance:FindFirstChildWhichIsA("BasePart", true)
@@ -112,49 +119,79 @@ function AutoEgg.CollectAllEggsOnce()
     for _, egg in ipairs(nestFolder:GetChildren()) do
         if AutoEgg.IsMyEgg(egg) and AutoEgg.CollectSingleEgg(egg) then
             count = count + 1
-            task.wait(0.2)
+            task.wait(0.15)
         end
     end
     return count
 end
 
-function AutoEgg.StartAutoCollectEgg(interval)
+function AutoEgg.StartAutoCollectEgg()
     if AutoEgg.IsCollectingEggs then return end
     AutoEgg.IsCollectingEggs = true
-    if interval and tonumber(interval) then
-        AutoEgg.EggInterval = tonumber(interval)
-    end
 
-    eggThread = task.spawn(function()
-        while AutoEgg.IsCollectingEggs do
-            pcall(function()
-                local nest = workspace:FindFirstChild("NestEggs")
-                if nest then
-                    for _, egg in ipairs(nest:GetChildren()) do
-                        if not AutoEgg.IsCollectingEggs then break end
-                        if AutoEgg.IsMyEgg(egg) then
-                            AutoEgg.CollectSingleEgg(egg)
-                            task.wait(AutoEgg.EggInterval or 0.5)
-                        end
-                    end
-                end
-            end)
-            task.wait(0.8)
-        end
+    -- 1. Sapu telur yang sudah ada saat awal aktif
+    task.spawn(function()
+        AutoEgg.CollectAllEggsOnce()
     end)
+
+    -- 2. Event-Driven: Hanya bereaksi saat ada telur baru spawn
+    local nestFolder = workspace:FindFirstChild("NestEggs")
+    if nestFolder then
+        if nestEggConn then nestEggConn:Disconnect() end
+        nestEggConn = nestFolder.ChildAdded:Connect(function(child)
+            if AutoEgg.IsCollectingEggs then
+                task.spawn(function()
+                    local waited = 0
+                    while waited < 1 do
+                        if child:GetAttribute("owner") and child:GetAttribute("eggId") then break end
+                        task.wait(0.05)
+                        waited = waited + 0.05
+                    end
+                    if AutoEgg.IsCollectingEggs and AutoEgg.IsMyEgg(child) then
+                        AutoEgg.CollectSingleEgg(child)
+                    end
+                end)
+            end
+        end)
+    end
 end
 
 function AutoEgg.StopAutoCollectEgg()
     AutoEgg.IsCollectingEggs = false
-    if eggThread then
-        pcall(function() task.cancel(eggThread) end)
-        eggThread = nil
+    if nestEggConn then
+        pcall(function() nestEggConn:Disconnect() end)
+        nestEggConn = nil
     end
 end
 
 -- =================================================================
--- 🐣 INCUBATOR CLAIM ENGINE
+-- 🐣 SMART INCUBATOR CLAIM (HANYA KLAIM SAAT READY)
 -- =================================================================
+function AutoEgg.GetReadyIncubators()
+    local readySlots = {}
+    local incubators = workspace:FindFirstChild("Incubators")
+    if not incubators then return readySlots end
+
+    local now = getServerTime()
+
+    for _, inc in ipairs(incubators:GetChildren()) do
+        local slotNum = tonumber(string.match(inc.Name, "%d+"))
+        if slotNum then
+            local isUnlocked = inc:GetAttribute("Unlocked")
+            local nextHatchAt = inc:GetAttribute("NextHatchAt")
+            
+            -- Jika unlocked dan waktu sekarang sudah melewati NextHatchAt (> 0)
+            if isUnlocked and nextHatchAt and tonumber(nextHatchAt) and tonumber(nextHatchAt) > 0 then
+                if now >= tonumber(nextHatchAt) then
+                    table.insert(readySlots, slotNum)
+                end
+            end
+        end
+    end
+
+    return readySlots
+end
+
 function AutoEgg.ClaimSingleIncubator(slotIndex)
     local remotes = getRemotes()
     local claimRemote = remotes and remotes:FindFirstChild("IncubatorClaim")
@@ -171,37 +208,34 @@ function AutoEgg.ClaimSingleIncubator(slotIndex)
     return false, nil
 end
 
-function AutoEgg.ClaimAllIncubatorsOnce(maxSlots)
-    maxSlots = maxSlots or AutoEgg.MaxIncubatorSlots or 7
+function AutoEgg.ClaimAllIncubatorsOnce()
+    local readySlots = AutoEgg.GetReadyIncubators()
     local claimed = 0
-    for i = 1, maxSlots do
-        if AutoEgg.ClaimSingleIncubator(i) then claimed = claimed + 1 end
-        task.wait(0.3)
+    for _, slotIndex in ipairs(readySlots) do
+        if AutoEgg.ClaimSingleIncubator(slotIndex) then
+            claimed = claimed + 1
+            task.wait(0.3)
+        end
     end
     return claimed
 end
 
-function AutoEgg.StartAutoClaimIncubator(interval, maxSlots)
+function AutoEgg.StartAutoClaimIncubator()
     if AutoEgg.IsClaimingIncubator then return end
     AutoEgg.IsClaimingIncubator = true
-    if interval and tonumber(interval) then
-        AutoEgg.IncubatorInterval = tonumber(interval)
-    end
-    if maxSlots and tonumber(maxSlots) then
-        AutoEgg.MaxIncubatorSlots = tonumber(maxSlots)
-    end
 
     incubatorThread = task.spawn(function()
         while AutoEgg.IsClaimingIncubator do
             pcall(function()
-                local limit = AutoEgg.MaxIncubatorSlots or 7
-                for i = 1, limit do
+                -- Cek slot incubator mana saja yang statusnya SUDAH READY
+                local readySlots = AutoEgg.GetReadyIncubators()
+                for _, slotIndex in ipairs(readySlots) do
                     if not AutoEgg.IsClaimingIncubator then break end
-                    AutoEgg.ClaimSingleIncubator(i)
-                    task.wait(0.4) -- Safe spacing antar slot
+                    AutoEgg.ClaimSingleIncubator(slotIndex)
+                    task.wait(0.35)
                 end
             end)
-            task.wait(AutoEgg.IncubatorInterval or 2.0)
+            task.wait(1.0) -- Poller santai setiap 1 detik mengecek timer
         end
     end)
 end
@@ -214,6 +248,9 @@ function AutoEgg.StopAutoClaimIncubator()
     end
 end
 
+-- =================================================================
+-- 🛑 DESTRUCTOR / CLEANUP
+-- =================================================================
 function AutoEgg.StopAll()
     AutoEgg.StopAutoCollectEgg()
     AutoEgg.StopAutoClaimIncubator()

@@ -1,15 +1,14 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - GROW A CHICKEN FIGHTER (MODULAR EDITION)
+	⚡ RITOD HUB - GROW A CHICKEN FIGHTER (SMART MODULAR EDITION)
 	Game: Grow a Chicken Fighter
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
 	- 🧩 MODULE DIRECTORY: modules/chicken_fighter/
-	  - auto_egg.lua
-	  - anti_afk.lua
-	  - config_manager.lua
-	- 📁 PERSISTENT CONFIG: RitodHub/GrowAChickenFighter/config.json
-	- 🛡️ BULLETPROOF ANTI-AFK & BAC-8511 BYPASS
+	  - auto_egg.lua (Smart Timestamp Incubator & Event-Driven Egg Magnet)
+	  - anti_afk.lua (Safe Keepalive Daemon)
+	  - config_manager.lua (Persistent Profile Config)
+	- 🛡️ 100% SMART & SILENT OPERATION (Zero Console Spam / BAC Safe)
 	- 🖥️ MODERN RITOD UI (680x440) with Minimize Floating Widget
 	===============================================================
 ]]
@@ -71,7 +70,6 @@ local function loadModule(name, isShared)
     end)
     if success and result then return result end
 
-    -- Fallback lokal jika ada file di executor
     local localPath = (isShared and "modules/shared/" or "modules/chicken_fighter/") .. name .. ".lua"
     if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(localPath) then
         local fn = loadstring(readfile(localPath))
@@ -85,7 +83,6 @@ local AutoEgg = loadModule("auto_egg", false)
 local AntiAFK = loadModule("anti_afk", false)
 local ConfigManager = loadModule("config_manager", false)
 
--- Safety fallback jika koneksi github belum siap
 if not AutoEgg and _G.ChickenFighterAutoEgg then AutoEgg = _G.ChickenFighterAutoEgg end
 if not AntiAFK and _G.ChickenFighterAntiAFK then AntiAFK = _G.ChickenFighterAntiAFK end
 if not ConfigManager and _G.ChickenFighterConfigManager then ConfigManager = _G.ChickenFighterConfigManager end
@@ -108,24 +105,18 @@ local Window = RitodUI:CreateWindow({
 -- ── Tab 1: 🥚 Egg & Incubator ──
 local MainTab = Window:CreateTab("Egg & Incubator", "🥚")
 
-MainTab:AddSection("🥚 Auto Collect Eggs (Anti-BAC)")
+MainTab:AddSection("🥚 Smart Auto Collect Eggs (Event-Driven)")
 
-MainTab:AddToggle("Auto Collect Eggs", CurrentConfig.AutoCollectEgg or false, function(state)
+MainTab:AddToggle("Auto Collect Eggs (Event-Driven)", CurrentConfig.AutoCollectEgg or false, function(state)
     CurrentConfig.AutoCollectEgg = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        AutoEgg.StartAutoCollectEgg(CurrentConfig.EggInterval)
-        Window.Notify("Auto Collect Egg", "Status: AKTIF (Safe Proximity Mode)", 2.5)
+        AutoEgg.StartAutoCollectEgg()
+        Window.Notify("Auto Collect Egg", "Status: AKTIF (Hanya ambil saat telur ada di plot)", 2.5)
     else
         AutoEgg.StopAutoCollectEgg()
         Window.Notify("Auto Collect Egg", "Status: NONAKTIF", 2.0)
     end
-end)
-
-MainTab:AddSlider("Collect Delay (Detik)", 0.5, 3.0, CurrentConfig.EggInterval or 0.8, function(val)
-    CurrentConfig.EggInterval = tonumber(string.format("%.1f", val))
-    AutoEgg.EggInterval = CurrentConfig.EggInterval
-    if ConfigManager then ConfigManager.Save() end
 end)
 
 MainTab:AddButton("⚡ Collect All Eggs Once (Instant 1x)", function()
@@ -133,35 +124,23 @@ MainTab:AddButton("⚡ Collect All Eggs Once (Instant 1x)", function()
     Window.Notify("Collect Telur", string.format("Berhasil mengambil %d telur!", count), 2.5)
 end)
 
-MainTab:AddSection("🐣 Auto Claim Incubator")
+MainTab:AddSection("🐣 Smart Auto Claim Incubator")
 
-MainTab:AddToggle("Auto Claim Incubators (Slots 1-7)", CurrentConfig.AutoClaimIncubator or false, function(state)
+MainTab:AddToggle("Auto Claim Incubators (Ready Only)", CurrentConfig.AutoClaimIncubator or false, function(state)
     CurrentConfig.AutoClaimIncubator = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        AutoEgg.StartAutoClaimIncubator(CurrentConfig.IncubatorInterval, CurrentConfig.MaxIncubatorSlots)
-        Window.Notify("Auto Incubator", "Status: AKTIF (Safe Interval)", 2.5)
+        AutoEgg.StartAutoClaimIncubator()
+        Window.Notify("Auto Incubator", "Status: AKTIF (Klaim otomatis hanya saat ready)", 2.5)
     else
         AutoEgg.StopAutoClaimIncubator()
         Window.Notify("Auto Incubator", "Status: NONAKTIF", 2.0)
     end
 end)
 
-MainTab:AddSlider("Cycle Delay (Detik)", 1.0, 5.0, CurrentConfig.IncubatorInterval or 2.0, function(val)
-    CurrentConfig.IncubatorInterval = tonumber(string.format("%.1f", val))
-    AutoEgg.IncubatorInterval = CurrentConfig.IncubatorInterval
-    if ConfigManager then ConfigManager.Save() end
-end)
-
-MainTab:AddSlider("Max Incubator Slots", 1, 10, CurrentConfig.MaxIncubatorSlots or 7, function(val)
-    CurrentConfig.MaxIncubatorSlots = math.floor(val)
-    AutoEgg.MaxIncubatorSlots = CurrentConfig.MaxIncubatorSlots
-    if ConfigManager then ConfigManager.Save() end
-end)
-
-MainTab:AddButton("⚡ Claim All Incubators Once (Instant 1x)", function()
-    local count = AutoEgg.ClaimAllIncubatorsOnce(CurrentConfig.MaxIncubatorSlots)
-    Window.Notify("Claim Incubator", string.format("Claim dikirim ke %d slot!", count), 2.5)
+MainTab:AddButton("⚡ Claim Ready Incubators (Instant 1x)", function()
+    local count = AutoEgg.ClaimAllIncubatorsOnce()
+    Window.Notify("Claim Incubator", string.format("Berhasil meng-claim %d incubator yang ready!", count), 2.5)
 end)
 
 -- ── Tab 2: ⚙️ Settings (Config Manager & Anti-AFK) ──
@@ -193,7 +172,7 @@ SettingsTab:AddButton("🔄 Reload Configuration", function()
         ConfigManager.Load()
         if CurrentConfig.AutoCollectEgg then AutoEgg.StartAutoCollectEgg() else AutoEgg.StopAutoCollectEgg() end
         if CurrentConfig.AutoClaimIncubator then AutoEgg.StartAutoClaimIncubator() else AutoEgg.StopAutoClaimIncubator() end
-        if CurrentConfig.AntiAFK then AntiAFK.Start() else AntiAFK.Stop() end
+        if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() else AntiAFK.Stop() end
     end
     Window.Notify("Config Loaded", "Konfigurasi berhasil dimuat ulang!", 2.5)
 end)
@@ -226,5 +205,5 @@ _G.RitodHubCleanup = function()
     end)
 end
 
-Window.Notify("⚡RITOD HUB⚡", "Grow a Chicken Fighter Ready!", 3.5)
+Window.Notify("⚡RITOD HUB⚡", "Smart & Silent Edition Loaded!", 3.5)
 return Window
