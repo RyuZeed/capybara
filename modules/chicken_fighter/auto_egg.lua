@@ -4,6 +4,13 @@
 	Module: modules/chicken_fighter/auto_egg.lua
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
+	🎯 FITUR UTAMA:
+	  1. 🧲 Egg Magnet Instant Touch (Tanpa Teleport Karakter / BAC Safe)
+	  2. 🥚 Smart Auto Hatch Owned Eggs (Remote HatchEgg)
+	  3. 🐣 Auto Claim Incubators (Slots 1-7 Spacing Aman)
+	  4. ⚡ Instant 1x Trigger Buttons
+	  5. 📊 Live Statistics & Safe Destructor
+	===============================================================
 ]]
 
 local AutoEgg = {}
@@ -22,7 +29,7 @@ end)()
 -- State
 AutoEgg.IsCollectingEggs = false
 AutoEgg.IsClaimingIncubator = false
-AutoEgg.EggInterval = 0.8
+AutoEgg.EggInterval = 0.5
 AutoEgg.IncubatorInterval = 2.0
 AutoEgg.MaxIncubatorSlots = 7
 
@@ -34,7 +41,7 @@ AutoEgg.Stats = {
     LastIncubatorTime = 0
 }
 
--- Threads & Connections
+-- Threads
 local eggThread = nil
 local incubatorThread = nil
 
@@ -53,22 +60,25 @@ function AutoEgg.IsMyEgg(eggInstance)
     return owner and tostring(owner) == tostring(LocalPlayer.UserId)
 end
 
-function AutoEgg.CollectSingleEggSafe(eggInstance)
+-- =================================================================
+-- 🧲 EGG MAGNET & CLAIM (TANPA TELEPORT KARAKTER)
+-- =================================================================
+function AutoEgg.CollectSingleEgg(eggInstance)
     if not eggInstance or not eggInstance.Parent or not AutoEgg.IsMyEgg(eggInstance) then return false end
     local eggId = eggInstance:GetAttribute("eggId")
     local hrp = getHRP()
     if not hrp then return false end
 
-    local eggPos = eggInstance:IsA("BasePart") and eggInstance.Position or eggInstance:GetPivot().Position
-    local dist = (hrp.Position - eggPos).Magnitude
-    local oldPos = hrp.CFrame
+    -- 1. Tarik part telur ke posisi karakter (Magnet)
+    pcall(function()
+        if eggInstance:IsA("BasePart") then
+            eggInstance.CFrame = hrp.CFrame
+        elseif eggInstance:IsA("Model") then
+            eggInstance:PivotTo(hrp.CFrame)
+        end
+    end)
 
-    -- Pindahkan karakter dekat telur sejenak agar lolos verifikasi jarak BAC
-    if dist > 12 then
-        hrp.CFrame = CFrame.new(eggPos + Vector3.new(0, 2.5, 0))
-        task.wait(0.08)
-    end
-
+    -- 2. Trigger Remote HatchEgg langsung
     local remotes = getRemotes()
     local hatchRemote = remotes and remotes:FindFirstChild("HatchEgg")
     if eggId and hatchRemote then
@@ -77,17 +87,16 @@ function AutoEgg.CollectSingleEggSafe(eggInstance)
         end)
     end
 
+    -- 3. Touch Interest bantuan
     if typeof(firetouchinterest) == "function" then
         pcall(function()
-            firetouchinterest(eggInstance, hrp, 0)
-            task.wait(0.02)
-            firetouchinterest(eggInstance, hrp, 1)
+            local targetPart = eggInstance:IsA("BasePart") and eggInstance or eggInstance:FindFirstChildWhichIsA("BasePart", true)
+            if targetPart then
+                firetouchinterest(targetPart, hrp, 0)
+                task.wait(0.01)
+                firetouchinterest(targetPart, hrp, 1)
+            end
         end)
-    end
-
-    if dist > 12 then
-        task.wait(0.05)
-        hrp.CFrame = oldPos
     end
 
     AutoEgg.Stats.EggsCollected = AutoEgg.Stats.EggsCollected + 1
@@ -101,7 +110,7 @@ function AutoEgg.CollectAllEggsOnce()
     
     local count = 0
     for _, egg in ipairs(nestFolder:GetChildren()) do
-        if AutoEgg.IsMyEgg(egg) and AutoEgg.CollectSingleEggSafe(egg) then
+        if AutoEgg.IsMyEgg(egg) and AutoEgg.CollectSingleEgg(egg) then
             count = count + 1
             task.wait(0.2)
         end
@@ -124,13 +133,13 @@ function AutoEgg.StartAutoCollectEgg(interval)
                     for _, egg in ipairs(nest:GetChildren()) do
                         if not AutoEgg.IsCollectingEggs then break end
                         if AutoEgg.IsMyEgg(egg) then
-                            AutoEgg.CollectSingleEggSafe(egg)
-                            task.wait(AutoEgg.EggInterval or 0.8)
+                            AutoEgg.CollectSingleEgg(egg)
+                            task.wait(AutoEgg.EggInterval or 0.5)
                         end
                     end
                 end
             end)
-            task.wait(1.0)
+            task.wait(0.8)
         end
     end)
 end
@@ -143,6 +152,9 @@ function AutoEgg.StopAutoCollectEgg()
     end
 end
 
+-- =================================================================
+-- 🐣 INCUBATOR CLAIM ENGINE
+-- =================================================================
 function AutoEgg.ClaimSingleIncubator(slotIndex)
     local remotes = getRemotes()
     local claimRemote = remotes and remotes:FindFirstChild("IncubatorClaim")
@@ -186,7 +198,7 @@ function AutoEgg.StartAutoClaimIncubator(interval, maxSlots)
                 for i = 1, limit do
                     if not AutoEgg.IsClaimingIncubator then break end
                     AutoEgg.ClaimSingleIncubator(i)
-                    task.wait(0.4)
+                    task.wait(0.4) -- Safe spacing antar slot
                 end
             end)
             task.wait(AutoEgg.IncubatorInterval or 2.0)
