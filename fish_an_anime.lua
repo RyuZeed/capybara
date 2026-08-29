@@ -89,25 +89,29 @@ end
 local RitodUI = loadModule("ritod_ui", true)
 local AutoFish = loadModule("auto_fish", false)
 local AutoFarm = loadModule("auto_farm", false)
+local AutoMerchants = loadModule("auto_merchants", false)
 local BaseUnits = loadModule("base_units", false)
 local AntiAFK = loadModule("anti_afk", false)
 local ConfigManager = loadModule("config_manager", false)
 
 if not AutoFish and _G.FishAnAnimeAutoFish then AutoFish = _G.FishAnAnimeAutoFish end
 if not AutoFarm and _G.FishAnAnimeAutoFarm then AutoFarm = _G.FishAnAnimeAutoFarm end
+if not AutoMerchants and _G.FishAnAnimeAutoMerchants then AutoMerchants = _G.FishAnAnimeAutoMerchants end
 if not BaseUnits and _G.FishAnAnimeBaseUnits then BaseUnits = _G.FishAnAnimeBaseUnits end
 if not AntiAFK and _G.FishAnAnimeAntiAFK then AntiAFK = _G.FishAnAnimeAntiAFK end
 if not ConfigManager and _G.FishAnAnimeConfigManager then ConfigManager = _G.FishAnAnimeConfigManager end
 
 local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {}
 
--- Sinkronisasi konfigurasi ke module farm & base units
+-- Sinkronisasi konfigurasi ke module farm & merchants & base units
 if AutoFarm then
     if CurrentConfig.SelectedPotions then AutoFarm.SelectedPotions = CurrentConfig.SelectedPotions end
-    if CurrentConfig.AutoBuyBoostsSelected then AutoFarm.AutoBuyBoostsSelected = CurrentConfig.AutoBuyBoostsSelected end
-    if CurrentConfig.AutoBuyBoostsCurrency then AutoFarm.AutoBuyBoostsCurrency = CurrentConfig.AutoBuyBoostsCurrency end
-    if CurrentConfig.AutoBuySeleneSelected then AutoFarm.AutoBuySeleneSelected = CurrentConfig.AutoBuySeleneSelected end
-    if CurrentConfig.AutoBuyAngeliaSelected then AutoFarm.AutoBuyAngeliaSelected = CurrentConfig.AutoBuyAngeliaSelected end
+end
+if AutoMerchants then
+    if CurrentConfig.AutoBuyBoostsSelected then AutoMerchants.AutoBuyBoostsSelected = CurrentConfig.AutoBuyBoostsSelected end
+    if CurrentConfig.AutoBuyBoostsCurrency then AutoMerchants.AutoBuyBoostsCurrency = CurrentConfig.AutoBuyBoostsCurrency end
+    if CurrentConfig.AutoBuySeleneSelected then AutoMerchants.AutoBuySeleneSelected = CurrentConfig.AutoBuySeleneSelected end
+    if CurrentConfig.AutoBuyAngeliaSelected then AutoMerchants.AutoBuyAngeliaSelected = CurrentConfig.AutoBuyAngeliaSelected end
 end
 if BaseUnits then
     BaseUnits.FilterByRarity = CurrentConfig.FilterLevelUpByRarity or false
@@ -136,6 +140,7 @@ local Window = RitodUI:CreateWindow({
     OnUnload = function()
         if AutoFish and AutoFish.StopAll then AutoFish.StopAll() end
         if AutoFarm and AutoFarm.StopAll then AutoFarm.StopAll() end
+        if AutoMerchants and AutoMerchants.StopAll then AutoMerchants.StopAll() end
         if BaseUnits and BaseUnits.StopAutoLevelUp then BaseUnits.StopAutoLevelUp() end
         if AntiAFK and AntiAFK.Stop then AntiAFK.Stop() end
     end
@@ -309,16 +314,16 @@ MerchantTab:AddToggle("Auto Buy Selene Items", CurrentConfig.AutoBuySelene or fa
     CurrentConfig.AutoBuySelene = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        AutoFarm.StartAutoBuySelene(10)
+        if AutoMerchants then AutoMerchants.StartAutoBuySelene(5) end
         Window.Notify("Selene Auto Buy", "Auto Buy Selene diaktifkan!", 2.0)
     else
-        AutoFarm.StopAutoBuySelene()
+        if AutoMerchants then AutoMerchants.StopAutoBuySelene() end
         Window.Notify("Selene Auto Buy", "Auto Buy Selene dinonaktifkan!", 2.0)
     end
 end)
 
 MerchantTab:AddButton("⚡ Buy Selected Selene Items Now (1x)", function()
-    if AutoFarm then AutoFarm.BuySelectedSeleneOnce() end
+    if AutoMerchants then AutoMerchants.BuySelectedSeleneOnce() end
     Window.Notify("Selene", "Membeli item Selene yang dipilih!", 2.0)
 end)
 
@@ -336,7 +341,7 @@ for _, item in ipairs(seleneOffers) do
     local isChecked = (CurrentConfig.AutoBuySeleneSelected and CurrentConfig.AutoBuySeleneSelected[item.id]) or false
     MerchantTab:AddToggle(string.format("[%s] %s (%s)", item.id, item.name, item.price), isChecked, function(state)
         CurrentConfig.AutoBuySeleneSelected[item.id] = state
-        if AutoFarm then AutoFarm.AutoBuySeleneSelected[item.id] = state end
+        if AutoMerchants then AutoMerchants.AutoBuySeleneSelected[item.id] = state end
         if ConfigManager then ConfigManager.Save() end
     end)
 end
@@ -347,16 +352,16 @@ MerchantTab:AddToggle("Auto Buy Angelia Items", CurrentConfig.AutoBuyAngelia or 
     CurrentConfig.AutoBuyAngelia = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        AutoFarm.StartAutoBuyAngelia(10)
+        if AutoMerchants then AutoMerchants.StartAutoBuyAngelia(5) end
         Window.Notify("Angelia Auto Buy", "Auto Buy Angelia diaktifkan!", 2.0)
     else
-        AutoFarm.StopAutoBuyAngelia()
+        if AutoMerchants then AutoMerchants.StopAutoBuyAngelia() end
         Window.Notify("Angelia Auto Buy", "Auto Buy Angelia dinonaktifkan!", 2.0)
     end
 end)
 
 MerchantTab:AddButton("⚡ Buy Selected Angelia Items Now (1x)", function()
-    if AutoFarm then AutoFarm.BuySelectedAngeliaOnce() end
+    if AutoMerchants then AutoMerchants.BuySelectedAngeliaOnce() end
     Window.Notify("Angelia", "Membeli item Angelia yang dipilih!", 2.0)
 end)
 
@@ -376,7 +381,7 @@ for _, item in ipairs(angeliaOffers) do
     local isChecked = (CurrentConfig.AutoBuyAngeliaSelected and CurrentConfig.AutoBuyAngeliaSelected[item.id]) or false
     MerchantTab:AddToggle(string.format("[%s] %s (%s)", item.id, item.name, item.price), isChecked, function(state)
         CurrentConfig.AutoBuyAngeliaSelected[item.id] = state
-        if AutoFarm then AutoFarm.AutoBuyAngeliaSelected[item.id] = state end
+        if AutoMerchants then AutoMerchants.AutoBuyAngeliaSelected[item.id] = state end
         if ConfigManager then ConfigManager.Save() end
     end)
 end
@@ -387,16 +392,16 @@ MerchantTab:AddToggle("Auto Buy Available Fishing Rods", CurrentConfig.AutoBuyFi
     CurrentConfig.AutoBuyFishingRods = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        AutoFarm.StartAutoBuyFishingRods(10)
+        if AutoMerchants then AutoMerchants.StartAutoBuyFishingRods(10) end
         Window.Notify("Rods Auto Buy", "Auto Buy Fishing Rods diaktifkan!", 2.0)
     else
-        AutoFarm.StopAutoBuyFishingRods()
+        if AutoMerchants then AutoMerchants.StopAutoBuyFishingRods() end
         Window.Notify("Rods Auto Buy", "Auto Buy Fishing Rods dinonaktifkan!", 2.0)
     end
 end)
 
 MerchantTab:AddButton("⚡ Buy Available Rods Now (1x)", function()
-    if AutoFarm then AutoFarm.BuyAvailableFishingRodsOnce() end
+    if AutoMerchants then AutoMerchants.BuyAvailableFishingRodsOnce() end
     Window.Notify("Fishing Rods", "Membeli pancingan yang memenuhi syarat!", 2.0)
 end)
 
@@ -404,10 +409,10 @@ MerchantTab:AddToggle("Auto Buy Carry Capacity (+1)", CurrentConfig.AutoBuyCarry
     CurrentConfig.AutoBuyCarry = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        AutoFarm.StartAutoBuyCarry(10)
+        if AutoMerchants then AutoMerchants.StartAutoBuyCarry(10) end
         Window.Notify("Carry Auto Buy", "Auto Buy Carry Capacity diaktifkan!", 2.0)
     else
-        AutoFarm.StopAutoBuyCarry()
+        if AutoMerchants then AutoMerchants.StopAutoBuyCarry() end
         Window.Notify("Carry Auto Buy", "Auto Buy Carry Capacity dinonaktifkan!", 2.0)
     end
 end)
@@ -421,10 +426,10 @@ BoostTab:AddToggle("Auto Buy Boosts Store Items", CurrentConfig.AutoBuyBoosts or
     CurrentConfig.AutoBuyBoosts = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        AutoFarm.StartAutoBuyBoosts()
+        if AutoMerchants then AutoMerchants.StartAutoBuyBoosts() end
         Window.Notify("Boosts Store", "Auto Buy Boosts Store diaktifkan (Auto Restock Watcher)!", 2.0)
     else
-        AutoFarm.StopAutoBuyBoosts()
+        if AutoMerchants then AutoMerchants.StopAutoBuyBoosts() end
         Window.Notify("Boosts Store", "Auto Buy Boosts Store dinonaktifkan!", 2.0)
     end
 end)
@@ -432,13 +437,13 @@ end)
 BoostTab:AddToggle("Pay with Cash (OFF = Pay with Gems)", CurrentConfig.AutoBuyBoostsCurrency ~= "Gems", function(state)
     local cur = state and "Cash" or "Gems"
     CurrentConfig.AutoBuyBoostsCurrency = cur
-    if AutoFarm then AutoFarm.AutoBuyBoostsCurrency = cur end
+    if AutoMerchants then AutoMerchants.AutoBuyBoostsCurrency = cur end
     if ConfigManager then ConfigManager.Save() end
     Window.Notify("Currency", "Metode bayar Boosts Store: " .. cur, 2.0)
 end)
 
 BoostTab:AddButton("⚡ Buy Selected Boosts Now (1x)", function()
-    if AutoFarm then AutoFarm.BuySelectedBoostsOnce() end
+    if AutoMerchants then AutoMerchants.BuySelectedBoostsOnce() end
     Window.Notify("Boosts Store", "Membeli seluruh stock boosts yang dipilih!", 2.0)
 end)
 
@@ -458,7 +463,7 @@ for _, item in ipairs(boostsStoreOffers) do
     local isChecked = (CurrentConfig.AutoBuyBoostsSelected and CurrentConfig.AutoBuyBoostsSelected[item.id]) or false
     BoostTab:AddToggle(string.format("[%s] %s ($%s / %s 💎)", item.id, item.name, item.cash, item.gems), isChecked, function(state)
         CurrentConfig.AutoBuyBoostsSelected[item.id] = state
-        if AutoFarm then AutoFarm.AutoBuyBoostsSelected[item.id] = state end
+        if AutoMerchants then AutoMerchants.AutoBuyBoostsSelected[item.id] = state end
         if ConfigManager then ConfigManager.Save() end
     end)
 end
@@ -689,11 +694,13 @@ SettingsTab:AddButton("🔄 Reload Configuration", function()
         if CurrentConfig.AutoUpgrades then AutoFarm.StartAutoUpgrades() else AutoFarm.StopAutoUpgrades() end
         if CurrentConfig.AutoRebirth then AutoFarm.StartAutoRebirth() else AutoFarm.StopAutoRebirth() end
         if CurrentConfig.AutoPotions then AutoFarm.StartAutoPotions() else AutoFarm.StopAutoPotions() end
-        if CurrentConfig.AutoBuyBoosts then AutoFarm.StartAutoBuyBoosts() else AutoFarm.StopAutoBuyBoosts() end
-        if CurrentConfig.AutoBuySelene then AutoFarm.StartAutoBuySelene() else AutoFarm.StopAutoBuySelene() end
-        if CurrentConfig.AutoBuyAngelia then AutoFarm.StartAutoBuyAngelia() else AutoFarm.StopAutoBuyAngelia() end
-        if CurrentConfig.AutoBuyFishingRods then AutoFarm.StartAutoBuyFishingRods() else AutoFarm.StopAutoBuyFishingRods() end
-        if CurrentConfig.AutoBuyCarry then AutoFarm.StartAutoBuyCarry() else AutoFarm.StopAutoBuyCarry() end
+        if AutoMerchants then
+            if CurrentConfig.AutoBuyBoosts then AutoMerchants.StartAutoBuyBoosts() else AutoMerchants.StopAutoBuyBoosts() end
+            if CurrentConfig.AutoBuySelene then AutoMerchants.StartAutoBuySelene() else AutoMerchants.StopAutoBuySelene() end
+            if CurrentConfig.AutoBuyAngelia then AutoMerchants.StartAutoBuyAngelia() else AutoMerchants.StopAutoBuyAngelia() end
+            if CurrentConfig.AutoBuyFishingRods then AutoMerchants.StartAutoBuyFishingRods() else AutoMerchants.StopAutoBuyFishingRods() end
+            if CurrentConfig.AutoBuyCarry then AutoMerchants.StartAutoBuyCarry() else AutoMerchants.StopAutoBuyCarry() end
+        end
         if CurrentConfig.AutoLevelUpBaseUnits and BaseUnits then BaseUnits.StartAutoLevelUp() else if BaseUnits then BaseUnits.StopAutoLevelUp() end end
         if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() else AntiAFK.Stop() end
     end
@@ -704,6 +711,7 @@ SettingsTab:AddButton("🗑️ Reset to Default Settings", function()
     if ConfigManager then ConfigManager.Reset() end
     if AutoFish then AutoFish.StopAll() end
     if AutoFarm then AutoFarm.StopAll() end
+    if AutoMerchants then AutoMerchants.StopAll() end
     if BaseUnits then BaseUnits.StopAutoLevelUp() end
     Window.Notify("Config Reset", "Pengaturan dikembalikan ke default!", 2.5)
 end)
@@ -725,11 +733,13 @@ if CurrentConfig.AutoClaimIndex then AutoFarm.StartAutoIndex() end
 if CurrentConfig.AutoUpgrades then AutoFarm.StartAutoUpgrades() end
 if CurrentConfig.AutoRebirth then AutoFarm.StartAutoRebirth() end
 if CurrentConfig.AutoPotions then AutoFarm.StartAutoPotions() end
-if CurrentConfig.AutoBuyBoosts then AutoFarm.StartAutoBuyBoosts() end
-if CurrentConfig.AutoBuySelene then AutoFarm.StartAutoBuySelene() end
-if CurrentConfig.AutoBuyAngelia then AutoFarm.StartAutoBuyAngelia() end
-if CurrentConfig.AutoBuyFishingRods then AutoFarm.StartAutoBuyFishingRods() end
-if CurrentConfig.AutoBuyCarry then AutoFarm.StartAutoBuyCarry() end
+if AutoMerchants then
+    if CurrentConfig.AutoBuyBoosts then AutoMerchants.StartAutoBuyBoosts() end
+    if CurrentConfig.AutoBuySelene then AutoMerchants.StartAutoBuySelene() end
+    if CurrentConfig.AutoBuyAngelia then AutoMerchants.StartAutoBuyAngelia() end
+    if CurrentConfig.AutoBuyFishingRods then AutoMerchants.StartAutoBuyFishingRods() end
+    if CurrentConfig.AutoBuyCarry then AutoMerchants.StartAutoBuyCarry() end
+end
 if CurrentConfig.AutoLevelUpBaseUnits and BaseUnits then BaseUnits.StartAutoLevelUp() end
 if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() end
 
@@ -739,6 +749,7 @@ _G.RitodHubCleanup = function()
     pcall(function()
         if AutoFish and AutoFish.StopAll then AutoFish.StopAll() end
         if AutoFarm and AutoFarm.StopAll then AutoFarm.StopAll() end
+        if AutoMerchants and AutoMerchants.StopAll then AutoMerchants.StopAll() end
         if BaseUnits and BaseUnits.StopAutoLevelUp then BaseUnits.StopAutoLevelUp() end
         if AntiAFK and AntiAFK.Stop then AntiAFK.Stop() end
         if Window.ScreenGui and Window.ScreenGui.Parent then Window.ScreenGui:Destroy() end
