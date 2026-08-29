@@ -101,13 +101,19 @@ if not ConfigManager and _G.FishAnAnimeConfigManager then ConfigManager = _G.Fis
 
 local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {}
 
--- Sinkronisasi konfigurasi ke module farm
+-- Sinkronisasi konfigurasi ke module farm & base units
 if AutoFarm then
     if CurrentConfig.SelectedPotions then AutoFarm.SelectedPotions = CurrentConfig.SelectedPotions end
     if CurrentConfig.AutoBuyBoostsSelected then AutoFarm.AutoBuyBoostsSelected = CurrentConfig.AutoBuyBoostsSelected end
     if CurrentConfig.AutoBuyBoostsCurrency then AutoFarm.AutoBuyBoostsCurrency = CurrentConfig.AutoBuyBoostsCurrency end
     if CurrentConfig.AutoBuySeleneSelected then AutoFarm.AutoBuySeleneSelected = CurrentConfig.AutoBuySeleneSelected end
     if CurrentConfig.AutoBuyAngeliaSelected then AutoFarm.AutoBuyAngeliaSelected = CurrentConfig.AutoBuyAngeliaSelected end
+end
+if BaseUnits then
+    BaseUnits.FilterByRarity = CurrentConfig.FilterLevelUpByRarity or false
+    if CurrentConfig.LevelUpSelectedRarities then
+        BaseUnits.SelectedRarities = CurrentConfig.LevelUpSelectedRarities
+    end
 end
 
 local function formatNumber(n)
@@ -198,6 +204,30 @@ BaseUnitsTab:AddButton("🌟 Max Level Up All Units Now (1x)", function()
         Window.Notify("Base Units", string.format("Berhasil menaikkan level %d unit ke Max Level!", count), 3.0)
     end
 end)
+
+BaseUnitsTab:AddSection("🎯 Focus Level Up by Rarity")
+
+BaseUnitsTab:AddToggle("Filter Level Up by Rarity (Focus Mode)", CurrentConfig.FilterLevelUpByRarity or false, function(state)
+    CurrentConfig.FilterLevelUpByRarity = state
+    if BaseUnits then BaseUnits.FilterByRarity = state end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Rarity Focus", state and "Focus Rarity Mode: AKTIF" or "Focus Rarity Mode: NONAKTIF (Semua Rarity)", 2.0)
+end)
+
+local gameRarities = {
+    "Ancient", "Supreme", "Divine", "Ascended", "Celestial",
+    "God", "Omniscient", "Cosmic", "Secret", "Rainbow",
+    "Exclusive", "Mythical", "Legendary", "Epic", "Rare", "Uncommon", "Common"
+}
+
+for _, rName in ipairs(gameRarities) do
+    local isChecked = (CurrentConfig.LevelUpSelectedRarities and CurrentConfig.LevelUpSelectedRarities[rName]) or false
+    BaseUnitsTab:AddToggle(rName, isChecked, function(state)
+        CurrentConfig.LevelUpSelectedRarities[rName] = state
+        if BaseUnits then BaseUnits.SelectedRarities[rName] = state end
+        if ConfigManager then ConfigManager.Save() end
+    end)
+end
 
 BaseUnitsTab:AddSection("🔍 Realtime Base Units Scanner")
 

@@ -114,6 +114,26 @@ ConfigManager.DefaultConfig = {
     -- Base Units Level Up & Scanner
     AutoLevelUpBaseUnits = false,
     BaseUnitsInterval = 10,
+    FilterLevelUpByRarity = false,
+    LevelUpSelectedRarities = {
+        Common = false,
+        Uncommon = false,
+        Rare = false,
+        Epic = false,
+        Legendary = true,
+        Mythical = true,
+        Ascended = true,
+        Divine = true,
+        Supreme = true,
+        Ancient = true,
+        Celestial = true,
+        God = true,
+        Omniscient = true,
+        Cosmic = true,
+        Secret = true,
+        Rainbow = true,
+        Exclusive = true
+    },
 
     -- Misc / Protection
     AntiAFK = true

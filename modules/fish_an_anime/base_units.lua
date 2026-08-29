@@ -237,7 +237,10 @@ function BaseUnits.LevelUpStand(standId)
     return true
 end
 
--- ── 🌟 6. Level Up All Units on Base (Safe & Filtered) ──
+BaseUnits.FilterByRarity = false
+BaseUnits.SelectedRarities = {}
+
+-- ── 🌟 6. Level Up All Units on Base (Safe & Filtered by Rarity) ──
 function BaseUnits.LevelUpAllUnitsOnce()
     if isLevelingUp then return 0 end
     local plot = BaseUnits.GetPlayerPlot()
@@ -250,7 +253,12 @@ function BaseUnits.LevelUpAllUnitsOnce()
     local affordableUnits = {}
 
     for _, unit in ipairs(units) do
-        if unit.Prompt and unit.Prompt:GetAttribute("ServerEnabled") == true then
+        local rarityAllowed = true
+        if BaseUnits.FilterByRarity and BaseUnits.SelectedRarities then
+            rarityAllowed = (BaseUnits.SelectedRarities[unit.Rarity] == true)
+        end
+
+        if rarityAllowed and unit.Prompt and unit.Prompt:GetAttribute("ServerEnabled") == true then
             if unit.FoodCost > 0 and currentFood >= unit.FoodCost then
                 table.insert(affordableUnits, unit)
                 currentFood = currentFood - unit.FoodCost
