@@ -1,14 +1,15 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - FISH AN ANIME RNG (BASE UNITS & LEVEL UP ENGINE)
+	⚡ RITOD HUB - FISH AN ANIME RNG (BASE UNITS & LEVEL UP ENGINE V2.2)
 	Module: modules/fish_an_anime/base_units.lua
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
 	🌟 FEATURES:
 	- Realtime Base Plot Detector & Unit Scanner
 	- Detailed Unit Stats (Name, Rarity, Level, CPS, Type, Stand ID, Cost)
-	- Smart Max Level Up for All Base Units
-	- Stand-by-Stand Targeted Level Up
+	- Smart Food Cost Parser & Affordability Check
+	- 100% Robux Popup Blocker (Anti-Skip10 / Anti-Purchase Prompt)
+	- Smooth Fast Sweep & Return to Origin Spot
 	- Background Auto Level Up Daemon (Zero Spam)
 	===============================================================
 ]]
@@ -18,6 +19,7 @@ BaseUnits.__index = BaseUnits
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local PlayerPlots = Workspace:WaitForChild("PlayerPlots", 10)
@@ -25,8 +27,43 @@ local PlayerPlots = Workspace:WaitForChild("PlayerPlots", 10)
 BaseUnits.AutoLevelUpEnabled = false
 local autoLevelUpThread = nil
 local cachedPlot = nil
+local isLevelingUp = false
 
--- ── 🏡 1. Detect Local Player's Plot ──
+-- ── 🛡️ 1. Block Robux Purchase Popups ──
+local function blockRobuxPrompts(plot)
+    if not plot then return end
+    local purchases = plot:FindFirstChild("Purchases")
+    if not purchases then return end
+
+    for _, desc in ipairs(purchases:GetDescendants()) do
+        if desc:IsA("ProximityPrompt") then
+            if desc.Name == "LevelUp10Prompt" or desc.Name == "PurchasePrompt" then
+                desc.Enabled = false
+            end
+        end
+    end
+end
+
+-- ── 💰 2. Parse Food Cost from Prompt Text ──
+function BaseUnits.ParseFoodCost(text)
+    if not text or type(text) ~= "string" then return math.huge end
+    local numStr, unit = string.match(text, "%(([%d%.]+)%s*([KkMmBbTtQq]*)%s*[Ff]ood%)")
+    if not numStr then return 0 end
+    local num = tonumber(numStr) or 0
+    unit = string.upper(unit or "")
+    if unit == "K" then return num * 1e3
+    elseif unit == "M" then return num * 1e6
+    elseif unit == "B" then return num * 1e9
+    elseif unit == "T" then return num * 1e12
+    elseif unit == "Q" or unit == "QA" then return num * 1e15
+    else return num end
+end
+
+function BaseUnits.GetPlayerFood()
+    return tonumber(LocalPlayer:GetAttribute("FoodNumber")) or 0
+end
+
+-- ── 🏡 3. Detect Local Player's Plot ──
 function BaseUnits.GetPlayerPlot()
     if cachedPlot and cachedPlot.Parent == PlayerPlots then
         local ownerPart = cachedPlot:FindFirstChild("PlotOwner")
@@ -48,6 +85,7 @@ function BaseUnits.GetPlayerPlot()
             local textLabel = billboard and billboard:FindFirstChild("TextLabel")
             if textLabel and (textLabel.Text == LocalPlayer.Name or textLabel.Text == LocalPlayer.DisplayName) then
                 cachedPlot = plot
+                blockRobuxPrompts(plot)
                 return plot
             end
         end
@@ -56,10 +94,12 @@ function BaseUnits.GetPlayerPlot()
     return nil
 end
 
--- ── 🔍 2. Realtime Scan Base Units ──
+-- ── 🔍 4. Realtime Scan Base Units ──
 function BaseUnits.ScanUnits()
     local plot = BaseUnits.GetPlayerPlot()
     if not plot then return {} end
+
+    blockRobuxPrompts(plot)
 
     local unitsList = {}
     local purchases = plot:FindFirstChild("Purchases")
@@ -74,9 +114,9 @@ function BaseUnits.ScanUnits()
             local standId = tostring(item:GetAttribute("StandId") or "")
             local baseCps = item:GetAttribute("BaseCPS") or 0
 
-            -- Temukan prompt level up untuk stand ini jika ada
             local maxPrompt = nil
             local upgradeCostText = "N/A"
+            local foodCost = 0
 
             if purchases then
                 local standFolder = purchases:FindFirstChild(standId) or purchases:FindFirstChild(standId .. "PAID")
@@ -95,6 +135,7 @@ function BaseUnits.ScanUnits()
                             maxPrompt = desc
                             if desc.ActionText and #desc.ActionText > 0 then
                                 upgradeCostText = desc.ActionText
+                                foodCost = BaseUnits.ParseFoodCost(desc.ActionText)
                             end
                             break
                         end
@@ -112,12 +153,12 @@ function BaseUnits.ScanUnits()
                 StandId = standId,
                 Model = item,
                 Prompt = maxPrompt,
-                UpgradeCostText = upgradeCostText
+                UpgradeCostText = upgradeCostText,
+                FoodCost = foodCost
             })
         end
     end
 
-    -- Urutkan berdasarkan CPS tertinggi ke terendah
     table.sort(unitsList, function(a, b)
         return a.CPS > b.CPS
     end)
@@ -125,8 +166,9 @@ function BaseUnits.ScanUnits()
     return unitsList
 end
 
--- ── ⚡ 3. Level Up Specific Stand (Seamless Remote-Like Bypass) ──
+-- ── ⚡ 5. Level Up Specific Stand ──
 function BaseUnits.LevelUpStand(standId)
+    if isLevelingUp then return false end
     local plot = BaseUnits.GetPlayerPlot()
     if not plot then return false end
 
@@ -146,12 +188,21 @@ function BaseUnits.LevelUpStand(standId)
 
     local maxPrompt = nil
     for _, desc in ipairs(targetFolder:GetDescendants()) do
-        if desc:IsA("ProximityPrompt") and desc.Name == "MaxLevelUpPrompt" and desc:GetAttribute("ServerEnabled") == true then
-            maxPrompt = desc
-            break
+        if desc:IsA("ProximityPrompt") then
+            if desc.Name == "MaxLevelUpPrompt" and desc:GetAttribute("ServerEnabled") == true then
+                maxPrompt = desc
+            elseif desc.Name == "LevelUp10Prompt" or desc.Name == "PurchasePrompt" then
+                desc.Enabled = false
+            end
         end
     end
     if not maxPrompt then return false end
+
+    local cost = BaseUnits.ParseFoodCost(maxPrompt.ActionText)
+    local currentFood = BaseUnits.GetPlayerFood()
+    if cost > 0 and currentFood < cost then
+        return false, "Not enough food"
+    end
 
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -161,7 +212,7 @@ function BaseUnits.LevelUpStand(standId)
     local promptPart = maxPrompt.Parent
     if not promptPart or not promptPart:IsA("BasePart") then return false end
 
-    -- 🛡️ Freeze camera visual so player screen never jerks or shifts
+    isLevelingUp = true
     local originalCF = root.CFrame
     local originalCamCF = camera.CFrame
     local originalCamType = camera.CameraType
@@ -169,7 +220,6 @@ function BaseUnits.LevelUpStand(standId)
     camera.CameraType = Enum.CameraType.Scriptable
     camera.CFrame = originalCamCF
 
-    -- ⚡ Silent Pulse to Stand Prompt
     root.CFrame = CFrame.new(promptPart.Position + Vector3.new(0, 2.5, 0))
     task.wait(0.04)
 
@@ -177,34 +227,47 @@ function BaseUnits.LevelUpStand(standId)
     local holdTime = maxPrompt.HoldDuration or 0.2
     if typeof(fireproximityprompt) == "function" then
         fireproximityprompt(maxPrompt, holdTime)
-    else
-        maxPrompt:InputHoldBegin()
-        task.wait(holdTime + 0.03)
-        maxPrompt:InputHoldEnd()
     end
     task.wait(holdTime + 0.05)
 
-    -- 🔄 Restore original position & camera
     root.CFrame = originalCF
     camera.CFrame = originalCamCF
     camera.CameraType = originalCamType
+    isLevelingUp = false
     return true
 end
 
--- ── 🌟 4. Level Up All Units on Base (Seamless Remote-Like Bypass) ──
+-- ── 🌟 6. Level Up All Units on Base (Safe & Filtered) ──
 function BaseUnits.LevelUpAllUnitsOnce()
+    if isLevelingUp then return 0 end
     local plot = BaseUnits.GetPlayerPlot()
     if not plot then return 0 end
 
     local units = BaseUnits.ScanUnits()
     if #units == 0 then return 0 end
 
+    local currentFood = BaseUnits.GetPlayerFood()
+    local affordableUnits = {}
+
+    for _, unit in ipairs(units) do
+        if unit.Prompt and unit.Prompt:GetAttribute("ServerEnabled") == true then
+            if unit.FoodCost > 0 and currentFood >= unit.FoodCost then
+                table.insert(affordableUnits, unit)
+                currentFood = currentFood - unit.FoodCost
+            elseif unit.FoodCost == 0 then
+                table.insert(affordableUnits, unit)
+            end
+        end
+    end
+
+    if #affordableUnits == 0 then return 0 end
+
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     local camera = Workspace.CurrentCamera
     if not root or not camera then return 0 end
 
-    -- 🛡️ Freeze camera visual so player screen stays 100% frozen in place
+    isLevelingUp = true
     local originalCF = root.CFrame
     local originalCamCF = camera.CFrame
     local originalCamType = camera.CameraType
@@ -214,40 +277,33 @@ function BaseUnits.LevelUpAllUnitsOnce()
 
     local leveledCount = 0
 
-    for _, unit in ipairs(units) do
-        if unit.Prompt and unit.Prompt:GetAttribute("ServerEnabled") == true then
-            local promptPart = unit.Prompt.Parent
-            if promptPart and promptPart:IsA("BasePart") then
-                root.CFrame = CFrame.new(promptPart.Position + Vector3.new(0, 2.5, 0))
-                task.wait(0.03)
+    for _, unit in ipairs(affordableUnits) do
+        local promptPart = unit.Prompt.Parent
+        if promptPart and promptPart:IsA("BasePart") then
+            root.CFrame = CFrame.new(promptPart.Position + Vector3.new(0, 2.5, 0))
+            task.wait(0.03)
 
-                unit.Prompt.Enabled = true
-                local holdTime = unit.Prompt.HoldDuration or 0.2
-                if typeof(fireproximityprompt) == "function" then
-                    fireproximityprompt(unit.Prompt, holdTime)
-                else
-                    unit.Prompt:InputHoldBegin()
-                    task.wait(holdTime + 0.03)
-                    unit.Prompt:InputHoldEnd()
-                end
-
-                task.wait(holdTime + 0.04)
-                leveledCount = leveledCount + 1
+            unit.Prompt.Enabled = true
+            local holdTime = unit.Prompt.HoldDuration or 0.2
+            if typeof(fireproximityprompt) == "function" then
+                fireproximityprompt(unit.Prompt, holdTime)
             end
+            task.wait(holdTime + 0.04)
+            leveledCount = leveledCount + 1
         end
     end
 
-    -- 🔄 Restore original position & camera seamlessly
     root.CFrame = originalCF
     camera.CFrame = originalCamCF
     camera.CameraType = originalCamType
+    isLevelingUp = false
     return leveledCount
 end
 
--- ── 🔄 5. Auto Level Up Loop (Daemon) ──
+-- ── 🔄 7. Auto Level Up Loop (Daemon) ──
 function BaseUnits.StartAutoLevelUp(interval)
     BaseUnits.AutoLevelUpEnabled = true
-    interval = interval or 10
+    interval = interval or 15
 
     if autoLevelUpThread then task.cancel(autoLevelUpThread) end
     autoLevelUpThread = task.spawn(function()
