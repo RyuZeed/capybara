@@ -29,18 +29,20 @@ local autoLevelUpThread = nil
 local cachedPlot = nil
 local isLevelingUp = false
 
--- ── 🛡️ 1. Block Robux Purchase Popups (100% Elimination) ──
+-- ── 🛡️ 1. Block Robux Purchase Popups & CoreGui Dialogs (100% Elimination) ──
 local plotDescendantConn = nil
 
 local function neutralizePrompt(desc)
     if not desc or not desc:IsA("ProximityPrompt") then return end
-    if desc.Name == "LevelUp10Prompt" or desc.Name == "PurchasePrompt" then
-        pcall(function()
-            desc.Enabled = false
-            desc.MaxActivationDistance = 0
-            desc.RequiresLineOfSight = true
-            desc:Destroy()
-        end)
+    if desc.Name == "LevelUp10Prompt" or desc.Name == "PurchasePrompt" or desc.Name == "LevelUpPrompt" then
+        if desc.Name ~= "MaxLevelUpPrompt" then
+            pcall(function()
+                desc.Enabled = false
+                desc.MaxActivationDistance = 0
+                desc.RequiresLineOfSight = true
+                desc:Destroy()
+            end)
+        end
     end
 end
 
@@ -59,6 +61,20 @@ local function blockRobuxPrompts(plot)
         end)
     end
 end
+
+-- Suppress CoreGui PurchasePromptApp ScreenGui so Robux popups can never appear visually
+pcall(function()
+    local CoreGui = game:GetService("CoreGui")
+    local ppa = CoreGui:FindFirstChild("PurchasePromptApp")
+    if ppa then
+        ppa.Enabled = false
+        ppa:GetPropertyChangedSignal("Enabled"):Connect(function()
+            if BaseUnits.AutoLevelUpEnabled or isLevelingUp then
+                ppa.Enabled = false
+            end
+        end)
+    end
+end)
 
 -- Hook MarketplaceService to prevent unwanted DevProduct Robux dialogs
 pcall(function()
@@ -304,12 +320,10 @@ function BaseUnits.LevelUpStand(standId)
     end)
 
     local holdTime = maxPrompt.HoldDuration or 0.2
-    if typeof(fireproximityprompt) == "function" then
+    if typeof(fireproximityprompt) == "function" and maxPrompt.Name == "MaxLevelUpPrompt" then
         fireproximityprompt(maxPrompt, holdTime)
-        task.wait(0.04)
-        fireproximityprompt(maxPrompt, 0)
     end
-    task.wait(math.max(0.15, holdTime + 0.08))
+    task.wait(math.max(0.18, holdTime + 0.08))
 
     root.CFrame = originalCF
     task.wait(0.04)
@@ -404,12 +418,10 @@ function BaseUnits.LevelUpAllUnitsOnce()
             end)
 
             local holdTime = prompt.HoldDuration or 0.2
-            if typeof(fireproximityprompt) == "function" then
+            if typeof(fireproximityprompt) == "function" and prompt.Name == "MaxLevelUpPrompt" then
                 fireproximityprompt(prompt, holdTime)
-                task.wait(0.04)
-                fireproximityprompt(prompt, 0)
             end
-            task.wait(math.max(0.15, holdTime + 0.08))
+            task.wait(math.max(0.18, holdTime + 0.08))
             leveledCount = leveledCount + 1
         end
     end
