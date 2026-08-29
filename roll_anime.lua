@@ -168,10 +168,14 @@ local GraphicsModule  = loadModule("graphics")
 local ModernSettings      = loadModule("modern_settings")
 local PrivateServerModule = loadModule("private_server")
 
--- Auto-start Anti-AFK
-if AFKModule then
-    pcall(function() AFKModule.Enable() end)
-end
+-- Auto-start Anti-AFK 24/7 Engine
+pcall(function()
+    if AFKModule and typeof(AFKModule.Enable) == "function" then
+        AFKModule.Enable()
+    elseif _G.AFKModule and typeof(_G.AFKModule.Enable) == "function" then
+        _G.AFKModule.Enable()
+    end
+end)
 
 -- Muat config tersimpan
 local savedConfig = ConfigManager and ConfigManager.Load() or {}
