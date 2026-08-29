@@ -215,16 +215,34 @@ BaseUnitsTab:AddToggle("Filter Level Up by Rarity (Focus Mode)", CurrentConfig.F
 end)
 
 local gameRarities = {
-    "Ancient", "Supreme", "Divine", "Ascended", "Celestial",
-    "God", "Omniscient", "Cosmic", "Secret", "Rainbow",
-    "Exclusive", "Mythical", "Legendary", "Epic", "Rare", "Uncommon", "Common"
+    -- Tier SSS / Godly
+    { name = "Omniscient", icon = "👁️" },
+    { name = "God", icon = "🔱" },
+    { name = "Ancient", icon = "👑" },
+    { name = "Celestial", icon = "🌌" },
+    -- Tier S / High Tier
+    { name = "Exclusive", icon = "💎" },
+    { name = "Supreme", icon = "🌟" },
+    { name = "Divine", icon = "⚡" },
+    { name = "Ascended", icon = "🔺" },
+    -- Tier B & C / Mid Tier
+    { name = "Rainbow", icon = "🌈" },
+    { name = "Secret", icon = "🗝️" },
+    { name = "Cosmic", icon = "🪐" },
+    { name = "Mythical", icon = "🔮" },
+    -- Standard Tiers
+    { name = "Legendary", icon = "⚔️" },
+    { name = "Epic", icon = "💜" },
+    { name = "Rare", icon = "💙" },
+    { name = "Uncommon", icon = "💚" },
+    { name = "Common", icon = "⚪" }
 }
 
-for _, rName in ipairs(gameRarities) do
-    local isChecked = (CurrentConfig.LevelUpSelectedRarities and CurrentConfig.LevelUpSelectedRarities[rName]) or false
-    BaseUnitsTab:AddToggle(rName, isChecked, function(state)
-        CurrentConfig.LevelUpSelectedRarities[rName] = state
-        if BaseUnits then BaseUnits.SelectedRarities[rName] = state end
+for _, r in ipairs(gameRarities) do
+    local isChecked = (CurrentConfig.LevelUpSelectedRarities and CurrentConfig.LevelUpSelectedRarities[r.name]) or false
+    BaseUnitsTab:AddToggle(string.format("%s %s", r.icon, r.name), isChecked, function(state)
+        CurrentConfig.LevelUpSelectedRarities[r.name] = state
+        if BaseUnits then BaseUnits.SelectedRarities[r.name] = state end
         if ConfigManager then ConfigManager.Save() end
     end)
 end
