@@ -35,20 +35,29 @@ local function deepCopy(orig)
 end
 
 ConfigManager.DefaultConfig = {
-    AutoHuntEnabled   = false,
-    AutoSniperOnly    = false,
-    AutoSecretGod     = false,
-    AutoClaimQuests   = true,
-    AutoClaimRewards  = true,
-    RollInterval      = 2.5,
-    SelectedUnits     = {},
-    WalkSpeed         = 16,
-    JumpPower         = 50,
-    InfJump           = false,
-    PotatoGraphics    = false,
-    FarmMode          = false,
-    AntiLag           = false,
-    AutoPrivateServer = true
+    AutoHuntEnabled       = false,
+    AutoSniperOnly        = false,
+    AutoSecretGod         = false,
+    AutoClaimQuests       = true,
+    AutoClaimRewards      = true,
+    AutoBuyMerchant       = false,
+    MerchantBuyAll        = false,
+    MerchantBuyPotions    = true,
+    MerchantBuyEssences   = true,
+    MerchantBuyCapsules   = true,
+    MerchantBuyTickets    = true,
+    MerchantBuyMaterials  = true,
+    MerchantSelectedItems = {},
+    MerchantMinGold       = 0,
+    RollInterval          = 2.5,
+    SelectedUnits         = {},
+    WalkSpeed             = 16,
+    JumpPower             = 50,
+    InfJump               = false,
+    PotatoGraphics        = false,
+    FarmMode              = false,
+    AntiLag               = false,
+    AutoPrivateServer     = true
 }
 
 ConfigManager.CurrentConfig = deepCopy(ConfigManager.DefaultConfig)
@@ -68,6 +77,8 @@ function ConfigManager.Save(newConfig)
         for k, v in pairs(newConfig) do
             if k == "SelectedUnits" and type(v) == "table" then
                 ConfigManager.CurrentConfig.SelectedUnits = deepCopy(v)
+            elseif k == "MerchantSelectedItems" and type(v) == "table" then
+                ConfigManager.CurrentConfig.MerchantSelectedItems = deepCopy(v)
             else
                 ConfigManager.CurrentConfig[k] = v
             end
@@ -110,6 +121,13 @@ function ConfigManager.Load()
                         for name, val in pairs(v) do
                             if val then
                                 ConfigManager.CurrentConfig.SelectedUnits[tostring(name):lower()] = true
+                            end
+                        end
+                    elseif k == "MerchantSelectedItems" and type(v) == "table" then
+                        ConfigManager.CurrentConfig.MerchantSelectedItems = {}
+                        for name, val in pairs(v) do
+                            if val then
+                                ConfigManager.CurrentConfig.MerchantSelectedItems[tostring(name)] = true
                             end
                         end
                     else

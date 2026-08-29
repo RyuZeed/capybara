@@ -50,6 +50,9 @@ pcall(function()
     if _G.AutoClaimModule and typeof(_G.AutoClaimModule.Stop) == "function" then
         pcall(function() _G.AutoClaimModule.Stop() end)
     end
+    if _G.AutoMerchantModule and typeof(_G.AutoMerchantModule.Stop) == "function" then
+        pcall(function() _G.AutoMerchantModule.Stop() end)
+    end
     if _G.GraphicsModule and typeof(_G.GraphicsModule.SetFarmMode) == "function" then
         pcall(function() _G.GraphicsModule.SetFarmMode(false) end)
     end
@@ -153,6 +156,7 @@ local ConfigManager   = loadModule("config_manager")
 local CatalogModule   = loadModule("catalog")
 local AutoRollModule  = loadModule("auto_roll")
 local AutoClaimModule = loadModule("auto_claim")
+local AutoMerchantModule = loadModule("auto_merchant")
 local GraphicsModule  = loadModule("graphics")
 local ModernSettings      = loadModule("modern_settings")
 local PrivateServerModule = loadModule("private_server")
@@ -174,6 +178,23 @@ if AutoClaimModule then
             Battlepass  = savedConfig.AutoClaimRewards ~= false,
             FreeRewards = savedConfig.AutoClaimRewards ~= false,
             VIPAndGroup = savedConfig.AutoClaimRewards ~= false,
+        })
+    end)
+end
+
+-- Auto-start Auto-Merchant Engine
+if AutoMerchantModule and savedConfig.AutoBuyMerchant then
+    pcall(function()
+        AutoMerchantModule.Start({
+            Enabled         = true,
+            BuyAllStock     = savedConfig.MerchantBuyAll or false,
+            BuyPotions      = savedConfig.MerchantBuyPotions ~= false,
+            BuyEssences     = savedConfig.MerchantBuyEssences ~= false,
+            BuyCapsules     = savedConfig.MerchantBuyCapsules ~= false,
+            BuyTickets      = savedConfig.MerchantBuyTickets ~= false,
+            BuyMaterials    = savedConfig.MerchantBuyMaterials ~= false,
+            SelectedItems   = savedConfig.MerchantSelectedItems or {},
+            MinGoldReserve  = savedConfig.MerchantMinGold or 0,
         })
     end)
 end
@@ -1474,6 +1495,13 @@ local farmModeToggleRef = nil
 local potatoToggleRef = nil
 local antiLagToggleRef = nil
 local autoPrivateServerToggleRef = nil
+local merchantToggleRef = nil
+local merchantBuyAllToggleRef = nil
+local merchantPotionsToggleRef = nil
+local merchantEssencesToggleRef = nil
+local merchantCapsulesToggleRef = nil
+local merchantTicketsToggleRef = nil
+local merchantMaterialsToggleRef = nil
 
 huntToggleRef = RollTab:AddToggle("Auto Hunt (Continuous Roll & Sniper)", savedConfig.AutoHuntEnabled or false, function(state)
 	if state then
@@ -1790,7 +1818,100 @@ QuestTab:AddButton("⚡ Klaim Semua Hadiah & Quest Sekarang", function()
 	end
 end)
 
--- 5. TAB ⚙️ SETTINGS & CONFIG
+-- 5. TAB 🛒 MERCHANT & TRADER
+local MerchantTab = RitodLib:CreateTab("Merchant", "🛒")
+
+MerchantTab:AddSection("Auto Buy Merchant (Trader Event)")
+
+merchantToggleRef = MerchantTab:AddToggle("🛒 Auto Buy Merchant (Trader Event)", savedConfig.AutoBuyMerchant or false, function(state)
+	savedConfig.AutoBuyMerchant = state
+	if ConfigManager then ConfigManager.Save({ AutoBuyMerchant = state }) end
+	if AutoMerchantModule then
+		if state then
+			AutoMerchantModule.Start({
+				Enabled         = true,
+				BuyAllStock     = savedConfig.MerchantBuyAll or false,
+				BuyPotions      = savedConfig.MerchantBuyPotions ~= false,
+				BuyEssences     = savedConfig.MerchantBuyEssences ~= false,
+				BuyCapsules     = savedConfig.MerchantBuyCapsules ~= false,
+				BuyTickets      = savedConfig.MerchantBuyTickets ~= false,
+				BuyMaterials    = savedConfig.MerchantBuyMaterials ~= false,
+				SelectedItems   = savedConfig.MerchantSelectedItems or {},
+				MinGoldReserve  = savedConfig.MerchantMinGold or 0,
+			})
+		else
+			AutoMerchantModule.Stop()
+		end
+	end
+	Notify("Auto Merchant", state and "Auto Buy Merchant AKTIF!" or "Auto Buy Merchant NONAKTIF", 2)
+end)
+
+merchantBuyAllToggleRef = MerchantTab:AddToggle("⚡ Beli Seluruh Stok Item (All Stock)", savedConfig.MerchantBuyAll or false, function(state)
+	savedConfig.MerchantBuyAll = state
+	if ConfigManager then ConfigManager.Save({ MerchantBuyAll = state }) end
+	if AutoMerchantModule then
+		AutoMerchantModule.Config.BuyAllStock = state
+	end
+end)
+
+MerchantTab:AddSection("Kategori Item yang Dibeli")
+
+merchantPotionsToggleRef = MerchantTab:AddToggle("💊 Auto Buy Potions (Time, Gold, Luck)", savedConfig.MerchantBuyPotions ~= false, function(state)
+	savedConfig.MerchantBuyPotions = state
+	if ConfigManager then ConfigManager.Save({ MerchantBuyPotions = state }) end
+	if AutoMerchantModule then AutoMerchantModule.Config.BuyPotions = state end
+end)
+
+merchantEssencesToggleRef = MerchantTab:AddToggle("✨ Auto Buy Essences (Supreme, God, Secret, dll.)", savedConfig.MerchantBuyEssences ~= false, function(state)
+	savedConfig.MerchantBuyEssences = state
+	if ConfigManager then ConfigManager.Save({ MerchantBuyEssences = state }) end
+	if AutoMerchantModule then AutoMerchantModule.Config.BuyEssences = state end
+end)
+
+merchantCapsulesToggleRef = MerchantTab:AddToggle("📦 Auto Buy Capsules (God, Secret, Mythic)", savedConfig.MerchantBuyCapsules ~= false, function(state)
+	savedConfig.MerchantBuyCapsules = state
+	if ConfigManager then ConfigManager.Save({ MerchantBuyCapsules = state }) end
+	if AutoMerchantModule then AutoMerchantModule.Config.BuyCapsules = state end
+end)
+
+merchantTicketsToggleRef = MerchantTab:AddToggle("📜 Auto Buy Tickets (Infinite, Trading)", savedConfig.MerchantBuyTickets ~= false, function(state)
+	savedConfig.MerchantBuyTickets = state
+	if ConfigManager then ConfigManager.Save({ MerchantBuyTickets = state }) end
+	if AutoMerchantModule then AutoMerchantModule.Config.BuyTickets = state end
+end)
+
+merchantMaterialsToggleRef = MerchantTab:AddToggle("💎 Auto Buy Rare Materials (Six Eyes, Sukuna, Core, dll.)", savedConfig.MerchantBuyMaterials ~= false, function(state)
+	savedConfig.MerchantBuyMaterials = state
+	if ConfigManager then ConfigManager.Save({ MerchantBuyMaterials = state }) end
+	if AutoMerchantModule then AutoMerchantModule.Config.BuyMaterials = state end
+end)
+
+MerchantTab:AddSection("Instant Actions & Status")
+
+MerchantTab:AddButton("🛍️ Beli Semua Stok Merchant Sekarang", function()
+	if AutoMerchantModule then
+		AutoMerchantModule.ScanAndBuyAllStock()
+		Notify("Merchant Buy", "Memproses pembelian seluruh stok item sekarang!", 2)
+	else
+		Notify("Merchant Error", "Modul AutoMerchant belum dimuat.", 2)
+	end
+end)
+
+MerchantTab:AddButton("🔍 Cek Status Trader Event", function()
+	if AutoMerchantModule then
+		local active = AutoMerchantModule.IsMerchantActive()
+		local rem = AutoMerchantModule.GetMerchantRemainingTime()
+		if active then
+			Notify("Trader Status", string.format("Trader AKTIF! Sisa Waktu: %d detik", rem), 3.5)
+		else
+			Notify("Trader Status", "Trader sedang TIDAK AKTIF / Belum Muncul.", 2.5)
+		end
+	else
+		Notify("Trader Status", "Modul AutoMerchant belum dimuat.", 2)
+	end
+end)
+
+-- 6. TAB ⚙️ SETTINGS & CONFIG
 local MiscTab = RitodLib:CreateTab("Settings", "⚙️")
 
 MiscTab:AddSection("Server & Private Server")
@@ -1844,20 +1965,29 @@ MiscTab:AddSection("💾 Config File Manager")
 MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
 	if ConfigManager then
 		local currentData = {
-			AutoHuntEnabled   = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
-			AutoSniperOnly    = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
-			AutoSecretGod     = savedConfig.AutoSecretGod or false,
-			AutoPrivateServer = savedConfig.AutoPrivateServer ~= false,
-			AutoClaimQuests   = savedConfig.AutoClaimQuests ~= false,
-			AutoClaimRewards  = savedConfig.AutoClaimRewards ~= false,
-			RollInterval      = rollInterval or 2.5,
-			SelectedUnits     = selectedUnits,
-			WalkSpeed         = savedConfig.WalkSpeed or 40,
-			JumpPower         = savedConfig.JumpPower or 50,
-			InfJump           = savedConfig.InfJump or false,
-			PotatoGraphics    = savedConfig.PotatoGraphics or false,
-			FarmMode          = savedConfig.FarmMode or false,
-			AntiLag           = savedConfig.AntiLag or false
+			AutoHuntEnabled       = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
+			AutoSniperOnly        = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
+			AutoSecretGod         = savedConfig.AutoSecretGod or false,
+			AutoPrivateServer     = savedConfig.AutoPrivateServer ~= false,
+			AutoClaimQuests       = savedConfig.AutoClaimQuests ~= false,
+			AutoClaimRewards      = savedConfig.AutoClaimRewards ~= false,
+			AutoBuyMerchant       = savedConfig.AutoBuyMerchant or false,
+			MerchantBuyAll        = savedConfig.MerchantBuyAll or false,
+			MerchantBuyPotions    = savedConfig.MerchantBuyPotions ~= false,
+			MerchantBuyEssences   = savedConfig.MerchantBuyEssences ~= false,
+			MerchantBuyCapsules   = savedConfig.MerchantBuyCapsules ~= false,
+			MerchantBuyTickets    = savedConfig.MerchantBuyTickets ~= false,
+			MerchantBuyMaterials  = savedConfig.MerchantBuyMaterials ~= false,
+			MerchantSelectedItems = savedConfig.MerchantSelectedItems or {},
+			MerchantMinGold       = savedConfig.MerchantMinGold or 0,
+			RollInterval          = rollInterval or 2.5,
+			SelectedUnits         = selectedUnits,
+			WalkSpeed             = savedConfig.WalkSpeed or 40,
+			JumpPower             = savedConfig.JumpPower or 50,
+			InfJump               = savedConfig.InfJump or false,
+			PotatoGraphics        = savedConfig.PotatoGraphics or false,
+			FarmMode              = savedConfig.FarmMode or false,
+			AntiLag               = savedConfig.AntiLag or false
 		}
 		local success = ConfigManager.Save(currentData)
 		if success then
@@ -1962,6 +2092,64 @@ local function applyRollAnimeConfig(loaded)
 			AutoClaimModule.Config.FreeRewards = loaded.AutoClaimRewards
 			AutoClaimModule.Config.VIPAndGroup = loaded.AutoClaimRewards
 		end
+	end
+
+	if merchantToggleRef and loaded.AutoBuyMerchant ~= nil then
+		merchantToggleRef:Set(loaded.AutoBuyMerchant, false)
+		savedConfig.AutoBuyMerchant = loaded.AutoBuyMerchant
+		if AutoMerchantModule then
+			if loaded.AutoBuyMerchant then
+				AutoMerchantModule.Start({
+					Enabled         = true,
+					BuyAllStock     = loaded.MerchantBuyAll or false,
+					BuyPotions      = loaded.MerchantBuyPotions ~= false,
+					BuyEssences     = loaded.MerchantBuyEssences ~= false,
+					BuyCapsules     = loaded.MerchantBuyCapsules ~= false,
+					BuyTickets      = loaded.MerchantBuyTickets ~= false,
+					BuyMaterials    = loaded.MerchantBuyMaterials ~= false,
+					SelectedItems   = loaded.MerchantSelectedItems or {},
+					MinGoldReserve  = loaded.MerchantMinGold or 0,
+				})
+			else
+				AutoMerchantModule.Stop()
+			end
+		end
+	end
+
+	if merchantBuyAllToggleRef and loaded.MerchantBuyAll ~= nil then
+		merchantBuyAllToggleRef:Set(loaded.MerchantBuyAll, false)
+		savedConfig.MerchantBuyAll = loaded.MerchantBuyAll
+		if AutoMerchantModule then AutoMerchantModule.Config.BuyAllStock = loaded.MerchantBuyAll end
+	end
+
+	if merchantPotionsToggleRef and loaded.MerchantBuyPotions ~= nil then
+		merchantPotionsToggleRef:Set(loaded.MerchantBuyPotions, false)
+		savedConfig.MerchantBuyPotions = loaded.MerchantBuyPotions
+		if AutoMerchantModule then AutoMerchantModule.Config.BuyPotions = loaded.MerchantBuyPotions end
+	end
+
+	if merchantEssencesToggleRef and loaded.MerchantBuyEssences ~= nil then
+		merchantEssencesToggleRef:Set(loaded.MerchantBuyEssences, false)
+		savedConfig.MerchantBuyEssences = loaded.MerchantBuyEssences
+		if AutoMerchantModule then AutoMerchantModule.Config.BuyEssences = loaded.MerchantBuyEssences end
+	end
+
+	if merchantCapsulesToggleRef and loaded.MerchantBuyCapsules ~= nil then
+		merchantCapsulesToggleRef:Set(loaded.MerchantBuyCapsules, false)
+		savedConfig.MerchantBuyCapsules = loaded.MerchantBuyCapsules
+		if AutoMerchantModule then AutoMerchantModule.Config.BuyCapsules = loaded.MerchantBuyCapsules end
+	end
+
+	if merchantTicketsToggleRef and loaded.MerchantBuyTickets ~= nil then
+		merchantTicketsToggleRef:Set(loaded.MerchantBuyTickets, false)
+		savedConfig.MerchantBuyTickets = loaded.MerchantBuyTickets
+		if AutoMerchantModule then AutoMerchantModule.Config.BuyTickets = loaded.MerchantBuyTickets end
+	end
+
+	if merchantMaterialsToggleRef and loaded.MerchantBuyMaterials ~= nil then
+		merchantMaterialsToggleRef:Set(loaded.MerchantBuyMaterials, false)
+		savedConfig.MerchantBuyMaterials = loaded.MerchantBuyMaterials
+		if AutoMerchantModule then AutoMerchantModule.Config.BuyMaterials = loaded.MerchantBuyMaterials end
 	end
 
 	if potatoToggleRef and loaded.PotatoGraphics ~= nil then
