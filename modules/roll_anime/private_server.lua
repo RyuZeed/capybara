@@ -117,6 +117,14 @@ function PrivateServer.IsPrivateServer()
     if game.VIPServerId and game.VIPServerId ~= "" then
         return true
     end
+    -- 3. Private Server Owner ID
+    if game.PrivateServerOwnerId and game.PrivateServerOwnerId > 0 then
+        return true
+    end
+    -- 4. Server Sepi / Sendirian di server (1 pemain)
+    if #Players:GetPlayers() <= 1 then
+        return true
+    end
     return false
 end
 
