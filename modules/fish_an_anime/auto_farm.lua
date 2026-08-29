@@ -345,21 +345,26 @@ function AutoFarm.BuySelectedSeleneOnce(customState)
     for offerId, isSelected in pairs(AutoFarm.AutoBuySeleneSelected) do
         if isSelected and state.offers[offerId] ~= nil then
             local offerData = state.offers[offerId]
-            local currency = "Gems"
-            if typeof(offerData) == "table" and offerData.CashCost then
-                currency = "Cash"
+            if typeof(offerData) == "table" and offerData.visible ~= false then
+                local currency = (offerData.cashCost ~= nil) and "Cash" or "Gems"
+                local stock = tonumber(offerData.stock) or 1
+                if stock > 0 then
+                    for _ = 1, stock do
+                        pcall(function()
+                            Remotes.SecretStorePurchase:InvokeServer(offerId, currency)
+                        end)
+                        task.wait(0.06)
+                    end
+                end
             end
-            pcall(function()
-                Remotes.SecretStorePurchase:InvokeServer(offerId, currency)
-            end)
-            task.wait(0.08)
         end
     end
 end
 
 function AutoFarm.StartAutoBuySelene(interval)
+    if AutoFarm.AutoBuySeleneEnabled then return end
     AutoFarm.AutoBuySeleneEnabled = true
-    interval = interval or 10
+    interval = interval or 5
 
     task.spawn(function()
         AutoFarm.BuySelectedSeleneOnce()
@@ -409,14 +414,18 @@ function AutoFarm.BuySelectedAngeliaOnce(customState)
     for offerId, isSelected in pairs(AutoFarm.AutoBuyAngeliaSelected) do
         if isSelected and state.offers[offerId] ~= nil then
             local offerData = state.offers[offerId]
-            local currency = "Gems"
-            if typeof(offerData) == "table" and offerData.CashCost then
-                currency = "Cash"
+            if typeof(offerData) == "table" and offerData.visible ~= false then
+                local currency = (offerData.cashCost ~= nil) and "Cash" or "Gems"
+                local stock = tonumber(offerData.stock) or 1
+                if stock > 0 then
+                    for _ = 1, stock do
+                        pcall(function()
+                            Remotes.SecretStore2Purchase:InvokeServer(offerId, currency)
+                        end)
+                        task.wait(0.06)
+                    end
+                end
             end
-            pcall(function()
-                Remotes.SecretStore2Purchase:InvokeServer(offerId, currency)
-            end)
-            task.wait(0.08)
         end
     end
 end
