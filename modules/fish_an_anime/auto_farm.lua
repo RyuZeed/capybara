@@ -28,16 +28,20 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
 -- State Flags
 AutoFarm.AutoQuestsEnabled = false
 AutoFarm.AutoIndexEnabled = false
+AutoFarm.AutoPlaytimeRewardsEnabled = false
 AutoFarm.AutoUpgradesEnabled = false
 AutoFarm.AutoRebirthEnabled = false
+AutoFarm.AutoBaseUnitsEnabled = false
 AutoFarm.AutoPotionsEnabled = false
 AutoFarm.SelectedPotions = {}
 
 -- Threads
 local questThread = nil
 local indexThread = nil
+local playtimeThread = nil
 local upgradesThread = nil
 local rebirthThread = nil
+local baseUnitsThread = nil
 local potionsThread = nil
 
 -- Upgrades Tiers list
@@ -131,6 +135,72 @@ function AutoFarm.StopAutoIndex()
     if indexThread then
         pcall(function() task.cancel(indexThread) end)
         indexThread = nil
+    end
+end
+
+-- ── 🎁 3. Playtime & Daily Rewards Claim Engine ──
+function AutoFarm.ClaimAllPlaytimeRewardsOnce()
+    if not Remotes then return false, 0 end
+    local claimedCount = 0
+
+    -- 1. Check and claim ready playtime gifts (1..15)
+    if Remotes:FindFirstChild("GetPlaytimeRewardsState") and Remotes:FindFirstChild("ClaimPlaytimeReward") then
+        local s, state = pcall(function() return Remotes.GetPlaytimeRewardsState:InvokeServer() end)
+        if s and typeof(state) == "table" and typeof(state.rewardStates) == "table" then
+            for index, info in ipairs(state.rewardStates) do
+                if typeof(info) == "table" and info.ready == true and info.claimed ~= true then
+                    local ok, res = pcall(function() return Remotes.ClaimPlaytimeReward:InvokeServer(index) end)
+                    if ok and typeof(res) == "table" and res.ok == true then
+                        claimedCount = claimedCount + 1
+                    end
+                    task.wait(0.04)
+                end
+            end
+        else
+            -- Direct sweep 1..15
+            for i = 1, 15 do
+                local ok, res = pcall(function() return Remotes.ClaimPlaytimeReward:InvokeServer(i) end)
+                if ok and typeof(res) == "table" and res.ok == true then
+                    claimedCount = claimedCount + 1
+                end
+                task.wait(0.02)
+            end
+        end
+    end
+
+    -- 2. Check and claim Daily Login reward if ready
+    if Remotes:FindFirstChild("GetDailyRewardsState") and Remotes:FindFirstChild("ClaimDailyReward") then
+        local s2, dState = pcall(function() return Remotes.GetDailyRewardsState:InvokeServer() end)
+        if s2 and typeof(dState) == "table" and dState.unlockedDay then
+            pcall(function()
+                Remotes.ClaimDailyReward:InvokeServer(dState.unlockedDay)
+            end)
+        end
+    end
+
+    return claimedCount > 0, claimedCount
+end
+
+function AutoFarm.StartAutoPlaytimeRewards(interval)
+    AutoFarm.AutoPlaytimeRewardsEnabled = true
+    interval = interval or 5
+    if playtimeThread then task.cancel(playtimeThread) end
+    playtimeThread = task.spawn(function()
+        -- Immediate initial claim
+        AutoFarm.ClaimAllPlaytimeRewardsOnce()
+        while AutoFarm.AutoPlaytimeRewardsEnabled do
+            task.wait(interval)
+            if not AutoFarm.AutoPlaytimeRewardsEnabled then break end
+            AutoFarm.ClaimAllPlaytimeRewardsOnce()
+        end
+    end)
+end
+
+function AutoFarm.StopAutoPlaytimeRewards()
+    AutoFarm.AutoPlaytimeRewardsEnabled = false
+    if playtimeThread then
+        pcall(function() task.cancel(playtimeThread) end)
+        playtimeThread = nil
     end
 end
 
@@ -334,6 +404,7 @@ end
 function AutoFarm.StopAll()
     AutoFarm.StopAutoQuests()
     AutoFarm.StopAutoIndex()
+    AutoFarm.StopAutoPlaytimeRewards()
     AutoFarm.StopAutoUpgrades()
     AutoFarm.StopAutoRebirth()
     AutoFarm.StopAutoPotions()

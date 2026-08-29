@@ -765,7 +765,30 @@ QuestTab:AddButton("⚡ Claim All Index Rewards Now (1x)", function()
     Window.Notify("Claim Index", "Semua reward index berhasil di-claim!", 2.5)
 end)
 
-QuestTab:AddSection("🎁 Free Gifts, Medals & Leave Offers")
+QuestTab:AddSection("🎁 Free Gifts, Playtime Rewards & Medals")
+
+QuestTab:AddToggle("Auto Claim Playtime Rewards (Gift 1-15)", CurrentConfig.AutoClaimPlaytime or false, function(state)
+    CurrentConfig.AutoClaimPlaytime = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        AutoFarm.StartAutoPlaytimeRewards(5)
+        Window.Notify("Playtime Rewards", "Auto Claim Playtime Rewards diaktifkan!", 2.0)
+    else
+        AutoFarm.StopAutoPlaytimeRewards()
+        Window.Notify("Playtime Rewards", "Auto Claim Playtime Rewards dinonaktifkan!", 2.0)
+    end
+end)
+
+QuestTab:AddButton("🎁 Claim All Playtime Rewards Now (1x)", function()
+    if AutoFarm then
+        local success, count = AutoFarm.ClaimAllPlaytimeRewardsOnce()
+        if success then
+            Window.Notify("Playtime Rewards", string.format("Berhasil meng-claim %d hadiah Playtime!", count or 1), 2.5)
+        else
+            Window.Notify("Playtime Rewards", "Tidak ada hadiah Playtime yang siap di-claim saat ini!", 2.0)
+        end
+    end
+end)
 
 QuestTab:AddButton("⚡ Claim All Free Rewards & Medals (1x)", function()
     if AutoFarm then AutoFarm.ClaimAllFreeRewardsOnce() end
@@ -953,6 +976,7 @@ SettingsTab:AddButton("🔄 Reload Configuration", function()
         end
         if CurrentConfig.AutoClaimQuests then AutoFarm.StartAutoQuests() else AutoFarm.StopAutoQuests() end
         if CurrentConfig.AutoClaimIndex then AutoFarm.StartAutoIndex() else AutoFarm.StopAutoIndex() end
+        if CurrentConfig.AutoClaimPlaytime then AutoFarm.StartAutoPlaytimeRewards() else AutoFarm.StopAutoPlaytimeRewards() end
         if CurrentConfig.AutoUpgrades then AutoFarm.StartAutoUpgrades() else AutoFarm.StopAutoUpgrades() end
         if CurrentConfig.AutoRebirth then AutoFarm.StartAutoRebirth() else AutoFarm.StopAutoRebirth() end
         if CurrentConfig.AutoPotions then AutoFarm.StartAutoPotions() else AutoFarm.StopAutoPotions() end
@@ -996,6 +1020,7 @@ if CurrentConfig.AutoSellByRarity then
 end
 if CurrentConfig.AutoClaimQuests then AutoFarm.StartAutoQuests() end
 if CurrentConfig.AutoClaimIndex then AutoFarm.StartAutoIndex() end
+if CurrentConfig.AutoClaimPlaytime then AutoFarm.StartAutoPlaytimeRewards() end
 if CurrentConfig.AutoUpgrades then AutoFarm.StartAutoUpgrades() end
 if CurrentConfig.AutoRebirth then AutoFarm.StartAutoRebirth() end
 if CurrentConfig.AutoPotions then AutoFarm.StartAutoPotions() end

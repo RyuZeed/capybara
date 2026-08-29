@@ -69,6 +69,8 @@ ConfigManager.DefaultConfig = {
     AutoClaimQuests = false,
     QuestClaimInterval = 5,
     AutoClaimIndex = false,
+    AutoClaimPlaytime = false,
+    AutoClaimDaily = false,
     AutoClaimMedals = false,
 
     -- Specific Upgrades
