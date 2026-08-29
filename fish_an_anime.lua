@@ -67,7 +67,7 @@ local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/module
 local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/"
 
 local function loadModule(name, isShared)
-    local targetUrl = (isShared and SHARED_URL or BASE_URL) .. name .. ".lua"
+    local targetUrl = (isShared and SHARED_URL or BASE_URL) .. name .. ".lua?t=" .. tostring(os.time())
     local success, result = pcall(function()
         local src = game:HttpGet(targetUrl)
         if src and #src > 10 and not src:find("404: Not Found") then

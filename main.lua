@@ -34,6 +34,6 @@ elseif isFishAnAnime then
     targetScript = "fish_an_anime.lua"
 end
 
-local url = BASE_URL .. targetScript
+local url = BASE_URL .. targetScript .. "?t=" .. tostring(os.time())
 return loadstring(game:HttpGet(url))()
 
