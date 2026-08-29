@@ -233,7 +233,13 @@ function Graphics.StartMemoryCleaner(interval)
         while Graphics.AutoMemoryCleanupEnabled do
             task.wait(interval)
             pcall(function()
-                collectgarbage("collect")
+                if typeof(collectgarbage) == "function" then
+                    pcall(collectgarbage, "collect")
+                end
+                -- Also force via gcinfo if available
+                if typeof(gcinfo) == "function" then
+                    gcinfo()
+                end
             end)
         end
     end)

@@ -55,7 +55,10 @@ pcall(function()
     end
 end)
 -- Aggressive GC to reclaim leaked threads from previous sessions
-pcall(function() collectgarbage("collect") collectgarbage("collect") end)
+pcall(function()
+    if typeof(collectgarbage) == "function" then pcall(collectgarbage, "collect") end
+    if typeof(gcinfo) == "function" then gcinfo() end
+end)
 
 -- =================================================================
 -- 🌐 3. MODULAR LOADER (LOCAL & GITHUB SUPPORT)
