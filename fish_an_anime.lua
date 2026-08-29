@@ -41,11 +41,8 @@ pcall(function()
     if _G.FishAnAnimeBaseUnits and typeof(_G.FishAnAnimeBaseUnits.StopAutoLevelUp) == "function" then
         _G.FishAnAnimeBaseUnits.StopAutoLevelUp()
     end
-    if _G.FishAnAnimeGraphics and typeof(_G.FishAnAnimeGraphics.StopMemoryCleaner) == "function" then
-        _G.FishAnAnimeGraphics.StopMemoryCleaner()
-    end
-    if _G.FishAnAnimeGraphics and typeof(_G.FishAnAnimeGraphics.DisableScreenOff) == "function" then
-        _G.FishAnAnimeGraphics.DisableScreenOff()
+    if _G.FishAnAnimeGraphics and typeof(_G.FishAnAnimeGraphics.Unload) == "function" then
+        _G.FishAnAnimeGraphics.Unload()
     end
     if _G.FishAnAnimeAntiAFK and typeof(_G.FishAnAnimeAntiAFK.Stop) == "function" then
         _G.FishAnAnimeAntiAFK.Stop()
@@ -743,39 +740,73 @@ end)
 -- ═════════════════════════════════════════════════════════════════
 local GraphicsTab = Window:CreateTab("Graphics", "⚡")
 
-GraphicsTab:AddSection("🥔 FPS Booster & Low Detail Mode")
+GraphicsTab:AddSection("🚀 Ultra Performance Mode (All-In-One)")
 
-GraphicsTab:AddToggle("Potato Graphics (Texture & Shadow Stripper)", CurrentConfig.PotatoGraphics or false, function(state)
+GraphicsTab:AddToggle("🚀 Ultra Mode (Potato + Hide All + Freeze NPC + Kill VFX)", CurrentConfig.UltraMode or false, function(state)
+    CurrentConfig.UltraMode = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if Graphics then Graphics.EnableUltraMode() end
+        Window.Notify("Ultra Mode", "Ultra Performance Mode AKTIF!\nPotato + Hide Players + Freeze NPC + Kill VFX", 3.0)
+    else
+        if Graphics then Graphics.DisableUltraMode() end
+        Window.Notify("Ultra Mode", "Ultra Mode dinonaktifkan!", 2.0)
+    end
+end)
+
+GraphicsTab:AddSection("🥔 Potato Graphics (Material & Shadow Strip)")
+
+GraphicsTab:AddToggle("Potato Graphics (Low Poly + No Shadow)", CurrentConfig.PotatoGraphics or false, function(state)
     CurrentConfig.PotatoGraphics = state
     if ConfigManager then ConfigManager.Save() end
     if state then
         if Graphics then Graphics.EnablePotatoGraphics() end
-        Window.Notify("Graphics", "Potato Graphics diaktifkan (Max FPS)!", 2.5)
+        Window.Notify("Graphics", "Potato Graphics diaktifkan!", 2.5)
     else
         if Graphics then Graphics.DisablePotatoGraphics() end
         Window.Notify("Graphics", "Potato Graphics dinonaktifkan!", 2.0)
     end
 end)
 
-GraphicsTab:AddToggle("In-Game Performance Mode (Disable Heavy VFX)", CurrentConfig.PerformanceMode ~= false, function(state)
-    CurrentConfig.PerformanceMode = state
+GraphicsTab:AddSection("👻 Player & NPC Optimizer")
+
+GraphicsTab:AddToggle("Hide Other Players (Invisible + No Animation)", CurrentConfig.HideOtherPlayers or false, function(state)
+    CurrentConfig.HideOtherPlayers = state
     if ConfigManager then ConfigManager.Save() end
-    pcall(function()
-        LocalPlayer:SetAttribute("PerformanceMode", state)
-    end)
-    Window.Notify("Performance Mode", state and "Aktif" or "Nonaktif", 2.0)
+    if state then
+        if Graphics then Graphics.HideOtherPlayers() end
+        Window.Notify("Players", "Karakter pemain lain disembunyikan!", 2.5)
+    else
+        if Graphics then Graphics.ShowOtherPlayers() end
+        Window.Notify("Players", "Karakter pemain lain ditampilkan kembali!", 2.0)
+    end
 end)
 
-GraphicsTab:AddToggle("Disable Character VFX & Particles", CurrentConfig.DisableVFX ~= false, function(state)
+GraphicsTab:AddToggle("Freeze NPC & All Animations (CPU Saver)", CurrentConfig.FreezeNPCs or false, function(state)
+    CurrentConfig.FreezeNPCs = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if Graphics then Graphics.FreezeAllNPCsAndAnimations() end
+        Window.Notify("NPC Freeze", "Semua animasi NPC dibekukan (CPU hemat ~60%)!", 2.5)
+    else
+        if Graphics then Graphics.UnfreezeNPCs() end
+        Window.Notify("NPC Freeze", "NPC Freeze dinonaktifkan!", 2.0)
+    end
+end)
+
+GraphicsTab:AddToggle("Kill All VFX (Particles, Trails, Beams, Lights)", CurrentConfig.DisableVFX or false, function(state)
     CurrentConfig.DisableVFX = state
     if ConfigManager then ConfigManager.Save() end
-    pcall(function()
-        LocalPlayer:SetAttribute("DisableCharacterVFX", state)
-    end)
-    Window.Notify("VFX Particles", state and "VFX Dimatikan" or "VFX Dinyalakan", 2.0)
+    if state then
+        if Graphics then Graphics.DisableAllVFX() end
+        Window.Notify("VFX Kill", "Semua efek visual dinonaktifkan!", 2.5)
+    else
+        if Graphics then Graphics.EnableAllVFX() end
+        Window.Notify("VFX Kill", "Efek visual dikembalikan!", 2.0)
+    end
 end)
 
-GraphicsTab:AddSection("🖥️ GPU Saver (Black Screen AFK - 90% GPU Drop)")
+GraphicsTab:AddSection("🖥️ GPU Saver (Black Screen AFK)")
 
 GraphicsTab:AddToggle("3D Rendering Off (Black Screen AFK)", CurrentConfig.BlackScreenAFK or false, function(state)
     CurrentConfig.BlackScreenAFK = state
@@ -785,10 +816,6 @@ GraphicsTab:AddToggle("3D Rendering Off (Black Screen AFK)", CurrentConfig.Black
     else
         if Graphics then Graphics.DisableScreenOff() end
     end
-end)
-
-GraphicsTab:AddButton("🌙 Enable Black Screen AFK Now (1x)", function()
-    if Graphics then Graphics.EnableScreenOff() end
 end)
 
 GraphicsTab:AddSection("🎯 FPS Cap Limiter")
@@ -810,11 +837,14 @@ GraphicsTab:AddButton("🚀 Unlock FPS (Unlimited)", function()
     Window.Notify("FPS Cap", "FPS Unlock / Unlimited diaktifkan!", 2.0)
 end)
 
-GraphicsTab:AddSection("🧹 RAM & Memory Garbage Cleaner")
+GraphicsTab:AddSection("🧹 RAM & Memory Cleaner")
 
 GraphicsTab:AddButton("🧹 Clean RAM / Memory Now (1x)", function()
-    pcall(function() collectgarbage("collect") end)
-    Window.Notify("RAM Cleaner", "Garbage collection selesai! Memori dibersihkan.", 2.5)
+    pcall(function()
+        if typeof(collectgarbage) == "function" then pcall(collectgarbage, "collect") end
+        if typeof(gcinfo) == "function" then gcinfo() end
+    end)
+    Window.Notify("RAM Cleaner", "Garbage collection selesai!", 2.5)
 end)
 
 -- ═════════════════════════════════════════════════════════════════
@@ -904,6 +934,20 @@ end
 if CurrentConfig.AutoLevelUpBaseUnits and BaseUnits then BaseUnits.StartAutoLevelUp() end
 if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() end
 
+-- Auto start graphics features
+if Graphics then
+    if CurrentConfig.UltraMode then
+        Graphics.EnableUltraMode()
+    else
+        if CurrentConfig.PotatoGraphics then Graphics.EnablePotatoGraphics() end
+        if CurrentConfig.HideOtherPlayers then Graphics.HideOtherPlayers() end
+        if CurrentConfig.FreezeNPCs then Graphics.FreezeAllNPCsAndAnimations() end
+        if CurrentConfig.DisableVFX then Graphics.DisableAllVFX() end
+    end
+    if CurrentConfig.BlackScreenAFK then Graphics.EnableScreenOff() end
+    if CurrentConfig.TargetFPS then Graphics.SetFPSCap(CurrentConfig.TargetFPS) end
+end
+
 -- Destructor
 _G.RitodHubFishAnAnime = Window.ScreenGui
 _G.RitodHubCleanup = function()
@@ -912,7 +956,7 @@ _G.RitodHubCleanup = function()
         if AutoFarm and AutoFarm.StopAll then AutoFarm.StopAll() end
         if AutoMerchants and AutoMerchants.StopAll then AutoMerchants.StopAll() end
         if BaseUnits and BaseUnits.StopAutoLevelUp then BaseUnits.StopAutoLevelUp() end
-        if Graphics and Graphics.DisableScreenOff then Graphics.DisableScreenOff() end
+        if Graphics and Graphics.Unload then Graphics.Unload() end
         if AntiAFK and AntiAFK.Stop then AntiAFK.Stop() end
         if Window.ScreenGui and Window.ScreenGui.Parent then Window.ScreenGui:Destroy() end
     end)
