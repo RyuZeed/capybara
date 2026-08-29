@@ -108,15 +108,12 @@ end
 
 function ConfigManager.Load()
     ensureFolders()
+    ConfigManager.CurrentConfig = deepCopy(ConfigManager.DefaultConfig)
     pcall(function()
         local raw = nil
         if typeof(readfile) == "function" and typeof(isfile) == "function" then
             if isfile(CONFIG_PATH) then
                 raw = readfile(CONFIG_PATH)
-            elseif isfile(LEGACY_PATH) then
-                raw = readfile(LEGACY_PATH)
-            elseif isfile(GAME_FOLDER .. "/Configs/Default.json") then
-                raw = readfile(GAME_FOLDER .. "/Configs/Default.json")
             end
         end
 
@@ -143,6 +140,9 @@ function ConfigManager.Load()
                     end
                 end
             end
+        else
+            -- First run for this user: auto-save default config
+            ConfigManager.Save(ConfigManager.DefaultConfig)
         end
     end)
     return ConfigManager.CurrentConfig
