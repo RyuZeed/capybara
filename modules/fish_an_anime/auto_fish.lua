@@ -192,6 +192,12 @@ function AutoFish.StartFishing()
                     if AutoFish.IsFishing then
                         AutoFish.CastRod()
                     end
+                    -- Real-time instant auto sell for newly caught fish
+                    if AutoFish.AutoSellByRarityEnabled then
+                        task.defer(function()
+                            AutoFish.SellSelectedRaritiesOnce()
+                        end)
+                    end
                 elseif kind == "Started" then
                     isCastPending = false
                 end
@@ -441,7 +447,7 @@ end
 -- ── 💎 4. Auto Sell by Selected Rarities Loop ──
 function AutoFish.StartAutoSellByRarity(interval)
     AutoFish.AutoSellByRarityEnabled = true
-    interval = interval or 10
+    interval = interval or 5
 
     -- Sync In-Game Auto Sell with Server for enabled rarities
     if Remotes and Remotes:FindFirstChild("RarityAutoSellSet") then
@@ -454,9 +460,12 @@ function AutoFish.StartAutoSellByRarity(interval)
 
     if autoSellByRarityLoopThread then task.cancel(autoSellByRarityLoopThread) end
     autoSellByRarityLoopThread = task.spawn(function()
+        -- Instant initial sweep
+        AutoFish.SellSelectedRaritiesOnce()
         while AutoFish.AutoSellByRarityEnabled do
-            AutoFish.SellSelectedRaritiesOnce()
             task.wait(interval)
+            if not AutoFish.AutoSellByRarityEnabled then break end
+            AutoFish.SellSelectedRaritiesOnce()
         end
     end)
 end
@@ -466,6 +475,33 @@ function AutoFish.StopAutoSellByRarity()
     if autoSellByRarityLoopThread then
         pcall(function() task.cancel(autoSellByRarityLoopThread) end)
         autoSellByRarityLoopThread = nil
+    end
+end
+
+function AutoFish.SetRarityAutoSell(rarityName, state)
+    AutoFish.AutoSellRarities[rarityName] = state
+    AutoFish.AutoSellRarities[string.lower(rarityName)] = state
+
+    -- Check if at least one rarity toggle is active
+    local hasAnyActive = false
+    for _, enabled in pairs(AutoFish.AutoSellRarities) do
+        if enabled == true then
+            hasAnyActive = true
+            break
+        end
+    end
+
+    if hasAnyActive then
+        AutoFish.StartAutoSellByRarity(5)
+    else
+        AutoFish.StopAutoSellByRarity()
+    end
+
+    -- Sync with server remote if available
+    if Remotes and Remotes:FindFirstChild("RarityAutoSellSet") then
+        pcall(function()
+            Remotes.RarityAutoSellSet:InvokeServer(rarityName, state == true)
+        end)
     end
 end
 

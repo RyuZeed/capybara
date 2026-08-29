@@ -596,13 +596,16 @@ for _, r in ipairs(officialRarities) do
     BackpackTab:AddToggle(string.format("%s Auto Sell %s", r.icon, r.name), isChecked, function(state)
         if not CurrentConfig.AutoSellRarities then CurrentConfig.AutoSellRarities = {} end
         CurrentConfig.AutoSellRarities[r.name] = state
+        CurrentConfig.AutoSellRarities[string.lower(r.name)] = state
         if AutoFish then
-            AutoFish.AutoSellRarities[r.name] = state
-            if AutoFish.AutoSellByRarityEnabled then
-                AutoFish.StartAutoSellByRarity(CurrentConfig.AutoSellInterval or 10)
-            end
+            AutoFish.SetRarityAutoSell(r.name, state)
         end
         if ConfigManager then ConfigManager.Save() end
+        if state then
+            Window.Notify("Auto Sell", string.format("%s Auto Sell %s AKTIF!\n(Otomatis mengulang & menjual saat dapat)", r.icon, r.name), 2.5)
+        else
+            Window.Notify("Auto Sell", string.format("%s Auto Sell %s NONAKTIF!", r.icon, r.name), 2.0)
+        end
     end)
 
     BackpackTab:AddButton(string.format("⚡ Sell All %s %s Now (1x)", r.icon, r.name), function()
