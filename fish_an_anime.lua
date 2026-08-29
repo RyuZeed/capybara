@@ -261,11 +261,32 @@ BaseUnitsTab:AddButton("🔄 Scan / Refresh Base Units", function()
     refreshUnitsScanner()
 end)
 
+local rarityIcons = {
+    Common = "⚪",
+    Uncommon = "💚",
+    Rare = "💙",
+    Epic = "💜",
+    Legendary = "⚔️",
+    Mythical = "🔮",
+    Cosmic = "🪐",
+    Secret = "🗝️",
+    Rainbow = "🌈",
+    Ascended = "🔺",
+    Divine = "⚡",
+    Supreme = "🌟",
+    Celestial = "🌌",
+    Ancient = "👑",
+    God = "🔱",
+    Omniscient = "👁️",
+    Exclusive = "💎"
+}
+
 -- Render unit list saat pertama kali dimuat
 local initialUnits = BaseUnits and BaseUnits.ScanUnits() or {}
 for _, u in ipairs(initialUnits) do
-    local infoStr = string.format("[Stand %s] %s (%s) | Lvl %d | $%s/s | %s",
-        u.StandId, u.Name, u.Rarity, u.Level, formatNumber(u.CPS), u.UpgradeCostText
+    local icon = rarityIcons[u.Rarity] or "⭐"
+    local infoStr = string.format("%s [%s] %s (Stand %s) | Lvl %d | $%s/s | %s",
+        icon, u.Rarity, u.Name, u.StandId, u.Level, formatNumber(u.CPS), u.UpgradeCostText
     )
     BaseUnitsTab:AddButton(infoStr, function()
         if BaseUnits then
@@ -273,7 +294,7 @@ for _, u in ipairs(initialUnits) do
             if res then
                 Window.Notify("Level Up", string.format("Max Level Up berhasil untuk Stand %s (%s)!", u.StandId, u.Name), 2.5)
             else
-                Window.Notify("Level Up", string.format("Gagal menaikkan level Stand %s!", u.StandId), 2.0)
+                Window.Notify("Level Up", string.format("Gagal / Food tidak cukup untuk Stand %s!", u.StandId), 2.0)
             end
         end
     end)

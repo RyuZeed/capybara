@@ -94,6 +94,30 @@ function BaseUnits.GetPlayerPlot()
     return nil
 end
 
+local RARITY_TIERS = {
+    Common = 1,
+    Uncommon = 2,
+    Rare = 3,
+    Epic = 4,
+    Legendary = 5,
+    Mythical = 6,
+    Cosmic = 7,
+    Secret = 8,
+    Rainbow = 9,
+    Ascended = 10,
+    Divine = 11,
+    Supreme = 12,
+    Celestial = 13,
+    Ancient = 14,
+    God = 15,
+    Omniscient = 16,
+    Exclusive = 17
+}
+
+function BaseUnits.GetRarityRank(rarity)
+    return RARITY_TIERS[rarity] or 0
+end
+
 -- ── 🔍 4. Realtime Scan Base Units ──
 function BaseUnits.ScanUnits()
     local plot = BaseUnits.GetPlayerPlot()
@@ -146,6 +170,7 @@ function BaseUnits.ScanUnits()
             table.insert(unitsList, {
                 Name = charName,
                 Rarity = rarity,
+                RarityRank = RARITY_TIERS[rarity] or 0,
                 Level = tonumber(level) or 1,
                 CPS = tonumber(cps) or 0,
                 BaseCPS = tonumber(baseCps) or 0,
@@ -160,6 +185,9 @@ function BaseUnits.ScanUnits()
     end
 
     table.sort(unitsList, function(a, b)
+        if a.RarityRank ~= b.RarityRank then
+            return a.RarityRank > b.RarityRank
+        end
         return a.CPS > b.CPS
     end)
 
