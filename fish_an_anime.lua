@@ -215,27 +215,23 @@ BaseUnitsTab:AddToggle("Filter Level Up by Rarity (Focus Mode)", CurrentConfig.F
 end)
 
 local gameRarities = {
-    -- Tier SSS / Godly
-    { name = "Omniscient", icon = "👁️" },
-    { name = "God", icon = "🔱" },
-    { name = "Ancient", icon = "👑" },
-    { name = "Celestial", icon = "🌌" },
-    -- Tier S / High Tier
-    { name = "Exclusive", icon = "💎" },
-    { name = "Supreme", icon = "🌟" },
-    { name = "Divine", icon = "⚡" },
-    { name = "Ascended", icon = "🔺" },
-    -- Tier B & C / Mid Tier
-    { name = "Rainbow", icon = "🌈" },
-    { name = "Secret", icon = "🗝️" },
-    { name = "Cosmic", icon = "🪐" },
-    { name = "Mythical", icon = "🔮" },
-    -- Standard Tiers
-    { name = "Legendary", icon = "⚔️" },
-    { name = "Epic", icon = "💜" },
-    { name = "Rare", icon = "💙" },
+    { name = "Common", icon = "⚪" },
     { name = "Uncommon", icon = "💚" },
-    { name = "Common", icon = "⚪" }
+    { name = "Rare", icon = "💙" },
+    { name = "Epic", icon = "💜" },
+    { name = "Legendary", icon = "⚔️" },
+    { name = "Mythical", icon = "🔮" },
+    { name = "Cosmic", icon = "🪐" },
+    { name = "Secret", icon = "🗝️" },
+    { name = "Rainbow", icon = "🌈" },
+    { name = "Ascended", icon = "🔺" },
+    { name = "Divine", icon = "⚡" },
+    { name = "Supreme", icon = "🌟" },
+    { name = "Celestial", icon = "🌌" },
+    { name = "Ancient", icon = "👑" },
+    { name = "God", icon = "🔱" },
+    { name = "Omniscient", icon = "👁️" },
+    { name = "Exclusive", icon = "💎" }
 }
 
 for _, r in ipairs(gameRarities) do
