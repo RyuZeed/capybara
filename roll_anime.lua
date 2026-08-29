@@ -1502,6 +1502,10 @@ local merchantEssencesToggleRef = nil
 local merchantCapsulesToggleRef = nil
 local merchantTicketsToggleRef = nil
 local merchantMaterialsToggleRef = nil
+local hideOtherPlayersToggleRef = nil
+local freezeNPCsToggleRef = nil
+local disableVFXToggleRef = nil
+local fpsCapSliderRef = nil
 
 huntToggleRef = RollTab:AddToggle("Auto Hunt (Continuous Roll & Sniper)", savedConfig.AutoHuntEnabled or false, function(state)
 	if state then
@@ -1932,7 +1936,7 @@ end)
 
 MiscTab:AddSection("Graphics & Performance")
 
-farmModeToggleRef = MiscTab:AddToggle("🚜 Farm Mode (3D Render Off)", savedConfig.FarmMode or false, function(state)
+farmModeToggleRef = MiscTab:AddToggle("🚜 Farm Mode (3D Render Off / AMOLED Screen)", savedConfig.FarmMode or false, function(state)
 	savedConfig.FarmMode = state
 	if ConfigManager then ConfigManager.Save({ FarmMode = state }) end
 	if GraphicsModule then
@@ -1944,20 +1948,92 @@ farmModeToggleRef = MiscTab:AddToggle("🚜 Farm Mode (3D Render Off)", savedCon
 	end
 end)
 
-potatoToggleRef = MiscTab:AddToggle("🥔 Low Graphics / Potato Mode", savedConfig.PotatoGraphics or false, function(state)
+potatoToggleRef = MiscTab:AddToggle("🥔 Potato Mode (Smooth Textures & Low Quality)", savedConfig.PotatoGraphics or false, function(state)
 	savedConfig.PotatoGraphics = state
 	if ConfigManager then ConfigManager.Save({ PotatoGraphics = state }) end
 	if GraphicsModule then
-		GraphicsModule.EnablePotato(state)
+		if state then
+			GraphicsModule.EnablePotatoGraphics()
+		else
+			GraphicsModule.DisablePotatoGraphics()
+		end
 	end
 end)
 
-antiLagToggleRef = MiscTab:AddToggle("❄️ Anti-Lag (FPS Cap 5)", savedConfig.AntiLag or false, function(state)
+hideOtherPlayersToggleRef = MiscTab:AddToggle("👻 Sembunyikan Player & Plot Lain (Ghost Mode)", savedConfig.HideOtherPlayers or false, function(state)
+	savedConfig.HideOtherPlayers = state
+	if ConfigManager then ConfigManager.Save({ HideOtherPlayers = state }) end
+	if GraphicsModule then
+		if state then
+			GraphicsModule.HideOtherPlayers()
+		else
+			GraphicsModule.ShowOtherPlayers()
+		end
+	end
+end)
+
+freezeNPCsToggleRef = MiscTab:AddToggle("🤖 Pause Animasi Musuh / NPC (CPU Saver)", savedConfig.FreezeNPCs or false, function(state)
+	savedConfig.FreezeNPCs = state
+	if ConfigManager then ConfigManager.Save({ FreezeNPCs = state }) end
+	if GraphicsModule then
+		if state then
+			GraphicsModule.FreezeAllNPCsAndAnimations()
+		else
+			GraphicsModule.UnfreezeNPCs()
+		end
+	end
+end)
+
+disableVFXToggleRef = MiscTab:AddToggle("💀 Matikan Semua VFX & Partikel Skill", savedConfig.DisableVFX or false, function(state)
+	savedConfig.DisableVFX = state
+	if ConfigManager then ConfigManager.Save({ DisableVFX = state }) end
+	if GraphicsModule then
+		if state then
+			GraphicsModule.DisableAllVFX()
+		else
+			GraphicsModule.RestoreVFX()
+		end
+	end
+end)
+
+antiLagToggleRef = MiscTab:AddToggle("❄️ Anti-Lag AFK (FPS Cap 10)", savedConfig.AntiLag or false, function(state)
 	savedConfig.AntiLag = state
 	if ConfigManager then ConfigManager.Save({ AntiLag = state }) end
 	if GraphicsModule then
 		GraphicsModule.SetAntiLag(state)
 	end
+end)
+
+fpsCapSliderRef = MiscTab:AddSlider("🎯 Batas FPS (FPS Cap)", 10, 240, savedConfig.TargetFPS or 60, function(val)
+	savedConfig.TargetFPS = val
+	if ConfigManager then ConfigManager.Save({ TargetFPS = val }) end
+	if GraphicsModule then
+		GraphicsModule.ApplyFpsCap(val)
+	end
+end)
+
+MiscTab:AddButton("⚡ Aktifkan Semua Optimasi (One-Click Max FPS)", function()
+	if GraphicsModule then
+		GraphicsModule.EnableUltraPotato()
+		if potatoToggleRef then potatoToggleRef:Set(true, false) end
+		if hideOtherPlayersToggleRef then hideOtherPlayersToggleRef:Set(true, false) end
+		if freezeNPCsToggleRef then freezeNPCsToggleRef:Set(true, false) end
+		if disableVFXToggleRef then disableVFXToggleRef:Set(true, false) end
+		savedConfig.PotatoGraphics = true
+		savedConfig.HideOtherPlayers = true
+		savedConfig.FreezeNPCs = true
+		savedConfig.DisableVFX = true
+		if ConfigManager then ConfigManager.Save(savedConfig) end
+		Notify("⚡ Ultra FPS", "Seluruh optimasi grafis & CPU berhasil diaktifkan!", 3)
+	end
+end)
+
+MiscTab:AddButton("🧹 Bersihkan Memori RAM (Purge GC)", function()
+	pcall(function()
+		collectgarbage("collect")
+		if typeof(gcinfo) == "function" then gcinfo() end
+	end)
+	Notify("🧹 RAM Cleanup", "Memori Lua & aset yang tidak terpakai telah dibersihkan!", 2.5)
 end)
 
 MiscTab:AddSection("💾 Config File Manager")
@@ -1987,7 +2063,11 @@ MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
 			InfJump               = savedConfig.InfJump or false,
 			PotatoGraphics        = savedConfig.PotatoGraphics or false,
 			FarmMode              = savedConfig.FarmMode or false,
-			AntiLag               = savedConfig.AntiLag or false
+			AntiLag               = savedConfig.AntiLag or false,
+			HideOtherPlayers      = savedConfig.HideOtherPlayers or false,
+			FreezeNPCs            = savedConfig.FreezeNPCs or false,
+			DisableVFX            = savedConfig.DisableVFX or false,
+			TargetFPS             = savedConfig.TargetFPS or 60
 		}
 		local success = ConfigManager.Save(currentData)
 		if success then
@@ -2155,13 +2235,45 @@ local function applyRollAnimeConfig(loaded)
 	if potatoToggleRef and loaded.PotatoGraphics ~= nil then
 		potatoToggleRef:Set(loaded.PotatoGraphics, false)
 		savedConfig.PotatoGraphics = loaded.PotatoGraphics
-		if GraphicsModule then GraphicsModule.EnablePotato(loaded.PotatoGraphics) end
+		if GraphicsModule then
+			if loaded.PotatoGraphics then GraphicsModule.EnablePotatoGraphics() else GraphicsModule.DisablePotatoGraphics() end
+		end
+	end
+
+	if hideOtherPlayersToggleRef and loaded.HideOtherPlayers ~= nil then
+		hideOtherPlayersToggleRef:Set(loaded.HideOtherPlayers, false)
+		savedConfig.HideOtherPlayers = loaded.HideOtherPlayers
+		if GraphicsModule then
+			if loaded.HideOtherPlayers then GraphicsModule.HideOtherPlayers() else GraphicsModule.ShowOtherPlayers() end
+		end
+	end
+
+	if freezeNPCsToggleRef and loaded.FreezeNPCs ~= nil then
+		freezeNPCsToggleRef:Set(loaded.FreezeNPCs, false)
+		savedConfig.FreezeNPCs = loaded.FreezeNPCs
+		if GraphicsModule then
+			if loaded.FreezeNPCs then GraphicsModule.FreezeAllNPCsAndAnimations() else GraphicsModule.UnfreezeNPCs() end
+		end
+	end
+
+	if disableVFXToggleRef and loaded.DisableVFX ~= nil then
+		disableVFXToggleRef:Set(loaded.DisableVFX, false)
+		savedConfig.DisableVFX = loaded.DisableVFX
+		if GraphicsModule then
+			if loaded.DisableVFX then GraphicsModule.DisableAllVFX() else GraphicsModule.RestoreVFX() end
+		end
 	end
 
 	if antiLagToggleRef and loaded.AntiLag ~= nil then
 		antiLagToggleRef:Set(loaded.AntiLag, false)
 		savedConfig.AntiLag = loaded.AntiLag
 		if GraphicsModule then GraphicsModule.SetAntiLag(loaded.AntiLag) end
+	end
+
+	if fpsCapSliderRef and loaded.TargetFPS then
+		fpsCapSliderRef:Set(loaded.TargetFPS, false)
+		savedConfig.TargetFPS = loaded.TargetFPS
+		if GraphicsModule then GraphicsModule.ApplyFpsCap(loaded.TargetFPS) end
 	end
 
 	if farmModeToggleRef and loaded.FarmMode ~= nil then
@@ -2245,7 +2357,35 @@ end)
 if savedConfig.PotatoGraphics and GraphicsModule then
 	task.spawn(function()
 		task.wait(0.5)
-		GraphicsModule.EnablePotato(true)
+		GraphicsModule.EnablePotatoGraphics()
+	end)
+end
+
+if savedConfig.HideOtherPlayers and GraphicsModule then
+	task.spawn(function()
+		task.wait(0.5)
+		GraphicsModule.HideOtherPlayers()
+	end)
+end
+
+if savedConfig.FreezeNPCs and GraphicsModule then
+	task.spawn(function()
+		task.wait(0.5)
+		GraphicsModule.FreezeAllNPCsAndAnimations()
+	end)
+end
+
+if savedConfig.DisableVFX and GraphicsModule then
+	task.spawn(function()
+		task.wait(0.5)
+		GraphicsModule.DisableAllVFX()
+	end)
+end
+
+if savedConfig.TargetFPS and GraphicsModule then
+	task.spawn(function()
+		task.wait(0.3)
+		GraphicsModule.ApplyFpsCap(savedConfig.TargetFPS)
 	end)
 end
 

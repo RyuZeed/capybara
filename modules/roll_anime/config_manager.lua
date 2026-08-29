@@ -57,6 +57,10 @@ ConfigManager.DefaultConfig = {
     PotatoGraphics        = false,
     FarmMode              = false,
     AntiLag               = false,
+    HideOtherPlayers      = false,
+    FreezeNPCs            = false,
+    DisableVFX            = false,
+    TargetFPS             = 60,
     AutoPrivateServer     = true
 }
 
