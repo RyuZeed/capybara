@@ -29,20 +29,49 @@ local autoLevelUpThread = nil
 local cachedPlot = nil
 local isLevelingUp = false
 
--- ── 🛡️ 1. Block Robux Purchase Popups ──
+-- ── 🛡️ 1. Block Robux Purchase Popups (100% Elimination) ──
+local plotDescendantConn = nil
+
+local function neutralizePrompt(desc)
+    if not desc or not desc:IsA("ProximityPrompt") then return end
+    if desc.Name == "LevelUp10Prompt" or desc.Name == "PurchasePrompt" then
+        pcall(function()
+            desc.Enabled = false
+            desc.MaxActivationDistance = 0
+            desc.RequiresLineOfSight = true
+            desc:Destroy()
+        end)
+    end
+end
+
 local function blockRobuxPrompts(plot)
     if not plot then return end
     local purchases = plot:FindFirstChild("Purchases")
     if not purchases then return end
 
     for _, desc in ipairs(purchases:GetDescendants()) do
-        if desc:IsA("ProximityPrompt") then
-            if desc.Name == "LevelUp10Prompt" or desc.Name == "PurchasePrompt" then
-                desc.Enabled = false
-            end
-        end
+        neutralizePrompt(desc)
+    end
+
+    if not plotDescendantConn then
+        plotDescendantConn = plot.DescendantAdded:Connect(function(desc)
+            neutralizePrompt(desc)
+        end)
     end
 end
+
+-- Hook MarketplaceService to prevent unwanted DevProduct Robux dialogs
+pcall(function()
+    if typeof(hookfunction) == "function" and typeof(MarketplaceService.PromptProductPurchase) == "function" then
+        local oldPromptProduct
+        oldPromptProduct = hookfunction(MarketplaceService.PromptProductPurchase, function(self, player, productId, ...)
+            if BaseUnits.AutoLevelUpEnabled or isLevelingUp then
+                return
+            end
+            return oldPromptProduct(self, player, productId, ...)
+        end)
+    end
+end)
 
 -- ── 💰 2. Parse Food Cost from Prompt Text ──
 function BaseUnits.ParseFoodCost(text)
