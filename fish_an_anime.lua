@@ -256,17 +256,227 @@ local rarityIcons = {
     Exclusive = "💎"
 }
 
-MainTab:AddButton("🔄 Scan & List Base Units", function()
+local rarityColors = {
+    Common = Color3.fromRGB(180, 180, 180),
+    Uncommon = Color3.fromRGB(80, 220, 120),
+    Rare = Color3.fromRGB(70, 170, 255),
+    Epic = Color3.fromRGB(190, 80, 255),
+    Legendary = Color3.fromRGB(255, 170, 40),
+    Mythical = Color3.fromRGB(255, 70, 150),
+    Cosmic = Color3.fromRGB(100, 240, 255),
+    Secret = Color3.fromRGB(255, 215, 0),
+    Rainbow = Color3.fromRGB(255, 120, 220),
+    Ascended = Color3.fromRGB(255, 80, 80),
+    Divine = Color3.fromRGB(255, 235, 100),
+    Supreme = Color3.fromRGB(255, 140, 0),
+    Celestial = Color3.fromRGB(150, 120, 255),
+    Ancient = Color3.fromRGB(240, 190, 90),
+    God = Color3.fromRGB(0, 240, 255),
+    Omniscient = Color3.fromRGB(255, 255, 255),
+    Exclusive = Color3.fromRGB(255, 100, 200)
+}
+
+-- 📊 Summary Badge Card
+local scannerSummaryFrame = Instance.new("Frame")
+scannerSummaryFrame.Name = "ScannerSummaryFrame"
+scannerSummaryFrame.Size = UDim2.new(1, 0, 0, 44)
+scannerSummaryFrame.BackgroundColor3 = Color3.fromRGB(22, 16, 30)
+scannerSummaryFrame.BorderSizePixel = 0
+scannerSummaryFrame.ZIndex = 14
+scannerSummaryFrame.Parent = MainTab.Page
+
+local sCorner = Instance.new("UICorner")
+sCorner.CornerRadius = UDim.new(0, 8)
+sCorner.Parent = scannerSummaryFrame
+
+local sStroke = Instance.new("UIStroke")
+sStroke.Thickness = 1
+sStroke.Color = Color3.fromRGB(85, 60, 110)
+sStroke.Parent = scannerSummaryFrame
+
+local scannerSummaryLabel = Instance.new("TextLabel")
+scannerSummaryLabel.Name = "SummaryLabel"
+scannerSummaryLabel.Size = UDim2.new(1, -20, 1, 0)
+scannerSummaryLabel.Position = UDim2.new(0, 12, 0, 0)
+scannerSummaryLabel.BackgroundTransparency = 1
+scannerSummaryLabel.Text = "📊 Memuat data unit di base plot..."
+scannerSummaryLabel.TextColor3 = Color3.fromRGB(230, 215, 245)
+scannerSummaryLabel.TextSize = 12
+scannerSummaryLabel.Font = Enum.Font.GothamMedium
+scannerSummaryLabel.TextXAlignment = Enum.TextXAlignment.Left
+scannerSummaryLabel.ZIndex = 15
+scannerSummaryLabel.Parent = scannerSummaryFrame
+
+-- 🗂️ Dynamic Unit List Container
+local unitListHolder = Instance.new("Frame")
+unitListHolder.Name = "UnitListHolder"
+unitListHolder.Size = UDim2.new(1, 0, 0, 0)
+unitListHolder.AutomaticSize = Enum.AutomaticSize.Y
+unitListHolder.BackgroundTransparency = 1
+unitListHolder.ZIndex = 13
+unitListHolder.Parent = MainTab.Page
+
+local uListLayout = Instance.new("UIListLayout")
+uListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+uListLayout.Padding = UDim.new(0, 6)
+uListLayout.Parent = unitListHolder
+
+local function renderUnitCards()
     if not BaseUnits then return end
     local units = BaseUnits.ScanUnits()
     local plot = BaseUnits.GetPlayerPlot()
     local plotName = plot and plot.Name or "Unknown"
-    local lines = {}
-    for _, u in ipairs(units) do
-        local icon = rarityIcons[u.Rarity] or "⭐"
-        table.insert(lines, string.format("%s %s [%s] (Stand %s) Lvl %d", icon, u.Name, u.Rarity, u.StandId, u.Level))
+    local foodAmount = BaseUnits.GetPlayerFood()
+
+    -- Format Food Text
+    local function fmtNum(n)
+        if n >= 1e15 then return string.format("%.2fQa", n / 1e15)
+        elseif n >= 1e12 then return string.format("%.2fT", n / 1e12)
+        elseif n >= 1e9 then return string.format("%.2fB", n / 1e9)
+        elseif n >= 1e6 then return string.format("%.2fM", n / 1e6)
+        elseif n >= 1e3 then return string.format("%.2fK", n / 1e3)
+        else return tostring(math.floor(n)) end
     end
-    Window.Notify("Scanner", string.format("%d unit di %s:\n%s", #units, plotName, table.concat(lines, "\n")), 5.0)
+
+    scannerSummaryLabel.Text = string.format("📊 Base: %s | Terpasang: %d Unit | Food: %s", plotName, #units, fmtNum(foodAmount))
+
+    -- Clear previous items
+    for _, child in ipairs(unitListHolder:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
+    if #units == 0 then
+        local emptyCard = Instance.new("Frame")
+        emptyCard.Size = UDim2.new(1, 0, 0, 48)
+        emptyCard.BackgroundColor3 = Color3.fromRGB(24, 18, 32)
+        emptyCard.BorderSizePixel = 0
+        emptyCard.ZIndex = 14
+        emptyCard.Parent = unitListHolder
+
+        local eCorner = Instance.new("UICorner")
+        eCorner.CornerRadius = UDim.new(0, 8)
+        eCorner.Parent = emptyCard
+
+        local emptyLabel = Instance.new("TextLabel")
+        emptyLabel.Size = UDim2.new(1, 0, 1, 0)
+        emptyLabel.BackgroundTransparency = 1
+        emptyLabel.Text = "⚠️ Belum ada unit anime yang terpasang di base plot kamu."
+        emptyLabel.TextColor3 = Color3.fromRGB(175, 155, 190)
+        emptyLabel.TextSize = 11
+        emptyLabel.Font = Enum.Font.GothamMedium
+        emptyLabel.ZIndex = 15
+        emptyLabel.Parent = emptyCard
+        return
+    end
+
+    for i, u in ipairs(units) do
+        local icon = rarityIcons[u.Rarity] or "⭐"
+        local rColor = rarityColors[u.Rarity] or Color3.fromRGB(200, 200, 200)
+
+        local card = Instance.new("Frame")
+        card.Name = "UnitCard_" .. tostring(u.StandId)
+        card.Size = UDim2.new(1, 0, 0, 52)
+        card.BackgroundColor3 = Color3.fromRGB(26, 20, 34)
+        card.BorderSizePixel = 0
+        card.LayoutOrder = i
+        card.ZIndex = 14
+        card.Parent = unitListHolder
+
+        local cCorner = Instance.new("UICorner")
+        cCorner.CornerRadius = UDim.new(0, 8)
+        cCorner.Parent = card
+
+        local cStroke = Instance.new("UIStroke")
+        cStroke.Thickness = 1
+        cStroke.Color = Color3.fromRGB(55, 42, 70)
+        cStroke.Parent = card
+
+        -- Left Indicator Bar with Rarity Color
+        local colorBar = Instance.new("Frame")
+        colorBar.Size = UDim2.new(0, 4, 1, -12)
+        colorBar.Position = UDim2.new(0, 6, 0, 6)
+        colorBar.BackgroundColor3 = rColor
+        colorBar.BorderSizePixel = 0
+        colorBar.ZIndex = 15
+        colorBar.Parent = card
+
+        local cbCorner = Instance.new("UICorner")
+        cbCorner.CornerRadius = UDim.new(0, 2)
+        cbCorner.Parent = colorBar
+
+        -- Unit Title (Stand # & Unit Name)
+        local titleLabel = Instance.new("TextLabel")
+        titleLabel.Size = UDim2.new(1, -130, 0, 20)
+        titleLabel.Position = UDim2.new(0, 18, 0, 7)
+        titleLabel.BackgroundTransparency = 1
+        titleLabel.Text = string.format("%s Stand %s: %s", icon, tostring(u.StandId), u.Name)
+        titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        titleLabel.TextSize = 12
+        titleLabel.Font = Enum.Font.GothamBold
+        titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        titleLabel.ZIndex = 15
+        titleLabel.Parent = card
+
+        -- Unit Subtitle (Rarity Badge & Level & Cost)
+        local costText = u.UpgradeCostText and string.gsub(u.UpgradeCostText, "Max Level Up ", "") or "Maxed"
+        local subLabel = Instance.new("TextLabel")
+        subLabel.Size = UDim2.new(1, -130, 0, 18)
+        subLabel.Position = UDim2.new(0, 18, 0, 27)
+        subLabel.BackgroundTransparency = 1
+        subLabel.Text = string.format("<font color=\"#%s\"><b>%s</b></font>  •  ⭐ Lv. %d  •  🍖 %s", rColor:ToHex(), u.Rarity, u.Level, costText)
+        subLabel.RichText = true
+        subLabel.TextColor3 = Color3.fromRGB(185, 170, 200)
+        subLabel.TextSize = 11
+        subLabel.Font = Enum.Font.Gotham
+        subLabel.TextXAlignment = Enum.TextXAlignment.Left
+        subLabel.ZIndex = 15
+        subLabel.Parent = card
+
+        -- Individual Level Up Button
+        local upBtn = Instance.new("TextButton")
+        upBtn.Name = "LevelUpBtn"
+        upBtn.Size = UDim2.new(0, 95, 0, 32)
+        upBtn.AnchorPoint = Vector2.new(1, 0.5)
+        upBtn.Position = UDim2.new(1, -8, 0.5, 0)
+        upBtn.BackgroundColor3 = Color3.fromRGB(140, 60, 210)
+        upBtn.AutoButtonColor = true
+        upBtn.Text = "⚡ Max Upgrade"
+        upBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        upBtn.TextSize = 10
+        upBtn.Font = Enum.Font.GothamBold
+        upBtn.ZIndex = 16
+        upBtn.Parent = card
+
+        local upCorner = Instance.new("UICorner")
+        upCorner.CornerRadius = UDim.new(0, 6)
+        upCorner.Parent = upBtn
+
+        upBtn.Activated:Connect(function()
+            if BaseUnits and typeof(BaseUnits.LevelUpStand) == "function" then
+                upBtn.Text = "⏳ Upgrading..."
+                local ok, err = BaseUnits.LevelUpStand(u.StandId)
+                if ok then
+                    Window.Notify("Base Units", string.format("Berhasil upgrade %s!", u.Name), 2.0)
+                    task.wait(0.5)
+                    renderUnitCards()
+                else
+                    Window.Notify("Base Units", string.format("Gagal upgrade: %s", tostring(err or "Unknown")), 2.0)
+                    upBtn.Text = "⚡ Max Upgrade"
+                end
+            end
+        end)
+    end
+end
+
+MainTab:AddButton("🔄 Scan & Refresh Units List", function()
+    renderUnitCards()
+    Window.Notify("Scanner", "Daftar unit base berhasil di-refresh!", 1.5)
+end)
+
+-- Initial Auto-Render on script load
+task.defer(function()
+    task.wait(0.8)
+    renderUnitCards()
 end)
 
 -- ═════════════════════════════════════════════════════════════════
