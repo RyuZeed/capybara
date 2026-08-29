@@ -20,6 +20,26 @@ ConfigManager.DefaultConfig = {
     AutoPickUpAll = false,
     AutoSellAll = false,
     AutoSellInterval = 10,
+    AutoSellByRarity = false,
+    AutoSellRarities = {
+        Common = true,
+        Uncommon = true,
+        Rare = true,
+        Epic = true,
+        Legendary = false,
+        Mythical = false,
+        Cosmic = false,
+        Secret = false,
+        Rainbow = false,
+        Ascended = false,
+        Divine = false,
+        Supreme = false,
+        Celestial = false,
+        Ancient = false,
+        God = false,
+        Omniscient = false,
+        Exclusive = false
+    },
 
     -- Base Units Level Up & Scanner
     AutoLevelUpBaseUnits = false,

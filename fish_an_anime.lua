@@ -517,7 +517,7 @@ BackpackTab:AddToggle("Auto Pick Up All Drops", CurrentConfig.AutoPickUpAll or f
     end
 end)
 
-BackpackTab:AddToggle("Auto Sell All Items", CurrentConfig.AutoSellAll or false, function(state)
+BackpackTab:AddToggle("Auto Sell All Items (Everything)", CurrentConfig.AutoSellAll or false, function(state)
     CurrentConfig.AutoSellAll = state
     if ConfigManager then ConfigManager.Save() end
     if state then
@@ -526,6 +526,23 @@ BackpackTab:AddToggle("Auto Sell All Items", CurrentConfig.AutoSellAll or false,
     else
         AutoFish.StopAutoSellAll()
         Window.Notify("Auto Sell", "Auto Sell All dinonaktifkan!", 2.0)
+    end
+end)
+
+BackpackTab:AddToggle("Auto Sell by Selected Rarities", CurrentConfig.AutoSellByRarity or false, function(state)
+    CurrentConfig.AutoSellByRarity = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if AutoFish then
+            if CurrentConfig.AutoSellRarities then
+                AutoFish.AutoSellRarities = CurrentConfig.AutoSellRarities
+            end
+            AutoFish.StartAutoSellByRarity(CurrentConfig.AutoSellInterval or 10)
+        end
+        Window.Notify("Auto Sell", "Auto Sell by Selected Rarities diaktifkan!", 2.5)
+    else
+        if AutoFish then AutoFish.StopAutoSellByRarity() end
+        Window.Notify("Auto Sell", "Auto Sell by Rarity dinonaktifkan!", 2.0)
     end
 end)
 
@@ -542,16 +559,61 @@ BackpackTab:AddButton("📦 Pick Up All Drops (1x)", function()
 end)
 
 BackpackTab:AddButton("💰 Sell All Items Now (1x)", function()
-    if AutoFish then AutoFish.SellAllOnce() end
-    Window.Notify("Sell All", "Berhasil menjual seluruh isi backpack!", 2.5)
+    if AutoFish then
+        local success, sold, payout = AutoFish.SellAllOnce()
+        if success then
+            Window.Notify("Sell All", string.format("Berhasil menjual %d unit! (+$%s)", sold or 0, tostring(payout or 0)), 3.0)
+        else
+            Window.Notify("Sell All", "Backpack kosong atau tidak ada item yang dapat dijual!", 2.0)
+        end
+    end
 end)
 
-BackpackTab:AddSection("💎 Sell by Rarity (All 17 Rarities)")
+BackpackTab:AddButton("💎 Sell Selected Rarities Now (1x)", function()
+    if AutoFish then
+        if CurrentConfig.AutoSellRarities then
+            AutoFish.AutoSellRarities = CurrentConfig.AutoSellRarities
+        end
+        local success, sold, payout = AutoFish.SellSelectedRaritiesOnce()
+        if success then
+            Window.Notify("Sell Selected", string.format("Berhasil menjual %d unit! (+$%s)", sold or 0, tostring(payout or 0)), 3.0)
+        else
+            Window.Notify("Sell Selected", "Tidak ada unit dari rarity yang dipilih untuk dijual!", 2.5)
+        end
+    end
+end)
+
+BackpackTab:AddSection("💎 Auto Sell & Sell by Rarity (All 17 Rarities)")
 
 for _, r in ipairs(officialRarities) do
-    BackpackTab:AddButton(string.format("%s Sell All %s (1x)", r.icon, r.name), function()
-        if AutoFish then AutoFish.SellRarityOnce(r.name) end
-        Window.Notify("Sell Rarity", string.format("Berhasil menjual item rarity: %s %s!", r.icon, r.name), 2.0)
+    local isChecked = false
+    if CurrentConfig.AutoSellRarities and CurrentConfig.AutoSellRarities[r.name] ~= nil then
+        isChecked = CurrentConfig.AutoSellRarities[r.name]
+    elseif CurrentConfig.AutoSellRarities and CurrentConfig.AutoSellRarities[string.lower(r.name)] ~= nil then
+        isChecked = CurrentConfig.AutoSellRarities[string.lower(r.name)]
+    end
+
+    BackpackTab:AddToggle(string.format("%s Auto Sell %s", r.icon, r.name), isChecked, function(state)
+        if not CurrentConfig.AutoSellRarities then CurrentConfig.AutoSellRarities = {} end
+        CurrentConfig.AutoSellRarities[r.name] = state
+        if AutoFish then
+            AutoFish.AutoSellRarities[r.name] = state
+            if AutoFish.AutoSellByRarityEnabled then
+                AutoFish.StartAutoSellByRarity(CurrentConfig.AutoSellInterval or 10)
+            end
+        end
+        if ConfigManager then ConfigManager.Save() end
+    end)
+
+    BackpackTab:AddButton(string.format("⚡ Sell All %s %s Now (1x)", r.icon, r.name), function()
+        if AutoFish then
+            local success, sold, payout = AutoFish.SellRarityOnce(r.name)
+            if success then
+                Window.Notify("Sell Rarity", string.format("Berhasil menjual %d %s %s! (+$%s)", sold or 0, r.icon, r.name, tostring(payout or 0)), 3.0)
+            else
+                Window.Notify("Sell Rarity", string.format("Tidak ada unit %s %s di inventory!", r.icon, r.name), 2.0)
+            end
+        end
     end)
 end
 
@@ -880,6 +942,12 @@ SettingsTab:AddButton("🔄 Reload Configuration", function()
         if CurrentConfig.AutoEquipBest then AutoFish.StartAutoEquipBest() else AutoFish.StopAutoEquipBest() end
         if CurrentConfig.AutoPickUpAll then AutoFish.StartAutoPickUpAll() else AutoFish.StopAutoPickUpAll() end
         if CurrentConfig.AutoSellAll then AutoFish.StartAutoSellAll() else AutoFish.StopAutoSellAll() end
+        if CurrentConfig.AutoSellByRarity then
+            if CurrentConfig.AutoSellRarities then AutoFish.AutoSellRarities = CurrentConfig.AutoSellRarities end
+            AutoFish.StartAutoSellByRarity()
+        else
+            AutoFish.StopAutoSellByRarity()
+        end
         if CurrentConfig.AutoClaimQuests then AutoFarm.StartAutoQuests() else AutoFarm.StopAutoQuests() end
         if CurrentConfig.AutoClaimIndex then AutoFarm.StartAutoIndex() else AutoFarm.StopAutoIndex() end
         if CurrentConfig.AutoUpgrades then AutoFarm.StartAutoUpgrades() else AutoFarm.StopAutoUpgrades() end
@@ -919,6 +987,10 @@ if CurrentConfig.AutoFish then AutoFish.StartFishing() end
 if CurrentConfig.AutoEquipBest then AutoFish.StartAutoEquipBest() end
 if CurrentConfig.AutoPickUpAll then AutoFish.StartAutoPickUpAll() end
 if CurrentConfig.AutoSellAll then AutoFish.StartAutoSellAll() end
+if CurrentConfig.AutoSellByRarity then
+    if CurrentConfig.AutoSellRarities then AutoFish.AutoSellRarities = CurrentConfig.AutoSellRarities end
+    AutoFish.StartAutoSellByRarity()
+end
 if CurrentConfig.AutoClaimQuests then AutoFarm.StartAutoQuests() end
 if CurrentConfig.AutoClaimIndex then AutoFarm.StartAutoIndex() end
 if CurrentConfig.AutoUpgrades then AutoFarm.StartAutoUpgrades() end

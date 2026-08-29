@@ -1,6 +1,6 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - FISH AN ANIME RNG (AUTO FISHING & BACKPACK ENGINE)
+	⚡ RITOD HUB - FISH AN ANIME RNG (AUTO FISHING & BACKPACK ENGINE V3.0)
 	Module: modules/fish_an_anime/auto_fish.lua
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
@@ -10,7 +10,8 @@
 	- State Recovery & Desync Watchdog
 	- Auto Equip Best Character
 	- Auto Pick Up All Drops
-	- Auto Sell All / Selective Auto Sell by Rarity
+	- Full-Stack Auto Sell Engine (Direct Remote & Summary SellSelected)
+	- Selective Auto Sell by Rarity (All 17 Rarities with Server-Lock Bypass)
 	===============================================================
 ]]
 
@@ -32,14 +33,34 @@ AutoFish.SelectedPond = "Auto"
 AutoFish.AutoEquipBestEnabled = false
 AutoFish.AutoPickUpAllEnabled = false
 AutoFish.AutoSellAllEnabled = false
-AutoFish.AutoSellRarities = {}
+AutoFish.AutoSellByRarityEnabled = false
+AutoFish.AutoSellRarities = {
+    Common = true,
+    Uncommon = true,
+    Rare = true,
+    Epic = true,
+    Legendary = false,
+    Mythical = false,
+    Cosmic = false,
+    Secret = false,
+    Rainbow = false,
+    Ascended = false,
+    Divine = false,
+    Supreme = false,
+    Celestial = false,
+    Ancient = false,
+    God = false,
+    Omniscient = false,
+    Exclusive = false
+}
 
 -- Internal Variables
 local fishingStateConn = nil
 local fishingLoopThread = nil
 local equipBestLoopThread = nil
 local pickUpLoopThread = nil
-local autoSellLoopThread = nil
+local autoSellAllLoopThread = nil
+local autoSellByRarityLoopThread = nil
 local lastStateTime = tick()
 local isCastPending = false
 
@@ -273,16 +294,53 @@ function AutoFish.PickUpAllOnce()
     return false
 end
 
--- ── 💰 Auto Sell All & By Rarity ──
+-- ── 💰 1. Auto Sell All ──
+function AutoFish.SellAllOnce()
+    if not Remotes then return false end
+
+    -- Method 1: Game Native Bulk Sell All
+    if Remotes:FindFirstChild("BackpackSellAllRequest") then
+        local success, res = pcall(function() return Remotes.BackpackSellAllRequest:InvokeServer() end)
+        if success and typeof(res) == "table" and res.ok == true then
+            return true, tonumber(res.sold) or 0, tonumber(res.payout) or 0
+        end
+    end
+
+    -- Method 2: Fallback to iterating through BackpackCharSummaryGet and selling non-favorited groups
+    if Remotes:FindFirstChild("BackpackCharSummaryGet") and Remotes:FindFirstChild("BackpackSellSelectedRequest") then
+        local s, summary = pcall(function() return Remotes.BackpackCharSummaryGet:InvokeServer() end)
+        if s and typeof(summary) == "table" then
+            local totalSold = 0
+            local totalPayout = 0
+            for groupKey, data in pairs(summary) do
+                local count = tonumber(data.c) or 1
+                for _ = 1, count do
+                    local sellOk, sellRes = pcall(function()
+                        return Remotes.BackpackSellSelectedRequest:InvokeServer(groupKey)
+                    end)
+                    if sellOk and typeof(sellRes) == "table" and sellRes.ok == true then
+                        totalSold = totalSold + (tonumber(sellRes.sold) or 1)
+                        totalPayout = totalPayout + (tonumber(sellRes.payout) or 0)
+                    else
+                        break
+                    end
+                    task.wait(0.04)
+                end
+            end
+            return totalSold > 0, totalSold, totalPayout
+        end
+    end
+
+    return false
+end
+
 function AutoFish.StartAutoSellAll(interval)
     AutoFish.AutoSellAllEnabled = true
     interval = interval or 10
-    if autoSellLoopThread then task.cancel(autoSellLoopThread) end
-    autoSellLoopThread = task.spawn(function()
+    if autoSellAllLoopThread then task.cancel(autoSellAllLoopThread) end
+    autoSellAllLoopThread = task.spawn(function()
         while AutoFish.AutoSellAllEnabled do
-            if Remotes and Remotes:FindFirstChild("BackpackSellAllRequest") then
-                pcall(function() Remotes.BackpackSellAllRequest:InvokeServer() end)
-            end
+            AutoFish.SellAllOnce()
             task.wait(interval)
         end
     end)
@@ -290,33 +348,134 @@ end
 
 function AutoFish.StopAutoSellAll()
     AutoFish.AutoSellAllEnabled = false
-    if autoSellLoopThread then
-        pcall(function() task.cancel(autoSellLoopThread) end)
-        autoSellLoopThread = nil
+    if autoSellAllLoopThread then
+        pcall(function() task.cancel(autoSellAllLoopThread) end)
+        autoSellAllLoopThread = nil
     end
 end
 
-function AutoFish.SellAllOnce()
-    if Remotes and Remotes:FindFirstChild("BackpackSellAllRequest") then
-        local success, res = pcall(function() return Remotes.BackpackSellAllRequest:InvokeServer() end)
-        return success and res
+-- ── 💎 2. Sell By Specific Rarity (Rock-Solid Hybrid Engine) ──
+function AutoFish.SellRarityOnce(targetRarity)
+    if not Remotes then return false, 0, 0 end
+    local targetLower = string.lower(tostring(targetRarity or ""))
+    if targetLower == "" then return false, 0, 0 end
+
+    -- Method 1: Try Native BackpackSellRarityRequest
+    if Remotes:FindFirstChild("BackpackSellRarityRequest") then
+        local success, res = pcall(function() return Remotes.BackpackSellRarityRequest:InvokeServer(targetRarity) end)
+        if success and typeof(res) == "table" and res.ok == true then
+            return true, tonumber(res.sold) or 0, tonumber(res.payout) or 0
+        end
     end
-    return false
+
+    -- Method 2: Smart Summary + SellSelected (Bypasses the "Locked" / Rsh_B10 Research Gate!)
+    if Remotes:FindFirstChild("BackpackCharSummaryGet") and Remotes:FindFirstChild("BackpackSellSelectedRequest") then
+        local s, summary = pcall(function() return Remotes.BackpackCharSummaryGet:InvokeServer() end)
+        if s and typeof(summary) == "table" then
+            local totalSold = 0
+            local totalPayout = 0
+            for groupKey, data in pairs(summary) do
+                if typeof(data) == "table" and data.ra then
+                    local itemRarityLower = string.lower(tostring(data.ra))
+                    if itemRarityLower == targetLower then
+                        local maxAttempts = tonumber(data.c) or 1
+                        for _ = 1, maxAttempts do
+                            local sellSuccess, sellRes = pcall(function()
+                                return Remotes.BackpackSellSelectedRequest:InvokeServer(groupKey)
+                            end)
+                            if sellSuccess and typeof(sellRes) == "table" and sellRes.ok == true then
+                                totalSold = totalSold + (tonumber(sellRes.sold) or 1)
+                                totalPayout = totalPayout + (tonumber(sellRes.payout) or 0)
+                            else
+                                break
+                            end
+                            task.wait(0.04)
+                        end
+                    end
+                end
+            end
+            return totalSold > 0, totalSold, totalPayout
+        end
+    end
+
+    return false, 0, 0
 end
 
-function AutoFish.SellRarityOnce(rarity)
-    if Remotes and Remotes:FindFirstChild("BackpackSellRarityRequest") then
-        local success, res = pcall(function() return Remotes.BackpackSellRarityRequest:InvokeServer(rarity) end)
-        return success and res
+-- ── 💎 3. Sell Selected Rarities Batch ──
+function AutoFish.SellSelectedRaritiesOnce()
+    if not Remotes or not Remotes:FindFirstChild("BackpackCharSummaryGet") or not Remotes:FindFirstChild("BackpackSellSelectedRequest") then
+        return false, 0, 0
     end
-    return false
+
+    local s, summary = pcall(function() return Remotes.BackpackCharSummaryGet:InvokeServer() end)
+    if not s or typeof(summary) ~= "table" then return false, 0, 0 end
+
+    local totalSold = 0
+    local totalPayout = 0
+
+    for groupKey, data in pairs(summary) do
+        if typeof(data) == "table" and data.ra then
+            local rarityName = tostring(data.ra)
+            local isSelected = (AutoFish.AutoSellRarities[rarityName] == true) or (AutoFish.AutoSellRarities[string.lower(rarityName)] == true)
+            if isSelected then
+                local maxAttempts = tonumber(data.c) or 1
+                for _ = 1, maxAttempts do
+                    local sellSuccess, sellRes = pcall(function()
+                        return Remotes.BackpackSellSelectedRequest:InvokeServer(groupKey)
+                    end)
+                    if sellSuccess and typeof(sellRes) == "table" and sellRes.ok == true then
+                        totalSold = totalSold + (tonumber(sellRes.sold) or 1)
+                        totalPayout = totalPayout + (tonumber(sellRes.payout) or 0)
+                    else
+                        break
+                    end
+                    task.wait(0.04)
+                end
+            end
+        end
+    end
+
+    return totalSold > 0, totalSold, totalPayout
 end
 
+-- ── 💎 4. Auto Sell by Selected Rarities Loop ──
+function AutoFish.StartAutoSellByRarity(interval)
+    AutoFish.AutoSellByRarityEnabled = true
+    interval = interval or 10
+
+    -- Sync In-Game Auto Sell with Server for enabled rarities
+    if Remotes and Remotes:FindFirstChild("RarityAutoSellSet") then
+        for rarityName, enabled in pairs(AutoFish.AutoSellRarities) do
+            pcall(function()
+                Remotes.RarityAutoSellSet:InvokeServer(rarityName, enabled == true)
+            end)
+        end
+    end
+
+    if autoSellByRarityLoopThread then task.cancel(autoSellByRarityLoopThread) end
+    autoSellByRarityLoopThread = task.spawn(function()
+        while AutoFish.AutoSellByRarityEnabled do
+            AutoFish.SellSelectedRaritiesOnce()
+            task.wait(interval)
+        end
+    end)
+end
+
+function AutoFish.StopAutoSellByRarity()
+    AutoFish.AutoSellByRarityEnabled = false
+    if autoSellByRarityLoopThread then
+        pcall(function() task.cancel(autoSellByRarityLoopThread) end)
+        autoSellByRarityLoopThread = nil
+    end
+end
+
+-- ── 🛑 Stop All ──
 function AutoFish.StopAll()
     AutoFish.StopFishing()
     AutoFish.StopAutoEquipBest()
     AutoFish.StopAutoPickUpAll()
     AutoFish.StopAutoSellAll()
+    AutoFish.StopAutoSellByRarity()
 end
 
 _G.FishAnAnimeAutoFish = AutoFish
