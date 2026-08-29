@@ -1,28 +1,24 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - FISH AN ANIME RNG (ULTRA GRAPHICS OPTIMIZER V3.0)
+	⚡ RITOD HUB - FISH AN ANIME RNG (ULTRA GRAPHICS OPTIMIZER V3.1)
 	Module: modules/fish_an_anime/graphics.lua
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
 	🌟 FEATURES:
 	- 🥔 Potato Graphics (Material, Shadow, VFX, Texture Stripper)
-	- 👻 Other Player Hider (Invisible + Animation Freeze)
-	- 🤖 NPC Animation Freezer (CPU Saver Terbesar)
+	- 👻 Other Player Hider (Invisible + Non-Intrusive Ghost Mode)
+	- 🤖 NPC Animation Pauser (CPU Saver Terbesar - Non-Breaking)
 	- 💀 Particle/Trail/Beam/Sound Muter (VFX Kill)
 	- 🖥️ Engine 3D Rendering Disabler (Black Screen AFK)
 	- 🎯 FPS Cap Controller (Multi-Executor Support)
 	- 🧹 Periodic RAM Garbage Collector
 	- 🔄 Realtime DescendantAdded Hook (Auto-Strip New Objects)
+	- 🛡️ Non-Interfering Player Physics & Movement Guardian
 	===============================================================
 ]]
 
 local Graphics = {}
 Graphics.__index = Graphics
-
--- 🔇 SILENT MODE
-local _print = print
-local print = function() end
-local warn = function() end
 
 -- Services
 local RunService = game:GetService("RunService")
@@ -48,46 +44,60 @@ Graphics.TargetFPS = 60
 local memoryCleanupThread = nil
 local screenOffGui = nil
 local potatoSweeperThread = nil
+local guardianThread = nil
 local descendantConn = nil
 local playerAddedConn = nil
 local originalLightingSettings = {}
 local connections = {}
 
-local PROCESSED_TAG = "_ritod_cleaned_v3"
-local FROZEN_TAG = "_ritod_frozen_v3"
+local FROZEN_TAG = "_ritod_frozen_v31"
 
 -- ═════════════════════════════════════════════════════════════════
--- 1. 🛡️ PROTECTED OBJECT GUARD
+-- 1. 🛡️ STRICT LOCALPLAYER & INTERACTION PROTECTOR
 -- ═════════════════════════════════════════════════════════════════
 local function isProtectedObject(obj)
     if not obj or not obj.Parent then return true end
 
-    -- LocalPlayer Character
+    -- 1. Current LocalPlayer Character & Descendants
     local char = LocalPlayer.Character
-    if char and (obj == char or obj:IsDescendantOf(char)) then
+    if char then
+        if obj == char or obj:IsDescendantOf(char) then
+            return true
+        end
+    end
+
+    -- 2. Check if object belongs to LocalPlayer via Player model
+    local playerFromChar = Players:GetPlayerFromCharacter(obj) or Players:GetPlayerFromCharacter(obj.Parent)
+    if playerFromChar and playerFromChar == LocalPlayer then
         return true
     end
 
-    -- Backpack
+    -- 3. Backpack & Inventory Tools
     local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
     if bp and (obj == bp or obj:IsDescendantOf(bp)) then
         return true
     end
 
-    -- Camera
+    -- 4. Player Camera
     local cam = Workspace.CurrentCamera
     if cam and (obj == cam or obj:IsDescendantOf(cam)) then
         return true
     end
 
-    -- Tool / Accoutrement
+    -- 5. Tools & Fishing Rods
     if obj:IsA("Tool") or obj:FindFirstAncestorOfClass("Tool")
        or obj:IsA("Accoutrement") or obj:FindFirstAncestorOfClass("Accoutrement") then
         return true
     end
 
-    -- ProximityPrompt (Game interaction)
-    if obj:IsA("ProximityPrompt") or obj:FindFirstChildOfClass("ProximityPrompt") then
+    -- 6. Interactive Game Objects (ProximityPrompts, ClickDetectors)
+    if obj:IsA("ProximityPrompt") or obj:FindFirstChildOfClass("ProximityPrompt")
+       or obj:IsA("ClickDetector") or obj:FindFirstChildOfClass("ClickDetector") then
+        return true
+    end
+
+    -- 7. Ground / Terrain Collision Parts
+    if obj:IsA("Terrain") then
         return true
     end
 
@@ -95,7 +105,46 @@ local function isProtectedObject(obj)
 end
 
 -- ═════════════════════════════════════════════════════════════════
--- 2. 🥔 POTATO GRAPHICS ENGINE (Material + Shadow + VFX Strip)
+-- 2. 🛡️ PLAYER MOVEMENT GUARDIAN (Never freeze or lock LocalPlayer)
+-- ═════════════════════════════════════════════════════════════════
+local function ensurePlayerMovementNormal()
+    pcall(function()
+        local char = LocalPlayer.Character
+        if not char then return end
+
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            if hum.PlatformStand then hum.PlatformStand = false end
+            if not hum.AutoRotate then hum.AutoRotate = true end
+            if hum.WalkSpeed < 16 then hum.WalkSpeed = 16 end
+        end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp and hrp.Anchored then
+            hrp.Anchored = false
+        end
+
+        for _, part in ipairs(char:GetChildren()) do
+            if part:IsA("BasePart") and part.Anchored then
+                part.Anchored = false
+            end
+        end
+    end)
+end
+
+local function startGuardian()
+    if guardianThread then return end
+    guardianThread = task.spawn(function()
+        while Graphics.PotatoEnabled or Graphics.FreezeNPCsEnabled or Graphics.HideOtherPlayersEnabled or Graphics.DisableVFXEnabled do
+            ensurePlayerMovementNormal()
+            task.wait(2.0)
+        end
+        guardianThread = nil
+    end)
+end
+
+-- ═════════════════════════════════════════════════════════════════
+-- 3. 🥔 POTATO GRAPHICS ENGINE (Materials + Shadows - Safe)
 -- ═════════════════════════════════════════════════════════════════
 pcall(function()
     originalLightingSettings = {
@@ -107,7 +156,7 @@ pcall(function()
 end)
 
 local function stripObject(v)
-    if not v or not v.Parent then return end
+    if not v or not v.Parent or isProtectedObject(v) then return end
     pcall(function()
         local cls = v.ClassName
         if v:IsA("BasePart") then
@@ -132,6 +181,7 @@ end
 
 function Graphics.EnablePotatoGraphics()
     Graphics.PotatoEnabled = true
+    startGuardian()
 
     -- Lighting overrides
     pcall(function()
@@ -157,7 +207,7 @@ function Graphics.EnablePotatoGraphics()
         end
     end)
 
-    -- Strip all existing objects in workspace (batched to avoid spike)
+    -- Strip existing objects in workspace safely
     task.spawn(function()
         local count = 0
         for _, v in ipairs(Workspace:GetDescendants()) do
@@ -166,16 +216,11 @@ function Graphics.EnablePotatoGraphics()
                 stripObject(v)
             end
             count = count + 1
-            if count % 300 == 0 then task.wait() end -- yield every 300 to avoid freeze
+            if count % 300 == 0 then task.wait() end
         end
     end)
 
-    -- In-game performance attributes
-    pcall(function()
-        LocalPlayer:SetAttribute("PerformanceMode", true)
-        LocalPlayer:SetAttribute("DisableCharacterVFX", true)
-        LocalPlayer:SetAttribute("CharacterRenderAll", false)
-    end)
+    ensurePlayerMovementNormal()
 end
 
 function Graphics.DisablePotatoGraphics()
@@ -191,172 +236,175 @@ function Graphics.DisablePotatoGraphics()
             if effect:IsA("PostEffect") then pcall(function() effect.Enabled = true end) end
         end
     end)
+    ensurePlayerMovementNormal()
 end
 
 -- ═════════════════════════════════════════════════════════════════
--- 3. 🤖 NPC & ANIMATION FREEZER (Biggest CPU Saver)
+-- 4. 🤖 NPC ANIMATION PAUSER (CPU Saver - Only Pauses Animation Tracks)
 -- ═════════════════════════════════════════════════════════════════
-local function freezeAnimator(animator)
-    if not animator or not animator.Parent then return end
-    if isProtectedObject(animator) then return end
+local function pauseAnimatorTracks(animator)
+    if not animator or not animator.Parent or isProtectedObject(animator) then return end
     pcall(function()
-        -- Stop all currently playing animation tracks
         for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
             pcall(function()
-                track:Stop(0)
                 track:AdjustSpeed(0)
             end)
         end
-        -- Hook future animations to auto-stop them
         if not animator:GetAttribute(FROZEN_TAG) then
             animator:SetAttribute(FROZEN_TAG, true)
             animator.AnimationPlayed:Connect(function(track)
-                if Graphics.FreezeNPCsEnabled or Graphics.PotatoEnabled then
-                    if not isProtectedObject(animator) then
-                        pcall(function()
-                            track:Stop(0)
-                            track:AdjustSpeed(0)
-                        end)
-                    end
+                if Graphics.FreezeNPCsEnabled and not isProtectedObject(animator) then
+                    pcall(function()
+                        track:AdjustSpeed(0)
+                    end)
                 end
             end)
         end
     end)
 end
 
-local function freezeHumanoid(humanoid)
-    if not humanoid or not humanoid.Parent then return end
-    if isProtectedObject(humanoid) then return end
-    pcall(function()
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
-        humanoid.AutoRotate = false
-        humanoid.PlatformStand = true
-        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-        humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
-    end)
-end
-
-local function freezeCharacterModel(model)
-    if not model or not model.Parent or isProtectedObject(model) then return end
-
-    -- Freeze humanoids & animators
-    for _, child in ipairs(model:GetDescendants()) do
-        if child:IsA("Humanoid") then
-            freezeHumanoid(child)
-        elseif child:IsA("Animator") or child:IsA("AnimationController") then
-            freezeAnimator(child)
-        end
-    end
-
-    -- Hide parts & disable VFX
-    for _, obj in ipairs(model:GetDescendants()) do
-        pcall(function()
-            if obj:IsA("BasePart") then
-                obj.Transparency = 1
-                obj.CanCollide = false
-                obj.CanTouch = false
-                obj.CanQuery = false
-                obj.CastShadow = false
-                obj.Anchored = true
-                obj.AssemblyLinearVelocity = Vector3.zero
-                obj.AssemblyAngularVelocity = Vector3.zero
-            elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then
-                obj.Enabled = false
-            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
-                or obj:IsA("Highlight") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-                obj.Enabled = false
-            elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                obj.Transparency = 1
-            elseif obj:IsA("Sound") then
-                obj.Volume = 0
-                obj.Playing = false
-            end
-        end)
-    end
-end
-
 function Graphics.FreezeAllNPCsAndAnimations()
     Graphics.FreezeNPCsEnabled = true
+    startGuardian()
+
     task.spawn(function()
         local count = 0
         for _, desc in ipairs(Workspace:GetDescendants()) do
             if not Graphics.FreezeNPCsEnabled then break end
             if not isProtectedObject(desc) then
                 if desc:IsA("Animator") or desc:IsA("AnimationController") then
-                    freezeAnimator(desc)
-                elseif desc:IsA("Humanoid") then
-                    freezeHumanoid(desc)
+                    pauseAnimatorTracks(desc)
                 end
             end
             count = count + 1
-            if count % 500 == 0 then task.wait() end
+            if count % 400 == 0 then task.wait() end
         end
     end)
+
+    ensurePlayerMovementNormal()
 end
 
 function Graphics.UnfreezeNPCs()
     Graphics.FreezeNPCsEnabled = false
+    -- Resume animation tracks
+    task.spawn(function()
+        for _, desc in ipairs(Workspace:GetDescendants()) do
+            if desc:IsA("Animator") or desc:IsA("AnimationController") then
+                pcall(function()
+                    for _, track in ipairs(desc:GetPlayingAnimationTracks()) do
+                        pcall(function() track:AdjustSpeed(1) end)
+                    end
+                end)
+            end
+        end
+    end)
+    ensurePlayerMovementNormal()
 end
 
 -- ═════════════════════════════════════════════════════════════════
--- 4. 👻 OTHER PLAYER HIDER (Character + Animations + VFX)
+-- 5. 👻 OTHER PLAYER HIDER (Invisible - Never Anchors / Breaks Physics)
 -- ═════════════════════════════════════════════════════════════════
-local function hidePlayer(player)
-    if player == LocalPlayer then return end
-    if player.Character and not isProtectedObject(player.Character) then
-        freezeCharacterModel(player.Character)
-    end
+local function hideOtherPlayerCharacter(char)
+    if not char or not char.Parent or isProtectedObject(char) then return end
+
+    -- Never touch LocalPlayer
+    local player = Players:GetPlayerFromCharacter(char)
+    if player and player == LocalPlayer then return end
+
+    pcall(function()
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.Transparency = 1
+                obj.CastShadow = false
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                obj.Transparency = 1
+            elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") or obj:IsA("Highlight") then
+                obj.Enabled = false
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
+                or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+        end
+    end)
+end
+
+local function restoreOtherPlayerCharacter(char)
+    if not char or not char.Parent then return end
+    local player = Players:GetPlayerFromCharacter(char)
+    if player and player == LocalPlayer then return end
+
+    pcall(function()
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
+                obj.Transparency = 0
+            elseif obj:IsA("Decal") then
+                obj.Transparency = 0
+            elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") or obj:IsA("Highlight") then
+                obj.Enabled = true
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+                obj.Enabled = true
+            end
+        end
+    end)
 end
 
 function Graphics.HideOtherPlayers()
     Graphics.HideOtherPlayersEnabled = true
+    startGuardian()
 
-    -- Hide all current players
+    -- Hide all current other players
     for _, p in ipairs(Players:GetPlayers()) do
-        hidePlayer(p)
+        if p ~= LocalPlayer and p.Character then
+            hideOtherPlayerCharacter(p.Character)
+        end
     end
 
-    -- Auto-hide new players & respawns
+    -- Hook new players & respawns
     if not playerAddedConn then
         playerAddedConn = Players.PlayerAdded:Connect(function(p)
             p.CharacterAdded:Connect(function(char)
                 if Graphics.HideOtherPlayersEnabled and p ~= LocalPlayer then
                     task.wait(0.3)
                     if char and char.Parent then
-                        freezeCharacterModel(char)
+                        hideOtherPlayerCharacter(char)
                     end
                 end
             end)
         end)
         table.insert(connections, playerAddedConn)
 
-        -- Also hook existing players' CharacterAdded
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer then
                 p.CharacterAdded:Connect(function(char)
                     if Graphics.HideOtherPlayersEnabled then
                         task.wait(0.3)
                         if char and char.Parent then
-                            freezeCharacterModel(char)
+                            hideOtherPlayerCharacter(char)
                         end
                     end
                 end)
             end
         end
     end
+
+    ensurePlayerMovementNormal()
 end
 
 function Graphics.ShowOtherPlayers()
     Graphics.HideOtherPlayersEnabled = false
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            restoreOtherPlayerCharacter(p.Character)
+        end
+    end
+    ensurePlayerMovementNormal()
 end
 
 -- ═════════════════════════════════════════════════════════════════
--- 5. 💀 DISABLE ALL VFX (Particles, Trails, Sounds, Lights)
+-- 6. 💀 DISABLE ALL VFX (Particles, Trails, Sounds, Lights)
 -- ═════════════════════════════════════════════════════════════════
 local function disableVFXObject(v)
-    if not v or not v.Parent then return end
-    if isProtectedObject(v) then return end
+    if not v or not v.Parent or isProtectedObject(v) then return end
     pcall(function()
         local cls = v.ClassName
         if cls == "ParticleEmitter" then
@@ -368,7 +416,6 @@ local function disableVFXObject(v)
         elseif cls == "PointLight" or cls == "SpotLight" or cls == "SurfaceLight" then
             v.Enabled = false
         elseif cls == "Sound" then
-            -- Only kill 3D positioned sounds, keep UI sounds
             if v:FindFirstAncestorOfClass("ScreenGui") then return end
             v.Volume = 0
         end
@@ -377,6 +424,8 @@ end
 
 function Graphics.DisableAllVFX()
     Graphics.DisableVFXEnabled = true
+    startGuardian()
+
     task.spawn(function()
         local count = 0
         for _, v in ipairs(Workspace:GetDescendants()) do
@@ -386,7 +435,6 @@ function Graphics.DisableAllVFX()
             if count % 400 == 0 then task.wait() end
         end
 
-        -- Also clean Effects/VFX folders
         for _, folderName in ipairs({"Effects", "VFX", "Debris", "Skills", "Projectiles", "Spells", "SkillEffects"}) do
             local folder = Workspace:FindFirstChild(folderName)
             if folder then
@@ -396,6 +444,8 @@ function Graphics.DisableAllVFX()
             end
         end
     end)
+
+    ensurePlayerMovementNormal()
 end
 
 function Graphics.EnableAllVFX()
@@ -403,7 +453,7 @@ function Graphics.EnableAllVFX()
 end
 
 -- ═════════════════════════════════════════════════════════════════
--- 6. 🔄 REALTIME DESCENDANT HOOK (Auto-strip new spawned objects)
+-- 7. 🔄 REALTIME DESCENDANT HOOK (Safe Real-Time Object Stripper)
 -- ═════════════════════════════════════════════════════════════════
 local function startDescendantHook()
     if descendantConn then return end
@@ -437,12 +487,10 @@ local function startDescendantHook()
             end
         end
 
-        -- Auto-freeze new animations
+        -- Auto-pause new NPC animators
         if Graphics.FreezeNPCsEnabled then
             if v:IsA("Animator") or v:IsA("AnimationController") then
-                task.defer(function() freezeAnimator(v) end)
-            elseif v:IsA("Humanoid") then
-                task.defer(function() freezeHumanoid(v) end)
+                task.defer(function() pauseAnimatorTracks(v) end)
             end
         end
     end)
@@ -457,7 +505,7 @@ local function stopDescendantHook()
 end
 
 -- ═════════════════════════════════════════════════════════════════
--- 7. 🖥️ ENGINE 3D RENDERING DISABLER (Black Screen AFK)
+-- 8. 🖥️ ENGINE 3D RENDERING DISABLER (Black Screen AFK)
 -- ═════════════════════════════════════════════════════════════════
 function Graphics.EnableScreenOff()
     if Graphics.ScreenOffEnabled then return end
@@ -555,7 +603,7 @@ function Graphics.DisableScreenOff()
 end
 
 -- ═════════════════════════════════════════════════════════════════
--- 8. 🎯 FPS CAP CONTROLLER (Multi-Executor Support)
+-- 9. 🎯 FPS CAP CONTROLLER (Multi-Executor Support)
 -- ═════════════════════════════════════════════════════════════════
 function Graphics.SetFPSCap(fps)
     fps = tonumber(fps) or 60
@@ -582,7 +630,7 @@ function Graphics.SetFPSCap(fps)
 end
 
 -- ═════════════════════════════════════════════════════════════════
--- 9. 🧹 PERIODIC RAM GARBAGE COLLECTOR
+-- 10. 🧹 PERIODIC RAM GARBAGE COLLECTOR
 -- ═════════════════════════════════════════════════════════════════
 function Graphics.StartMemoryCleaner(interval)
     interval = interval or 60
@@ -612,7 +660,7 @@ function Graphics.StopMemoryCleaner()
 end
 
 -- ═════════════════════════════════════════════════════════════════
--- 10. 🚀 ULTRA MODE (All-In-One: Potato + Hide Players + Freeze NPCs + Kill VFX)
+-- 11. 🚀 ULTRA MODE (All-In-One: Potato + Hide Players + Freeze NPCs + Kill VFX)
 -- ═════════════════════════════════════════════════════════════════
 function Graphics.EnableUltraMode()
     Graphics.EnablePotatoGraphics()
@@ -620,32 +668,31 @@ function Graphics.EnableUltraMode()
     Graphics.FreezeAllNPCsAndAnimations()
     Graphics.DisableAllVFX()
     startDescendantHook()
+    startGuardian()
+    ensurePlayerMovementNormal()
 
-    -- Lightweight sweeper for new units/players (every 8s)
+    -- Lightweight sweeper for new units/players (every 10s)
     if not potatoSweeperThread then
         potatoSweeperThread = task.spawn(function()
             while Graphics.PotatoEnabled do
-                task.wait(8)
+                task.wait(10)
                 if not Graphics.PotatoEnabled then break end
-                -- Re-hide any new players that joined
+                ensurePlayerMovementNormal()
                 if Graphics.HideOtherPlayersEnabled then
                     for _, p in ipairs(Players:GetPlayers()) do
-                        hidePlayer(p)
+                        if p ~= LocalPlayer and p.Character then
+                            hideOtherPlayerCharacter(p.Character)
+                        end
                     end
                 end
-                -- Re-freeze any new NPCs/animators
                 if Graphics.FreezeNPCsEnabled then
                     local count = 0
                     for _, desc in ipairs(Workspace:GetDescendants()) do
-                        if not isProtectedObject(desc) then
-                            if desc:IsA("Animator") or desc:IsA("AnimationController") then
-                                freezeAnimator(desc)
-                            elseif desc:IsA("Humanoid") then
-                                freezeHumanoid(desc)
-                            end
+                        if not isProtectedObject(desc) and (desc:IsA("Animator") or desc:IsA("AnimationController")) then
+                            pauseAnimatorTracks(desc)
                         end
                         count = count + 1
-                        if count % 500 == 0 then task.wait() end
+                        if count % 400 == 0 then task.wait() end
                     end
                 end
             end
@@ -664,6 +711,7 @@ function Graphics.DisableUltraMode()
         pcall(function() task.cancel(potatoSweeperThread) end)
         potatoSweeperThread = nil
     end
+    ensurePlayerMovementNormal()
 end
 
 -- ═════════════════════════════════════════════════════════════════
@@ -673,10 +721,15 @@ function Graphics.Unload()
     Graphics.DisableUltraMode()
     Graphics.DisableScreenOff()
     Graphics.StopMemoryCleaner()
+    if guardianThread then
+        pcall(function() task.cancel(guardianThread) end)
+        guardianThread = nil
+    end
     for _, conn in ipairs(connections) do
         pcall(function() conn:Disconnect() end)
     end
     connections = {}
+    ensurePlayerMovementNormal()
     Graphics.SetFPSCap(60)
 end
 
