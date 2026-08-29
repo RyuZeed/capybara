@@ -2307,7 +2307,7 @@ if ModernSettings and typeof(ModernSettings.CreateProfileManager) == "function" 
 		{
 			AutoHuntEnabled   = false,
 			AutoSecretGod     = false,
-			AutoPrivateServer = false,
+			AutoPrivateServer = true,
 			AutoClaimQuests   = true,
 			AutoClaimRewards  = true,
 			RollInterval      = 2.5,
@@ -2323,7 +2323,7 @@ if ModernSettings and typeof(ModernSettings.CreateProfileManager) == "function" 
 			return {
 				AutoHuntEnabled   = AutoRollModule and AutoRollModule.IsRunning() or false,
 				AutoSecretGod     = savedConfig.AutoSecretGod or false,
-				AutoPrivateServer = savedConfig.AutoPrivateServer or false,
+				AutoPrivateServer = savedConfig.AutoPrivateServer ~= false,
 				AutoClaimQuests   = savedConfig.AutoClaimQuests ~= false,
 				AutoClaimRewards  = savedConfig.AutoClaimRewards ~= false,
 				RollInterval      = rollInterval or 2.5,

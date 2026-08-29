@@ -149,12 +149,22 @@ function ModernSettings.CreateProfileManager(gameFolder, defaultCfg, getActiveCf
     end
 
     function Mgr.Load(name)
-        if not name or not S.Profiles[name] then
+        if not name then return false end
+        if not S.Profiles[name] and not (typeof(isfile) == "function" and isfile(CFGS.."/"..name..".json")) then
             if notify then notify("Config Error", "Profile '"..tostring(name).."' tidak ditemukan.", 2.5) end
             return false
         end
         S.Current = name
-        if applyCfg then applyCfg(copy(S.Profiles[name])) end
+        pcall(function()
+            if typeof(isfile) == "function" and isfile(CFGS.."/"..name..".json") and typeof(readfile) == "function" then
+                local raw = readfile(CFGS.."/"..name..".json")
+                local parsed = Http:JSONDecode(raw)
+                if type(parsed) == "table" then
+                    S.Profiles[name] = parsed
+                end
+            end
+        end)
+        if applyCfg and S.Profiles[name] then applyCfg(copy(S.Profiles[name])) end
         Mgr.SaveIdx()
         if notify then notify("Config Loaded", "Profile '"..name.."' dimuat!", 2.5) end
         return true
