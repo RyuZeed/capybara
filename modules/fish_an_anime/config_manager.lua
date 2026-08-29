@@ -111,6 +111,10 @@ ConfigManager.DefaultConfig = {
     AutoBuyFishingRods = false,
     AutoBuyCarry = false,
 
+    -- Base Units Level Up & Scanner
+    AutoLevelUpBaseUnits = false,
+    BaseUnitsInterval = 10,
+
     -- Misc / Protection
     AntiAFK = true
 }

@@ -1,12 +1,13 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - FISH AN ANIME RNG (SMART MODULAR SUITE V2.0)
+	⚡ RITOD HUB - FISH AN ANIME RNG (SMART MODULAR SUITE V2.1)
 	Game: Fish an Anime RNG 🎲 (PlaceId: 74729868188364)
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
 	- 🧩 MODULE DIRECTORY: modules/fish_an_anime/
 	  - auto_fish.lua (Event-Driven Auto Fishing & Backpack)
 	  - auto_farm.lua (Auto Quests, Index, Upgrades, Rebirth & All Merchants)
+	  - base_units.lua (Realtime Base Units Scanner & Smart Level Up)
 	  - anti_afk.lua (Bulletproof Keepalive & Anti-AFK Daemon)
 	  - config_manager.lua (Persistent Profile Config)
 	- 🛡️ 100% SMART & SILENT OPERATION (BAC Safe / Anti-Kick Hook)
@@ -48,6 +49,9 @@ pcall(function()
     if _G.FishAnAnimeAutoFarm and typeof(_G.FishAnAnimeAutoFarm.StopAll) == "function" then
         _G.FishAnAnimeAutoFarm.StopAll()
     end
+    if _G.FishAnAnimeBaseUnits and typeof(_G.FishAnAnimeBaseUnits.StopAutoLevelUp) == "function" then
+        _G.FishAnAnimeBaseUnits.StopAutoLevelUp()
+    end
     if _G.FishAnAnimeAntiAFK and typeof(_G.FishAnAnimeAntiAFK.Stop) == "function" then
         _G.FishAnAnimeAntiAFK.Stop()
     end
@@ -85,11 +89,13 @@ end
 local RitodUI = loadModule("ritod_ui", true)
 local AutoFish = loadModule("auto_fish", false)
 local AutoFarm = loadModule("auto_farm", false)
+local BaseUnits = loadModule("base_units", false)
 local AntiAFK = loadModule("anti_afk", false)
 local ConfigManager = loadModule("config_manager", false)
 
 if not AutoFish and _G.FishAnAnimeAutoFish then AutoFish = _G.FishAnAnimeAutoFish end
 if not AutoFarm and _G.FishAnAnimeAutoFarm then AutoFarm = _G.FishAnAnimeAutoFarm end
+if not BaseUnits and _G.FishAnAnimeBaseUnits then BaseUnits = _G.FishAnAnimeBaseUnits end
 if not AntiAFK and _G.FishAnAnimeAntiAFK then AntiAFK = _G.FishAnAnimeAntiAFK end
 if not ConfigManager and _G.FishAnAnimeConfigManager then ConfigManager = _G.FishAnAnimeConfigManager end
 
@@ -104,6 +110,16 @@ if AutoFarm then
     if CurrentConfig.AutoBuyAngeliaSelected then AutoFarm.AutoBuyAngeliaSelected = CurrentConfig.AutoBuyAngeliaSelected end
 end
 
+local function formatNumber(n)
+    n = tonumber(n) or 0
+    if n >= 1e15 then return string.format("%.2fQa", n / 1e15)
+    elseif n >= 1e12 then return string.format("%.2fT", n / 1e12)
+    elseif n >= 1e9 then return string.format("%.2fB", n / 1e9)
+    elseif n >= 1e6 then return string.format("%.2fM", n / 1e6)
+    elseif n >= 1e3 then return string.format("%.2fK", n / 1e3)
+    else return tostring(math.floor(n)) end
+end
+
 -- =================================================================
 -- 🖥️ 4. GUI INTERFACE (RitodUI)
 -- =================================================================
@@ -114,6 +130,7 @@ local Window = RitodUI:CreateWindow({
     OnUnload = function()
         if AutoFish and AutoFish.StopAll then AutoFish.StopAll() end
         if AutoFarm and AutoFarm.StopAll then AutoFarm.StopAll() end
+        if BaseUnits and BaseUnits.StopAutoLevelUp then BaseUnits.StopAutoLevelUp() end
         if AntiAFK and AntiAFK.Stop then AntiAFK.Stop() end
     end
 })
@@ -158,7 +175,67 @@ FishingTab:AddButton("🛑 Cancel Fishing (Instant 1x)", function()
     Window.Notify("Fishing", "Aktivitas memancing dibatalkan.", 2.0)
 end)
 
--- ── Tab 2: 🏪 Merchants & Secret Store ──
+-- ── Tab 2: 🏰 Base Units (Level Up & Realtime Scanner) ──
+local BaseUnitsTab = Window:CreateTab("Base Units", "🏰")
+
+BaseUnitsTab:AddSection("⚡ Base Units Level Up Controller")
+
+BaseUnitsTab:AddToggle("Auto Level Up All Base Units (Max Level)", CurrentConfig.AutoLevelUpBaseUnits or false, function(state)
+    CurrentConfig.AutoLevelUpBaseUnits = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if BaseUnits then BaseUnits.StartAutoLevelUp(CurrentConfig.BaseUnitsInterval or 10) end
+        Window.Notify("Base Units", "Auto Level Up All Units diaktifkan!", 2.5)
+    else
+        if BaseUnits then BaseUnits.StopAutoLevelUp() end
+        Window.Notify("Base Units", "Auto Level Up All Units dinonaktifkan!", 2.0)
+    end
+end)
+
+BaseUnitsTab:AddButton("🌟 Max Level Up All Units Now (1x)", function()
+    if BaseUnits then
+        local count = BaseUnits.LevelUpAllUnitsOnce()
+        Window.Notify("Base Units", string.format("Berhasil menaikkan level %d unit ke Max Level!", count), 3.0)
+    end
+end)
+
+BaseUnitsTab:AddSection("🔍 Realtime Base Units Scanner")
+
+local scannerSectionLabels = {}
+
+local function refreshUnitsScanner()
+    if not BaseUnits then return end
+    local units = BaseUnits.ScanUnits()
+    
+    local plot = BaseUnits.GetPlayerPlot()
+    local plotName = plot and plot.Name or "Unknown"
+
+    Window.Notify("Scanner", string.format("Scan selesai: %d unit terpasang di %s!", #units, plotName), 2.5)
+end
+
+BaseUnitsTab:AddButton("🔄 Scan / Refresh Base Units", function()
+    refreshUnitsScanner()
+end)
+
+-- Render unit list saat pertama kali dimuat
+local initialUnits = BaseUnits and BaseUnits.ScanUnits() or {}
+for _, u in ipairs(initialUnits) do
+    local infoStr = string.format("[Stand %s] %s (%s) | Lvl %d | $%s/s | %s",
+        u.StandId, u.Name, u.Rarity, u.Level, formatNumber(u.CPS), u.UpgradeCostText
+    )
+    BaseUnitsTab:AddButton(infoStr, function()
+        if BaseUnits then
+            local res = BaseUnits.LevelUpStand(u.StandId)
+            if res then
+                Window.Notify("Level Up", string.format("Max Level Up berhasil untuk Stand %s (%s)!", u.StandId, u.Name), 2.5)
+            else
+                Window.Notify("Level Up", string.format("Gagal menaikkan level Stand %s!", u.StandId), 2.0)
+            end
+        end
+    end)
+end
+
+-- ── Tab 3: 🏪 Merchants & Secret Store ──
 local MerchantTab = Window:CreateTab("Merchants", "🏪")
 
 MerchantTab:AddSection("🌙 Secret Merchant: Selene (Dark / Void)")
@@ -270,7 +347,7 @@ MerchantTab:AddToggle("Auto Buy Carry Capacity (+1)", CurrentConfig.AutoBuyCarry
     end
 end)
 
--- ── Tab 3: 🧪 Boosts Store & Potions ──
+-- ── Tab 4: 🧪 Boosts Store & Potions ──
 local BoostTab = Window:CreateTab("Boosts", "🧪")
 
 BoostTab:AddSection("🏪 Boosts Store (NPC Valora - Auto Restock)")
@@ -279,8 +356,8 @@ BoostTab:AddToggle("Auto Buy Boosts Store Items", CurrentConfig.AutoBuyBoosts or
     CurrentConfig.AutoBuyBoosts = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        AutoFarm.StartAutoBuyBoosts(CurrentConfig.AutoBuyBoostsInterval or 10)
-        Window.Notify("Boosts Store", "Auto Buy Boosts Store diaktifkan!", 2.0)
+        AutoFarm.StartAutoBuyBoosts()
+        Window.Notify("Boosts Store", "Auto Buy Boosts Store diaktifkan (Auto Restock Watcher)!", 2.0)
     else
         AutoFarm.StopAutoBuyBoosts()
         Window.Notify("Boosts Store", "Auto Buy Boosts Store dinonaktifkan!", 2.0)
@@ -367,7 +444,7 @@ for _, pot in ipairs(commonPotions) do
     end)
 end
 
--- ── Tab 4: 🎒 Backpack & Sell ──
+-- ── Tab 5: 🎒 Backpack & Sell ──
 local BackpackTab = Window:CreateTab("Backpack", "🎒")
 
 BackpackTab:AddSection("🎒 Auto Inventory Actions")
@@ -434,7 +511,7 @@ for _, r in ipairs(rarities) do
     end)
 end
 
--- ── Tab 5: 📜 Quests & Progression ──
+-- ── Tab 6: 📜 Quests & Progression ──
 local QuestTab = Window:CreateTab("Quests", "📜")
 
 QuestTab:AddSection("📜 Auto Quests")
@@ -511,7 +588,7 @@ QuestTab:AddButton("⚡ Rebirth Now (Instant 1x)", function()
     Window.Notify("Rebirth", "Mencoba melakukan Rebirth!", 2.0)
 end)
 
--- ── Tab 6: ⚙️ Settings (Config Manager & Anti-AFK) ──
+-- ── Tab 7: ⚙️ Settings (Config Manager & Anti-AFK) ──
 local SettingsTab = Window:CreateTab("Settings", "⚙️")
 
 SettingsTab:AddSection("🛡️ Protection & Anti-AFK")
@@ -552,6 +629,7 @@ SettingsTab:AddButton("🔄 Reload Configuration", function()
         if CurrentConfig.AutoBuyAngelia then AutoFarm.StartAutoBuyAngelia() else AutoFarm.StopAutoBuyAngelia() end
         if CurrentConfig.AutoBuyFishingRods then AutoFarm.StartAutoBuyFishingRods() else AutoFarm.StopAutoBuyFishingRods() end
         if CurrentConfig.AutoBuyCarry then AutoFarm.StartAutoBuyCarry() else AutoFarm.StopAutoBuyCarry() end
+        if CurrentConfig.AutoLevelUpBaseUnits and BaseUnits then BaseUnits.StartAutoLevelUp() else if BaseUnits then BaseUnits.StopAutoLevelUp() end end
         if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() else AntiAFK.Stop() end
     end
     Window.Notify("Config Loaded", "Konfigurasi berhasil dimuat ulang!", 2.5)
@@ -561,6 +639,7 @@ SettingsTab:AddButton("🗑️ Reset to Default Settings", function()
     if ConfigManager then ConfigManager.Reset() end
     if AutoFish then AutoFish.StopAll() end
     if AutoFarm then AutoFarm.StopAll() end
+    if BaseUnits then BaseUnits.StopAutoLevelUp() end
     Window.Notify("Config Reset", "Pengaturan dikembalikan ke default!", 2.5)
 end)
 
@@ -586,6 +665,7 @@ if CurrentConfig.AutoBuySelene then AutoFarm.StartAutoBuySelene() end
 if CurrentConfig.AutoBuyAngelia then AutoFarm.StartAutoBuyAngelia() end
 if CurrentConfig.AutoBuyFishingRods then AutoFarm.StartAutoBuyFishingRods() end
 if CurrentConfig.AutoBuyCarry then AutoFarm.StartAutoBuyCarry() end
+if CurrentConfig.AutoLevelUpBaseUnits and BaseUnits then BaseUnits.StartAutoLevelUp() end
 if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() end
 
 -- Destructor
@@ -594,6 +674,7 @@ _G.RitodHubCleanup = function()
     pcall(function()
         if AutoFish and AutoFish.StopAll then AutoFish.StopAll() end
         if AutoFarm and AutoFarm.StopAll then AutoFarm.StopAll() end
+        if BaseUnits and BaseUnits.StopAutoLevelUp then BaseUnits.StopAutoLevelUp() end
         if AntiAFK and AntiAFK.Stop then AntiAFK.Stop() end
         if Window.ScreenGui and Window.ScreenGui.Parent then Window.ScreenGui:Destroy() end
     end)
