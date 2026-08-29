@@ -1025,13 +1025,12 @@ function RitodLib:CreateTab(name, icon)
 		tLabel.ZIndex = 15
 		tLabel.Parent = toggleFrame
 
-		local switch = Instance.new("TextButton")
+		local switch = Instance.new("Frame")
 		switch.AnchorPoint = Vector2.new(1, 0.5)
 		switch.Position = UDim2.new(1, -12, 0.5, 0)
 		switch.Size = UDim2.new(0, 48, 0, 24)
 		switch.BackgroundColor3 = state and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(50, 38, 60)
-		switch.AutoButtonColor = false
-		switch.Text = ""
+		switch.BorderSizePixel = 0
 		switch.ZIndex = 15
 		switch.Parent = toggleFrame
 
@@ -1063,20 +1062,16 @@ function RitodLib:CreateTab(name, icon)
 			if fireCallback and callback then callback(state) end
 		end
 
-		local function toggleAction()
-			state = not state
-			updateToggle(true)
-		end
-
-		switch.Activated:Connect(toggleAction)
-
 		local fullClick = Instance.new("TextButton")
 		fullClick.Size = UDim2.new(1, 0, 1, 0)
 		fullClick.BackgroundTransparency = 1
 		fullClick.Text = ""
 		fullClick.ZIndex = 17
 		fullClick.Parent = toggleFrame
-		fullClick.Activated:Connect(toggleAction)
+		fullClick.Activated:Connect(function()
+			state = not state
+			updateToggle(true)
+		end)
 
 		return {
 			Set = function(self, val, fireCallback)
