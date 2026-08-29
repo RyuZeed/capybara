@@ -704,11 +704,19 @@ statusStroke.Parent = statusDot
 
 task.spawn(function()
 	while floatWidget and floatWidget.Parent do
-		TweenService:Create(floatStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness = 3.5, Transparency = 0}):Play()
-		TweenService:Create(statusDot, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundColor3 = Color3.fromRGB(120, 255, 180)}):Play()
+		pcall(function()
+			if floatStroke and floatStroke.Parent and statusDot and statusDot.Parent then
+				TweenService:Create(floatStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness = 3.5, Transparency = 0}):Play()
+				TweenService:Create(statusDot, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundColor3 = Color3.fromRGB(120, 255, 180)}):Play()
+			end
+		end)
 		task.wait(1.2)
-		TweenService:Create(floatStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness = 2.0, Transparency = 0.4}):Play()
-		TweenService:Create(statusDot, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundColor3 = Color3.fromRGB(40, 200, 100)}):Play()
+		pcall(function()
+			if floatStroke and floatStroke.Parent and statusDot and statusDot.Parent then
+				TweenService:Create(floatStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness = 2.0, Transparency = 0.4}):Play()
+				TweenService:Create(statusDot, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundColor3 = Color3.fromRGB(40, 200, 100)}):Play()
+			end
+		end)
 		task.wait(1.2)
 	end
 end)
@@ -1052,10 +1060,20 @@ function RitodLib:CreateTab(name, icon)
 			if fireCallback and callback then callback(state) end
 		end
 
-		switch.Activated:Connect(function()
+		local function toggleAction()
 			state = not state
 			updateToggle(true)
-		end)
+		end
+
+		switch.Activated:Connect(toggleAction)
+
+		local fullClick = Instance.new("TextButton")
+		fullClick.Size = UDim2.new(1, 0, 1, 0)
+		fullClick.BackgroundTransparency = 1
+		fullClick.Text = ""
+		fullClick.ZIndex = 17
+		fullClick.Parent = toggleFrame
+		fullClick.Activated:Connect(toggleAction)
 
 		return {
 			Set = function(self, val, fireCallback)
