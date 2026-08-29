@@ -125,7 +125,7 @@ function BaseUnits.ScanUnits()
     return unitsList
 end
 
--- ── ⚡ 3. Level Up Specific Stand ──
+-- ── ⚡ 3. Level Up Specific Stand (Seamless Remote-Like Bypass) ──
 function BaseUnits.LevelUpStand(standId)
     local plot = BaseUnits.GetPlayerPlot()
     if not plot then return false end
@@ -155,30 +155,43 @@ function BaseUnits.LevelUpStand(standId)
 
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
+    local camera = Workspace.CurrentCamera
+    if not root or not camera then return false end
 
     local promptPart = maxPrompt.Parent
     if not promptPart or not promptPart:IsA("BasePart") then return false end
 
+    -- 🛡️ Freeze camera visual so player screen never jerks or shifts
     local originalCF = root.CFrame
+    local originalCamCF = camera.CFrame
+    local originalCamType = camera.CameraType
+
+    camera.CameraType = Enum.CameraType.Scriptable
+    camera.CFrame = originalCamCF
+
+    -- ⚡ Silent Pulse to Stand Prompt
     root.CFrame = CFrame.new(promptPart.Position + Vector3.new(0, 2.5, 0))
-    task.wait(0.08)
+    task.wait(0.04)
 
     maxPrompt.Enabled = true
+    local holdTime = maxPrompt.HoldDuration or 0.2
     if typeof(fireproximityprompt) == "function" then
-        fireproximityprompt(maxPrompt, maxPrompt.HoldDuration or 0.2)
+        fireproximityprompt(maxPrompt, holdTime)
     else
         maxPrompt:InputHoldBegin()
-        task.wait((maxPrompt.HoldDuration or 0.2) + 0.05)
+        task.wait(holdTime + 0.03)
         maxPrompt:InputHoldEnd()
     end
+    task.wait(holdTime + 0.05)
 
-    task.wait(0.1)
+    -- 🔄 Restore original position & camera
     root.CFrame = originalCF
+    camera.CFrame = originalCamCF
+    camera.CameraType = originalCamType
     return true
 end
 
--- ── 🌟 4. Level Up All Units on Base ──
+-- ── 🌟 4. Level Up All Units on Base (Seamless Remote-Like Bypass) ──
 function BaseUnits.LevelUpAllUnitsOnce()
     local plot = BaseUnits.GetPlayerPlot()
     if not plot then return 0 end
@@ -188,9 +201,17 @@ function BaseUnits.LevelUpAllUnitsOnce()
 
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return 0 end
+    local camera = Workspace.CurrentCamera
+    if not root or not camera then return 0 end
 
+    -- 🛡️ Freeze camera visual so player screen stays 100% frozen in place
     local originalCF = root.CFrame
+    local originalCamCF = camera.CFrame
+    local originalCamType = camera.CameraType
+
+    camera.CameraType = Enum.CameraType.Scriptable
+    camera.CFrame = originalCamCF
+
     local leveledCount = 0
 
     for _, unit in ipairs(units) do
@@ -198,24 +219,28 @@ function BaseUnits.LevelUpAllUnitsOnce()
             local promptPart = unit.Prompt.Parent
             if promptPart and promptPart:IsA("BasePart") then
                 root.CFrame = CFrame.new(promptPart.Position + Vector3.new(0, 2.5, 0))
-                task.wait(0.07)
+                task.wait(0.03)
 
                 unit.Prompt.Enabled = true
+                local holdTime = unit.Prompt.HoldDuration or 0.2
                 if typeof(fireproximityprompt) == "function" then
-                    fireproximityprompt(unit.Prompt, unit.Prompt.HoldDuration or 0.2)
+                    fireproximityprompt(unit.Prompt, holdTime)
                 else
                     unit.Prompt:InputHoldBegin()
-                    task.wait((unit.Prompt.HoldDuration or 0.2) + 0.05)
+                    task.wait(holdTime + 0.03)
                     unit.Prompt:InputHoldEnd()
                 end
 
-                task.wait(0.08)
+                task.wait(holdTime + 0.04)
                 leveledCount = leveledCount + 1
             end
         end
     end
 
+    -- 🔄 Restore original position & camera seamlessly
     root.CFrame = originalCF
+    camera.CFrame = originalCamCF
+    camera.CameraType = originalCamType
     return leveledCount
 end
 
