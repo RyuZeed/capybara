@@ -434,7 +434,7 @@ ShopTab:AddToggle("Auto Maintain Active Potions (24/7 Buff)", CurrentConfig.Auto
     CurrentConfig.AutoPotions = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        AutoFarm.StartAutoPotions(CurrentConfig.PotionInterval or 10)
+        AutoFarm.StartAutoPotions(CurrentConfig.PotionInterval or 5)
         Window.Notify("Auto Potions", "Auto Potions Uptime diaktifkan!", 2.0)
     else
         AutoFarm.StopAutoPotions()
@@ -443,7 +443,7 @@ ShopTab:AddToggle("Auto Maintain Active Potions (24/7 Buff)", CurrentConfig.Auto
 end)
 
 ShopTab:AddButton("⚡ Use Selected Potions Now (1x)", function()
-    if AutoFarm then AutoFarm.UseSelectedPotionsOnce() end
+    if AutoFarm then AutoFarm.UseSelectedPotionsOnce(true) end
     Window.Notify("Potions", "Menggunakan ramuan yang dipilih dari tas!", 2.0)
 end)
 
@@ -452,7 +452,8 @@ local commonPotions = {
     "Fast Catch Potion Lvl. 1", "Fast Catch Potion Lvl. 2", "Mutation Potion Lvl. 1",
     "Gems Potion Lvl. 1", "Gems Potion Lvl. 2", "Gems Potion Lvl. 3",
     "Cash Potion Lvl. 1", "Cash Potion Lvl. 2", "Cash Potion Lvl. 3",
-    "Heaven's Collide Potion", "Sinister Potion", "Meteorite Potion"
+    "Heaven's Collide Potion", "Sinister Potion", "Meteorite Potion",
+    "Honey Potion", "Party Potion", "Dreamer Potion", "Cybernetic Glitch Potion"
 }
 
 for _, pot in ipairs(commonPotions) do

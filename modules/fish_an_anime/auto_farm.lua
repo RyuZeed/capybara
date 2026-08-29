@@ -233,31 +233,76 @@ function AutoFarm.StopAutoRebirth()
 end
 
 -- ── 🧪 5. Auto Potions (Uptime Booster) ──
-function AutoFarm.UseSelectedPotionsOnce()
-    if not Remotes or not Remotes:FindFirstChild("PotionGetState") then return end
-    local success, state = pcall(function()
-        return Remotes.PotionGetState:InvokeServer()
-    end)
-    if not success or typeof(state) ~= "table" or not state.potions then return end
+local function findPotionTools()
+    local tools = {}
+    local lp = Players.LocalPlayer
+    if not lp then return tools end
+
+    local containers = {
+        lp:FindFirstChildOfClass("Backpack"),
+        lp.Character,
+        lp:FindFirstChild("StoredTools")
+    }
+
+    for _, container in ipairs(containers) do
+        if container then
+            for _, child in ipairs(container:GetChildren()) do
+                if child:IsA("Tool") and child:GetAttribute("IsPotion") == true then
+                    table.insert(tools, child)
+                end
+            end
+        end
+    end
+    return tools
+end
+
+function AutoFarm.UseSelectedPotionsOnce(forceUse)
+    if not Remotes or not Remotes:FindFirstChild("PotionUse") then return end
+
+    local state = {}
+    if Remotes:FindFirstChild("PotionGetState") then
+        local success, res = pcall(function()
+            return Remotes.PotionGetState:InvokeServer()
+        end)
+        if success and typeof(res) == "table" then
+            state = res
+        end
+    end
 
     local serverTime = state.serverTime or os.time()
+    local activePotions = state.potions or {}
 
-    for potionName, selected in pairs(AutoFarm.SelectedPotions) do
-        if selected then
-            local potData = state.potions[potionName]
-            if potData then
-                local count = potData.count or potData.amount or 0
-                local endTime = potData.endTime or 0
-                local isExpiringSoon = (endTime <= serverTime + 5)
+    -- Map active potion keys & types with their endTimes
+    local activeKeys = {}
+    for _, active in pairs(activePotions) do
+        if typeof(active) == "table" then
+            local key = active.key or active.type
+            local endTime = tonumber(active.endTime) or 0
+            if key and endTime > (serverTime + 3) then
+                activeKeys[key] = endTime
+                if active.type then activeKeys[active.type] = endTime end
+            end
+        end
+    end
 
-                if count > 0 and isExpiringSoon then
-                    if Remotes:FindFirstChild("PotionUseMany") then
-                        pcall(function() Remotes.PotionUseMany:InvokeServer(potionName, 1) end)
-                    elseif Remotes:FindFirstChild("PotionUse") then
-                        pcall(function() Remotes.PotionUse:InvokeServer(potionName) end)
-                    end
-                    task.wait(0.1)
-                end
+    local potionTools = findPotionTools()
+    local usedNames = {}
+
+    for _, tool in ipairs(potionTools) do
+        local toolName = tool.Name
+        local potionKey = tool:GetAttribute("PotionKey")
+
+        local isSelected = (AutoFarm.SelectedPotions[toolName] == true) or (potionKey and AutoFarm.SelectedPotions[potionKey] == true)
+
+        if isSelected and not usedNames[toolName] then
+            local isActive = (activeKeys[toolName] ~= nil) or (potionKey and activeKeys[potionKey] ~= nil)
+
+            if forceUse or not isActive then
+                pcall(function()
+                    Remotes.PotionUse:InvokeServer(tool)
+                end)
+                usedNames[toolName] = true
+                task.wait(0.2)
             end
         end
     end
@@ -265,11 +310,11 @@ end
 
 function AutoFarm.StartAutoPotions(interval)
     AutoFarm.AutoPotionsEnabled = true
-    interval = interval or 10
+    interval = interval or 5
     if potionsThread then task.cancel(potionsThread) end
     potionsThread = task.spawn(function()
         while AutoFarm.AutoPotionsEnabled do
-            AutoFarm.UseSelectedPotionsOnce()
+            AutoFarm.UseSelectedPotionsOnce(false)
             task.wait(interval)
         end
     end)
@@ -281,6 +326,16 @@ function AutoFarm.StopAutoPotions()
         pcall(function() task.cancel(potionsThread) end)
         potionsThread = nil
     end
+end
+
+if Remotes and Remotes:FindFirstChild("PotionState") then
+    Remotes.PotionState.OnClientEvent:Connect(function()
+        if AutoFarm.AutoPotionsEnabled then
+            task.delay(0.5, function()
+                AutoFarm.UseSelectedPotionsOnce(false)
+            end)
+        end
+    end)
 end
 
 -- ── 🛒 6. Auto Buy Boosts Store (Valora) ──
