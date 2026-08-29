@@ -3,7 +3,7 @@ if _G.ModernSettings and typeof(_G.ModernSettings) == "table" and typeof(_G.Mode
 end
 
 local s, r = pcall(function()
-    local src = game:HttpGet("https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/modern_settings.lua")
+    local src = game:HttpGet("https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/main/modules/shared/modern_settings.lua?t=" .. tostring(os.time()))
     if src and #src > 10 and not src:find("404: Not Found") then
         local fn = loadstring(src)
         if fn then return fn() end

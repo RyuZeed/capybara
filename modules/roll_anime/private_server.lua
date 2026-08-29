@@ -35,7 +35,7 @@ local VirtualUser         = game:GetService("VirtualUser")
 
 local LocalPlayer = Players.LocalPlayer or (function() local t = tick() while not Players.LocalPlayer and (tick() - t) < 3 do task.wait(0.05) end return Players.LocalPlayer end)()
 
-local SCRIPT_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/roll_anime.lua"
+local SCRIPT_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/main/main.lua"
 
 -- =================================================================
 -- 🛠️ MULTI-VECTOR HARDWARE & EVENT CLICK DISPATCHER

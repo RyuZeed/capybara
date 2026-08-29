@@ -2332,7 +2332,7 @@ if ModernSettings and typeof(ModernSettings.CreateProfileManager) == "function" 
 	ModernSettings.BuildUI(
 		MiscTab.Page,
 		ProfileManager,
-		"https://raw.githubusercontent.com/RyuZeed/capybara/main/roll_anime.lua",
+		"https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/main/roll_anime.lua",
 		Notify
 	)
 end
