@@ -288,11 +288,21 @@ function AutoFarm.UseSelectedPotionsOnce(forceUse)
     local potionTools = findPotionTools()
     local usedNames = {}
 
+    -- Check if user selected at least one specific potion
+    local hasAnySelection = false
+    for _, val in pairs(AutoFarm.SelectedPotions) do
+        if val == true then
+            hasAnySelection = true
+            break
+        end
+    end
+
     for _, tool in ipairs(potionTools) do
         local toolName = tool.Name
         local potionKey = tool:GetAttribute("PotionKey")
 
-        local isSelected = (AutoFarm.SelectedPotions[toolName] == true) or (potionKey and AutoFarm.SelectedPotions[potionKey] == true)
+        -- If user has specific selection, respect it. If none selected, default to maintaining all owned potions!
+        local isSelected = (not hasAnySelection) or (AutoFarm.SelectedPotions[toolName] == true) or (potionKey and AutoFarm.SelectedPotions[potionKey] == true)
 
         if isSelected and not usedNames[toolName] then
             local isActive = (activeKeys[toolName] ~= nil) or (potionKey and activeKeys[potionKey] ~= nil)
@@ -313,9 +323,11 @@ function AutoFarm.StartAutoPotions(interval)
     interval = interval or 5
     if potionsThread then task.cancel(potionsThread) end
     potionsThread = task.spawn(function()
+        -- Trigger immediately on start
+        AutoFarm.UseSelectedPotionsOnce(false)
         while AutoFarm.AutoPotionsEnabled do
-            AutoFarm.UseSelectedPotionsOnce(false)
             task.wait(interval)
+            AutoFarm.UseSelectedPotionsOnce(false)
         end
     end)
 end

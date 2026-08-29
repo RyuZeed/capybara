@@ -435,7 +435,7 @@ ShopTab:AddToggle("Auto Maintain Active Potions (24/7 Buff)", CurrentConfig.Auto
     if ConfigManager then ConfigManager.Save() end
     if state then
         AutoFarm.StartAutoPotions(CurrentConfig.PotionInterval or 5)
-        Window.Notify("Auto Potions", "Auto Potions Uptime diaktifkan!", 2.0)
+        Window.Notify("Auto Potions", "Auto Potions Uptime diaktifkan (24/7 Buff)!", 2.5)
     else
         AutoFarm.StopAutoPotions()
         Window.Notify("Auto Potions", "Auto Potions Uptime dinonaktifkan!", 2.0)
@@ -444,7 +444,7 @@ end)
 
 ShopTab:AddButton("⚡ Use Selected Potions Now (1x)", function()
     if AutoFarm then AutoFarm.UseSelectedPotionsOnce(true) end
-    Window.Notify("Potions", "Menggunakan ramuan yang dipilih dari tas!", 2.0)
+    Window.Notify("Potions", "Berhasil menggunakan ramuan yang dipilih dari tas!", 2.5)
 end)
 
 local commonPotions = {
@@ -455,6 +455,24 @@ local commonPotions = {
     "Heaven's Collide Potion", "Sinister Potion", "Meteorite Potion",
     "Honey Potion", "Party Potion", "Dreamer Potion", "Cybernetic Glitch Potion"
 }
+
+ShopTab:AddButton("✅ Enable All Potions (Centang Semua)", function()
+    for _, pot in ipairs(commonPotions) do
+        CurrentConfig.SelectedPotions[pot] = true
+        if AutoFarm then AutoFarm.SelectedPotions[pot] = true end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Potions", "Semua jenis ramuan dicentang!", 2.0)
+end)
+
+ShopTab:AddButton("❌ Disable All Potions (Hapus Centang)", function()
+    for _, pot in ipairs(commonPotions) do
+        CurrentConfig.SelectedPotions[pot] = false
+        if AutoFarm then AutoFarm.SelectedPotions[pot] = false end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Potions", "Semua centang ramuan dinonaktifkan!", 2.0)
+end)
 
 for _, pot in ipairs(commonPotions) do
     local isChecked = (CurrentConfig.SelectedPotions and CurrentConfig.SelectedPotions[pot]) or false
