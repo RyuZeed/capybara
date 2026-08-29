@@ -25,23 +25,7 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
 -- =================================================================
--- 🛡️ 1. CLIENT ANTI-KICK HOOK (BAC BYPASS)
--- =================================================================
-pcall(function()
-    local hook
-    hook = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        local args = {...}
-        if (method == "Kick" or method == "kick") and self == LocalPlayer then
-            warn("🛡️ [Ritod Anti-Kick] Memblokir upaya Kick dari Game Anti-Cheat: ", args[1] or "Unknown")
-            return nil
-        end
-        return hook(self, ...)
-    end)
-end)
-
--- =================================================================
--- 🛡️ 2. CLEANUP PREVIOUS SESSIONS
+-- 🛡️ 1. CLEANUP PREVIOUS SESSIONS & PURGE LEAKED THREADS
 -- =================================================================
 pcall(function()
     if typeof(_G.RitodHubCleanup) == "function" then _G.RitodHubCleanup() end
@@ -57,6 +41,9 @@ pcall(function()
     if _G.FishAnAnimeBaseUnits and typeof(_G.FishAnAnimeBaseUnits.StopAutoLevelUp) == "function" then
         _G.FishAnAnimeBaseUnits.StopAutoLevelUp()
     end
+    if _G.FishAnAnimeGraphics and typeof(_G.FishAnAnimeGraphics.StopMemoryCleaner) == "function" then
+        _G.FishAnAnimeGraphics.StopMemoryCleaner()
+    end
     if _G.FishAnAnimeGraphics and typeof(_G.FishAnAnimeGraphics.DisableScreenOff) == "function" then
         _G.FishAnAnimeGraphics.DisableScreenOff()
     end
@@ -67,6 +54,8 @@ pcall(function()
         pcall(function() _G.RitodHubFishAnAnime:Destroy() end)
     end
 end)
+-- Aggressive GC to reclaim leaked threads from previous sessions
+pcall(function() collectgarbage("collect") collectgarbage("collect") end)
 
 -- =================================================================
 -- 🌐 3. MODULAR LOADER (LOCAL & GITHUB SUPPORT)
@@ -259,18 +248,6 @@ end
 
 MainTab:AddSection("🔍 Realtime Base Units Scanner")
 
-local function refreshUnitsScanner()
-    if not BaseUnits then return end
-    local units = BaseUnits.ScanUnits()
-    local plot = BaseUnits.GetPlayerPlot()
-    local plotName = plot and plot.Name or "Unknown"
-    Window.Notify("Scanner", string.format("Scan selesai: %d unit terpasang di %s!", #units, plotName), 2.5)
-end
-
-MainTab:AddButton("🔄 Scan / Refresh Base Units", function()
-    refreshUnitsScanner()
-end)
-
 local rarityIcons = {
     Common = "⚪", Uncommon = "💚", Rare = "💙", Epic = "💜",
     Legendary = "⚔️", Mythical = "🔮", Cosmic = "🪐", Secret = "🗝️",
@@ -279,23 +256,18 @@ local rarityIcons = {
     Exclusive = "💎"
 }
 
-local initialUnits = BaseUnits and BaseUnits.ScanUnits() or {}
-for _, u in ipairs(initialUnits) do
-    local icon = rarityIcons[u.Rarity] or "⭐"
-    local infoStr = string.format("%s [%s] %s (Stand %s) | Lvl %d | $%s/s | %s",
-        icon, u.Rarity, u.Name, u.StandId, u.Level, formatNumber(u.CPS), u.UpgradeCostText
-    )
-    MainTab:AddButton(infoStr, function()
-        if BaseUnits then
-            local res = BaseUnits.LevelUpStand(u.StandId)
-            if res then
-                Window.Notify("Level Up", string.format("Max Level Up berhasil untuk Stand %s (%s)!", u.StandId, u.Name), 2.5)
-            else
-                Window.Notify("Level Up", string.format("Gagal / Food tidak cukup untuk Stand %s!", u.StandId), 2.0)
-            end
-        end
-    end)
-end
+MainTab:AddButton("🔄 Scan & List Base Units", function()
+    if not BaseUnits then return end
+    local units = BaseUnits.ScanUnits()
+    local plot = BaseUnits.GetPlayerPlot()
+    local plotName = plot and plot.Name or "Unknown"
+    local lines = {}
+    for _, u in ipairs(units) do
+        local icon = rarityIcons[u.Rarity] or "⭐"
+        table.insert(lines, string.format("%s %s [%s] (Stand %s) Lvl %d", icon, u.Name, u.Rarity, u.StandId, u.Level))
+    end
+    Window.Notify("Scanner", string.format("%d unit di %s:\n%s", #units, plotName, table.concat(lines, "\n")), 5.0)
+end)
 
 -- ═════════════════════════════════════════════════════════════════
 -- ── 🏪 Tab 2: Shop & Boosts (Merchants, Boost Store & Potions) ──

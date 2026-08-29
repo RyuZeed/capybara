@@ -1,6 +1,6 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - FISH AN ANIME RNG (AUTO FARM & MERCHANTS ENGINE)
+	⚡ RITOD HUB - FISH AN ANIME RNG (AUTO FARM ENGINE V3.0)
 	Module: modules/fish_an_anime/auto_farm.lua
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
@@ -10,10 +10,9 @@
 	- Smart Auto Upgrades (Iterative tier buying)
 	- Auto Rebirth (Automatic prestige progression)
 	- Auto Potion Booster (Buff uptime maintainer)
-	- Auto Buy Boosts Store (Valora - Restock Sniping)
-	- Auto Buy Secret Merchant (Selene)
-	- Auto Buy Secret Merchant (Angelia / SecretStore2)
-	- Auto Buy Fishing Rods & Carry Capacity
+	===============================================================
+	NOTE: Merchant functionality (Selene, Angelia, Valora, Rods, Carry)
+	has been moved to auto_merchants.lua for clean separation.
 	===============================================================
 ]]
 
@@ -32,20 +31,6 @@ AutoFarm.AutoIndexEnabled = false
 AutoFarm.AutoUpgradesEnabled = false
 AutoFarm.AutoRebirthEnabled = false
 AutoFarm.AutoPotionsEnabled = false
-
-AutoFarm.AutoBuyBoostsEnabled = false
-AutoFarm.AutoBuyBoostsCurrency = "Cash"
-AutoFarm.AutoBuyBoostsSelected = {}
-
-AutoFarm.AutoBuySeleneEnabled = false
-AutoFarm.AutoBuySeleneSelected = {}
-
-AutoFarm.AutoBuyAngeliaEnabled = false
-AutoFarm.AutoBuyAngeliaSelected = {}
-
-AutoFarm.AutoBuyFishingRodsEnabled = false
-AutoFarm.AutoBuyCarryEnabled = false
-
 AutoFarm.SelectedPotions = {}
 
 -- Threads
@@ -54,11 +39,6 @@ local indexThread = nil
 local upgradesThread = nil
 local rebirthThread = nil
 local potionsThread = nil
-local boostsThread = nil
-local seleneThread = nil
-local angeliaThread = nil
-local rodsThread = nil
-local carryThread = nil
 
 -- Upgrades Tiers list
 local UPGRADE_IDS = {
@@ -350,310 +330,13 @@ if Remotes and Remotes:FindFirstChild("PotionState") then
     end)
 end
 
--- ── 🛒 6. Auto Buy Boosts Store (Valora) ──
-local boostsUpdatedConn = nil
-
-function AutoFarm.BuySelectedBoostsOnce(customState)
-    if not Remotes or not Remotes:FindFirstChild("BoostsStorePurchase") then return end
-    
-    local state = customState
-    if not state and Remotes:FindFirstChild("BoostsStoreGetState") then
-        local success, res = pcall(function() return Remotes.BoostsStoreGetState:InvokeServer() end)
-        if success and typeof(res) == "table" then state = res end
-    end
-    if not state or typeof(state) ~= "table" or not state.stock then return end
-
-    local currency = AutoFarm.AutoBuyBoostsCurrency or "Cash"
-
-    for offerId, count in pairs(state.stock) do
-        local stockAmount = tonumber(count) or 0
-        if stockAmount > 0 and AutoFarm.AutoBuyBoostsSelected[offerId] == true then
-            for _ = 1, stockAmount do
-                pcall(function()
-                    Remotes.BoostsStorePurchase:InvokeServer(offerId, currency)
-                end)
-                task.wait(0.06)
-            end
-        end
-    end
-end
-
-function AutoFarm.StartAutoBuyBoosts()
-    if AutoFarm.AutoBuyBoostsEnabled then return end
-    AutoFarm.AutoBuyBoostsEnabled = true
-
-    -- 1. Beli seluruh stok yang tersedia saat ini
-    task.spawn(function()
-        AutoFarm.BuySelectedBoostsOnce()
-    end)
-
-    -- 2. Event-Driven: Beli instan detik itu juga saat server melakukan Restock
-    if Remotes and Remotes:FindFirstChild("BoostsStoreUpdated") then
-        if boostsUpdatedConn then boostsUpdatedConn:Disconnect() end
-        boostsUpdatedConn = Remotes.BoostsStoreUpdated.OnClientEvent:Connect(function(updatedState)
-            if not AutoFarm.AutoBuyBoostsEnabled then return end
-            AutoFarm.BuySelectedBoostsOnce(updatedState)
-        end)
-    end
-
-    -- 3. Smart Timer Daemon: Tidur hingga tepat waktu restock berikutnya (Zero Spam)
-    if boostsThread then task.cancel(boostsThread) end
-    boostsThread = task.spawn(function()
-        while AutoFarm.AutoBuyBoostsEnabled do
-            local state = nil
-            if Remotes:FindFirstChild("BoostsStoreGetState") then
-                pcall(function() state = Remotes.BoostsStoreGetState:InvokeServer() end)
-            end
-
-            local waitTime = 15
-            if state and state.restockEndTime and state.serverTime then
-                local remaining = state.restockEndTime - state.serverTime
-                if remaining > 0 then
-                    waitTime = remaining + 0.2
-                else
-                    waitTime = 5
-                end
-            end
-
-            task.wait(math.max(1, waitTime))
-            if not AutoFarm.AutoBuyBoostsEnabled then break end
-            AutoFarm.BuySelectedBoostsOnce()
-        end
-    end)
-end
-
-function AutoFarm.StopAutoBuyBoosts()
-    AutoFarm.AutoBuyBoostsEnabled = false
-    if boostsUpdatedConn then
-        pcall(function() boostsUpdatedConn:Disconnect() end)
-        boostsUpdatedConn = nil
-    end
-    if boostsThread then
-        pcall(function() task.cancel(boostsThread) end)
-        boostsThread = nil
-    end
-end
-
--- ── 🌙 7. Auto Buy Secret Merchant (Selene) ──
-local seleneUpdatedConn = nil
-
-function AutoFarm.BuySelectedSeleneOnce(customState)
-    if not Remotes or not Remotes:FindFirstChild("SecretStorePurchase") then return end
-    local state = customState
-    if not state and Remotes:FindFirstChild("SecretStoreGetState") then
-        local success, res = pcall(function() return Remotes.SecretStoreGetState:InvokeServer() end)
-        if success and typeof(res) == "table" then state = res end
-    end
-    if not state or typeof(state) ~= "table" or not state.offers then return end
-
-    for offerId, isSelected in pairs(AutoFarm.AutoBuySeleneSelected) do
-        if isSelected and state.offers[offerId] ~= nil then
-            local offerData = state.offers[offerId]
-            if typeof(offerData) == "table" and offerData.visible ~= false then
-                local currency = (offerData.cashCost ~= nil) and "Cash" or "Gems"
-                local stock = tonumber(offerData.stock) or 1
-                if stock > 0 then
-                    for _ = 1, stock do
-                        pcall(function()
-                            Remotes.SecretStorePurchase:InvokeServer(offerId, currency)
-                        end)
-                        task.wait(0.06)
-                    end
-                end
-            end
-        end
-    end
-end
-
-function AutoFarm.StartAutoBuySelene(interval)
-    if AutoFarm.AutoBuySeleneEnabled then return end
-    AutoFarm.AutoBuySeleneEnabled = true
-    interval = interval or 5
-
-    task.spawn(function()
-        AutoFarm.BuySelectedSeleneOnce()
-    end)
-
-    if Remotes and Remotes:FindFirstChild("SecretStoreUpdated") then
-        if seleneUpdatedConn then seleneUpdatedConn:Disconnect() end
-        seleneUpdatedConn = Remotes.SecretStoreUpdated.OnClientEvent:Connect(function(updatedState)
-            if not AutoFarm.AutoBuySeleneEnabled then return end
-            AutoFarm.BuySelectedSeleneOnce(updatedState)
-        end)
-    end
-
-    if seleneThread then task.cancel(seleneThread) end
-    seleneThread = task.spawn(function()
-        while AutoFarm.AutoBuySeleneEnabled do
-            AutoFarm.BuySelectedSeleneOnce()
-            task.wait(interval)
-        end
-    end)
-end
-
-function AutoFarm.StopAutoBuySelene()
-    AutoFarm.AutoBuySeleneEnabled = false
-    if seleneUpdatedConn then
-        pcall(function() seleneUpdatedConn:Disconnect() end)
-        seleneUpdatedConn = nil
-    end
-    if seleneThread then
-        pcall(function() task.cancel(seleneThread) end)
-        seleneThread = nil
-    end
-end
-
--- ── 👼 8. Auto Buy Secret Merchant (Angelia / SecretStore2) ──
-local angeliaUpdatedConn = nil
-
-function AutoFarm.BuySelectedAngeliaOnce(customState)
-    if not Remotes or not Remotes:FindFirstChild("SecretStore2Purchase") then return end
-    local state = customState
-    if not state and Remotes:FindFirstChild("SecretStore2GetState") then
-        local success, res = pcall(function() return Remotes.SecretStore2GetState:InvokeServer() end)
-        if success and typeof(res) == "table" then state = res end
-    end
-    if not state or typeof(state) ~= "table" or not state.offers then return end
-
-    for offerId, isSelected in pairs(AutoFarm.AutoBuyAngeliaSelected) do
-        if isSelected and state.offers[offerId] ~= nil then
-            local offerData = state.offers[offerId]
-            if typeof(offerData) == "table" and offerData.visible ~= false then
-                local currency = (offerData.cashCost ~= nil) and "Cash" or "Gems"
-                local stock = tonumber(offerData.stock) or 1
-                if stock > 0 then
-                    for _ = 1, stock do
-                        pcall(function()
-                            Remotes.SecretStore2Purchase:InvokeServer(offerId, currency)
-                        end)
-                        task.wait(0.06)
-                    end
-                end
-            end
-        end
-    end
-end
-
-function AutoFarm.StartAutoBuyAngelia(interval)
-    AutoFarm.AutoBuyAngeliaEnabled = true
-    interval = interval or 10
-
-    task.spawn(function()
-        AutoFarm.BuySelectedAngeliaOnce()
-    end)
-
-    if Remotes and Remotes:FindFirstChild("SecretStore2Updated") then
-        if angeliaUpdatedConn then angeliaUpdatedConn:Disconnect() end
-        angeliaUpdatedConn = Remotes.SecretStore2Updated.OnClientEvent:Connect(function(updatedState)
-            if not AutoFarm.AutoBuyAngeliaEnabled then return end
-            AutoFarm.BuySelectedAngeliaOnce(updatedState)
-        end)
-    end
-
-    if angeliaThread then task.cancel(angeliaThread) end
-    angeliaThread = task.spawn(function()
-        while AutoFarm.AutoBuyAngeliaEnabled do
-            AutoFarm.BuySelectedAngeliaOnce()
-            task.wait(interval)
-        end
-    end)
-end
-
-function AutoFarm.StopAutoBuyAngelia()
-    AutoFarm.AutoBuyAngeliaEnabled = false
-    if angeliaUpdatedConn then
-        pcall(function() angeliaUpdatedConn:Disconnect() end)
-        angeliaUpdatedConn = nil
-    end
-    if angeliaThread then
-        pcall(function() task.cancel(angeliaThread) end)
-        angeliaThread = nil
-    end
-end
-
--- ── 🎣 9. Auto Buy Fishing Rods ──
-function AutoFarm.BuyAvailableFishingRodsOnce()
-    if not Remotes or not Remotes:FindFirstChild("FishingStoreGetState") or not Remotes:FindFirstChild("FishingStorePurchase") then return end
-    local success, state = pcall(function() return Remotes.FishingStoreGetState:InvokeServer() end)
-    if not success or typeof(state) ~= "table" then return end
-
-    local owned = state.owned or {}
-    local playerRebirths = state.rebirths or 0
-
-    for offerId, data in pairs(state.offers or {}) do
-        if typeof(data) == "table" then
-            local rodName = data.RodName
-            local reqRebirth = data.RebirthRequired or 0
-            if rodName and not owned[rodName] and playerRebirths >= reqRebirth then
-                pcall(function()
-                    Remotes.FishingStorePurchase:InvokeServer(offerId, "Cash")
-                end)
-                task.wait(0.1)
-            end
-        end
-    end
-end
-
-function AutoFarm.StartAutoBuyFishingRods(interval)
-    AutoFarm.AutoBuyFishingRodsEnabled = true
-    interval = interval or 10
-    if rodsThread then task.cancel(rodsThread) end
-    rodsThread = task.spawn(function()
-        while AutoFarm.AutoBuyFishingRodsEnabled do
-            AutoFarm.BuyAvailableFishingRodsOnce()
-            task.wait(interval)
-        end
-    end)
-end
-
-function AutoFarm.StopAutoBuyFishingRods()
-    AutoFarm.AutoBuyFishingRodsEnabled = false
-    if rodsThread then
-        pcall(function() task.cancel(rodsThread) end)
-        rodsThread = nil
-    end
-end
-
--- ── 🎒 10. Auto Buy Carry Capacity ──
-function AutoFarm.BuyCarryUpgradeOnce()
-    if not Remotes or not Remotes:FindFirstChild("PurchaseCarry") then return end
-    pcall(function()
-        Remotes.PurchaseCarry:InvokeServer()
-    end)
-end
-
-function AutoFarm.StartAutoBuyCarry(interval)
-    AutoFarm.AutoBuyCarryEnabled = true
-    interval = interval or 10
-    if carryThread then task.cancel(carryThread) end
-    carryThread = task.spawn(function()
-        while AutoFarm.AutoBuyCarryEnabled do
-            AutoFarm.BuyCarryUpgradeOnce()
-            task.wait(interval)
-        end
-    end)
-end
-
-function AutoFarm.StopAutoBuyCarry()
-    AutoFarm.AutoBuyCarryEnabled = false
-    if carryThread then
-        pcall(function() task.cancel(carryThread) end)
-        carryThread = nil
-    end
-end
-
--- ── 🛑 Stop All Farm & Merchants ──
+-- ── 🛑 Stop All Farm ──
 function AutoFarm.StopAll()
     AutoFarm.StopAutoQuests()
     AutoFarm.StopAutoIndex()
     AutoFarm.StopAutoUpgrades()
     AutoFarm.StopAutoRebirth()
     AutoFarm.StopAutoPotions()
-    AutoFarm.StopAutoBuyBoosts()
-    AutoFarm.StopAutoBuySelene()
-    AutoFarm.StopAutoBuyAngelia()
-    AutoFarm.StopAutoBuyFishingRods()
-    AutoFarm.StopAutoBuyCarry()
 end
 
 _G.FishAnAnimeAutoFarm = AutoFarm
