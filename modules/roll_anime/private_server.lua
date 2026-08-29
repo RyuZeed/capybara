@@ -117,17 +117,18 @@ function PrivateServer.IsPrivateServer()
     if game.VIPServerId and game.VIPServerId ~= "" then
         return true
     end
-    -- 3. Cek jumlah pemain (Jika hanya sendiri di server)
-    if #Players:GetPlayers() <= 1 then
-        return true
-    end
     return false
 end
 
 -- =================================================================
--- 🚀 QUEUE ON TELEPORT HANDLER
+-- 🚀 QUEUE ON TELEPORT HANDLER (DEBOUNCED: Hanya queue 1x per sesi)
 -- =================================================================
+local _queuedThisSession = false
+
 function PrivateServer.QueueScript(customUrl)
+    if _queuedThisSession then return end
+    _queuedThisSession = true
+
     local url = customUrl or SCRIPT_URL
     local queueFunc = (typeof(queue_on_teleport) == "function" and queue_on_teleport)
         or (syn and typeof(syn.queue_on_teleport) == "function" and syn.queue_on_teleport)

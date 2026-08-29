@@ -7,6 +7,12 @@
 
 if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
 
+-- 🔒 MASTER LAUNCHER MUTEX: Cegah multiple execution saat teleport / auto-execute bersamaan
+if _G.RitodHubLauncherLock and (tick() - _G.RitodHubLauncherLock) < 5 then
+	return
+end
+_G.RitodHubLauncherLock = tick()
+
 local PlaceId = game.PlaceId
 local GameId = game.GameId
 local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/main/"

@@ -20,6 +20,12 @@
 if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
 task.wait(0.3)
 
+-- 🔒 GLOBAL MUTEX LOCK: Cegah double execution (queue_on_teleport + autoexec race)
+if _G.RitodHubInitLock and (tick() - _G.RitodHubInitLock) < 3 then
+	return
+end
+_G.RitodHubInitLock = tick()
+
 -- 🔇 SILENT MODE: Matikan seluruh text/log terminal
 local print = function(...) end
 local warn = function(...) end
@@ -75,9 +81,10 @@ pcall(function()
     if player and player:FindFirstChild("PlayerGui") then table.insert(targets, player.PlayerGui) end
     
     for _, parent in ipairs(targets) do
-        for _, name in ipairs({"RitodHubUltra", "RitodHubLite", "RollAnimeHub", "RitodRollAnime"}) do
-            if parent:FindFirstChild(name) then
-                pcall(function() parent[name]:Destroy() end)
+        for _, child in ipairs(parent:GetChildren()) do
+            local cName = tostring(child.Name)
+            if cName == "RitodHubUltra" or cName == "RitodHubLite" or cName == "RollAnimeHub" or cName == "RitodRollAnime" or cName:find("RitodHub") then
+                pcall(function() child:Destroy() end)
             end
         end
     end
@@ -237,8 +244,6 @@ if not screenGui.Parent and CoreGui then
 	pcall(function() screenGui.Parent = CoreGui end)
 end
 
-_G.RitodHubRollAnime = screenGui
-_G.RitodHubGui = screenGui
 _G.RitodHubRollAnime = screenGui
 _G.RitodHubGui = screenGui
 
@@ -1545,7 +1550,7 @@ local godNum = CatalogModule and #(CatalogModule.UnitsByRarity["God"] or {}) or 
 local secretNum = CatalogModule and #(CatalogModule.UnitsByRarity["Secret"] or {}) or 16
 
 RollTab:AddButton(string.format("🌟 Pilih Semua Supreme (%d) & God (%d)", supremeNum, godNum), function()
-	selectedUnits = {}
+	for k in pairs(selectedUnits) do selectedUnits[k] = nil end
 	if CatalogModule then
 		for _, u in ipairs(CatalogModule.UnitsByRarity["Supreme"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
 		for _, u in ipairs(CatalogModule.UnitsByRarity["God"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
@@ -1556,7 +1561,7 @@ RollTab:AddButton(string.format("🌟 Pilih Semua Supreme (%d) & God (%d)", supr
 end)
 
 RollTab:AddButton("🔥 Pilih Supreme, God, Secret, & Mythic", function()
-	selectedUnits = {}
+	for k in pairs(selectedUnits) do selectedUnits[k] = nil end
 	if CatalogModule then
 		for _, u in ipairs(CatalogModule.UnitsByRarity["Supreme"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
 		for _, u in ipairs(CatalogModule.UnitsByRarity["God"] or {}) do selectedUnits[u.name:lower()] = true selectedUnits[u.displayName:lower()] = true end
@@ -1569,7 +1574,7 @@ RollTab:AddButton("🔥 Pilih Supreme, God, Secret, & Mythic", function()
 end)
 
 RollTab:AddButton("🧹 Hapus Semua Pilihan (Deselect All)", function()
-	selectedUnits = {}
+	for k in pairs(selectedUnits) do selectedUnits[k] = nil end
 	for _, item in ipairs(unitCheckUpdaterCallbacks) do item.sync() end
 	if ConfigManager then ConfigManager.Save({ SelectedUnits = selectedUnits }) end
 	Notify("Preset Target", "Semua pilihan unit telah dikosongkan.", 2)
@@ -2036,71 +2041,9 @@ MiscTab:AddButton("🧹 Bersihkan Memori RAM (Purge GC)", function()
 	Notify("🧹 RAM Cleanup", "Memori Lua & aset yang tidak terpakai telah dibersihkan!", 2.5)
 end)
 
-MiscTab:AddSection("💾 Config File Manager")
-
-MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
-	if ConfigManager then
-		local currentData = {
-			AutoHuntEnabled       = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
-			AutoSniperOnly        = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
-			AutoSecretGod         = savedConfig.AutoSecretGod or false,
-			AutoPrivateServer     = savedConfig.AutoPrivateServer ~= false,
-			AutoClaimQuests       = savedConfig.AutoClaimQuests ~= false,
-			AutoClaimRewards      = savedConfig.AutoClaimRewards ~= false,
-			AutoBuyMerchant       = savedConfig.AutoBuyMerchant or false,
-			MerchantBuyAll        = savedConfig.MerchantBuyAll or false,
-			MerchantBuyPotions    = savedConfig.MerchantBuyPotions ~= false,
-			MerchantBuyEssences   = savedConfig.MerchantBuyEssences ~= false,
-			MerchantBuyCapsules   = savedConfig.MerchantBuyCapsules ~= false,
-			MerchantBuyTickets    = savedConfig.MerchantBuyTickets ~= false,
-			MerchantBuyMaterials  = savedConfig.MerchantBuyMaterials ~= false,
-			MerchantSelectedItems = savedConfig.MerchantSelectedItems or {},
-			MerchantMinGold       = savedConfig.MerchantMinGold or 0,
-			RollInterval          = rollInterval or 2.5,
-			SelectedUnits         = selectedUnits,
-			WalkSpeed             = savedConfig.WalkSpeed or 40,
-			JumpPower             = savedConfig.JumpPower or 50,
-			InfJump               = savedConfig.InfJump or false,
-			PotatoGraphics        = savedConfig.PotatoGraphics or false,
-			FarmMode              = savedConfig.FarmMode or false,
-			AntiLag               = savedConfig.AntiLag or false,
-			HideOtherPlayers      = savedConfig.HideOtherPlayers or false,
-			FreezeNPCs            = savedConfig.FreezeNPCs or false,
-			DisableVFX            = savedConfig.DisableVFX or false,
-			TargetFPS             = savedConfig.TargetFPS or 60
-		}
-		local success = ConfigManager.Save(currentData)
-		if success then
-			local unitCount = 0
-			for _, v in pairs(selectedUnits) do if v then unitCount = unitCount + 1 end end
-			local targetUnits = math.floor(unitCount / 2) > 0 and math.floor(unitCount / 2) or unitCount
-			Notify("💾 Config Saved", string.format("Berhasil disimpan ke %s (%d unit target)!", ConfigManager.ConfigPath, targetUnits), 3.5)
-		else
-			Notify("Config Error", "Gagal menyimpan file config!", 3)
-		end
-	else
-		Notify("Config Error", "Modul ConfigManager tidak ditemukan!", 2)
-	end
-end)
-
-MiscTab:AddButton("🔄 Muat Ulang Config (Reload Config)", function()
-	if ConfigManager then
-		local loaded = ConfigManager.Load()
-		if loaded then
-			applyRollAnimeConfig(loaded)
-			Notify("🔄 Config Reloaded", "Pengaturan berhasil dimuat ulang dari file!", 3)
-		end
-	end
-end)
-
-MiscTab:AddButton("🗑️ Reset Config ke Default", function()
-	if ConfigManager then
-		local def = ConfigManager.Reset()
-		applyRollAnimeConfig(def)
-		Notify("🗑️ Config Reset", "Pengaturan telah direset ke nilai default!", 3)
-	end
-end)
-
+-- =================================================================
+-- 🔧 CONFIG APPLICATOR (MUST be defined before any usage)
+-- =================================================================
 local function applyRollAnimeConfig(loaded)
 	if not loaded or type(loaded) ~= "table" then return end
 	for k, v in pairs(loaded) do
@@ -2283,13 +2226,80 @@ local function applyRollAnimeConfig(loaded)
 	end
 
 	if loaded.SelectedUnits and type(loaded.SelectedUnits) == "table" then
-		selectedUnits = {}
+		for k in pairs(selectedUnits) do selectedUnits[k] = nil end
 		for name, val in pairs(loaded.SelectedUnits) do
 			if val then selectedUnits[tostring(name):lower()] = true end
 		end
 		for _, item in ipairs(unitCheckUpdaterCallbacks) do item.sync() end
 	end
 end
+
+MiscTab:AddSection("💾 Config File Manager")
+
+MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
+	if ConfigManager then
+		local currentData = {
+			AutoHuntEnabled       = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
+			AutoSniperOnly        = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
+			AutoSecretGod         = savedConfig.AutoSecretGod or false,
+			AutoPrivateServer     = savedConfig.AutoPrivateServer ~= false,
+			AutoClaimQuests       = savedConfig.AutoClaimQuests ~= false,
+			AutoClaimRewards      = savedConfig.AutoClaimRewards ~= false,
+			AutoBuyMerchant       = savedConfig.AutoBuyMerchant or false,
+			MerchantBuyAll        = savedConfig.MerchantBuyAll or false,
+			MerchantBuyPotions    = savedConfig.MerchantBuyPotions ~= false,
+			MerchantBuyEssences   = savedConfig.MerchantBuyEssences ~= false,
+			MerchantBuyCapsules   = savedConfig.MerchantBuyCapsules ~= false,
+			MerchantBuyTickets    = savedConfig.MerchantBuyTickets ~= false,
+			MerchantBuyMaterials  = savedConfig.MerchantBuyMaterials ~= false,
+			MerchantSelectedItems = savedConfig.MerchantSelectedItems or {},
+			MerchantMinGold       = savedConfig.MerchantMinGold or 0,
+			RollInterval          = rollInterval or 2.5,
+			SelectedUnits         = selectedUnits,
+			WalkSpeed             = savedConfig.WalkSpeed or 40,
+			JumpPower             = savedConfig.JumpPower or 50,
+			InfJump               = savedConfig.InfJump or false,
+			PotatoGraphics        = savedConfig.PotatoGraphics or false,
+			FarmMode              = savedConfig.FarmMode or false,
+			AntiLag               = savedConfig.AntiLag or false,
+			HideOtherPlayers      = savedConfig.HideOtherPlayers or false,
+			FreezeNPCs            = savedConfig.FreezeNPCs or false,
+			DisableVFX            = savedConfig.DisableVFX or false,
+			TargetFPS             = savedConfig.TargetFPS or 60
+		}
+		local success = ConfigManager.Save(currentData)
+		if success then
+			local unitCount = 0
+			for _, v in pairs(selectedUnits) do if v then unitCount = unitCount + 1 end end
+			local targetUnits = math.floor(unitCount / 2) > 0 and math.floor(unitCount / 2) or unitCount
+			Notify("💾 Config Saved", string.format("Berhasil disimpan ke %s (%d unit target)!", ConfigManager.ConfigPath, targetUnits), 3.5)
+		else
+			Notify("Config Error", "Gagal menyimpan file config!", 3)
+		end
+	else
+		Notify("Config Error", "Modul ConfigManager tidak ditemukan!", 2)
+	end
+end)
+
+MiscTab:AddButton("🔄 Muat Ulang Config (Reload Config)", function()
+	if ConfigManager then
+		local loaded = ConfigManager.Load()
+		if loaded then
+			applyRollAnimeConfig(loaded)
+			Notify("🔄 Config Reloaded", "Pengaturan berhasil dimuat ulang dari file!", 3)
+		end
+	end
+end)
+
+MiscTab:AddButton("🗑️ Reset Config ke Default", function()
+	if ConfigManager then
+		local def = ConfigManager.Reset()
+		applyRollAnimeConfig(def)
+		Notify("🗑️ Config Reset", "Pengaturan telah direset ke nilai default!", 3)
+	end
+end)
+
+-- (applyRollAnimeConfig telah dipindahkan ke atas, sebelum Config File Manager section)
 
 if ModernSettings and typeof(ModernSettings.CreateProfileManager) == "function" then
 	local ProfileManager = ModernSettings.CreateProfileManager(
@@ -2450,20 +2460,33 @@ _G.AutoSaveDaemonThread = task.spawn(function()
 		pcall(function()
 			if ConfigManager and typeof(ConfigManager.Save) == "function" then
 				ConfigManager.Save({
-					AutoHuntEnabled   = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
-					AutoSniperOnly    = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
-					AutoSecretGod     = savedConfig.AutoSecretGod or false,
-					AutoPrivateServer = savedConfig.AutoPrivateServer ~= false,
-					AutoClaimQuests   = savedConfig.AutoClaimQuests ~= false,
-					AutoClaimRewards  = savedConfig.AutoClaimRewards ~= false,
-					RollInterval      = rollInterval or 2.5,
-					SelectedUnits     = selectedUnits,
-					WalkSpeed         = savedConfig.WalkSpeed or 16,
-					JumpPower         = savedConfig.JumpPower or 50,
-					InfJump           = savedConfig.InfJump or false,
-					PotatoGraphics    = savedConfig.PotatoGraphics or false,
-					FarmMode          = savedConfig.FarmMode or false,
-					AntiLag           = savedConfig.AntiLag or false
+					AutoHuntEnabled       = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
+					AutoSniperOnly        = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
+					AutoSecretGod         = savedConfig.AutoSecretGod or false,
+					AutoPrivateServer     = savedConfig.AutoPrivateServer ~= false,
+					AutoClaimQuests       = savedConfig.AutoClaimQuests ~= false,
+					AutoClaimRewards      = savedConfig.AutoClaimRewards ~= false,
+					AutoBuyMerchant       = savedConfig.AutoBuyMerchant or false,
+					MerchantBuyAll        = savedConfig.MerchantBuyAll or false,
+					MerchantBuyPotions    = savedConfig.MerchantBuyPotions ~= false,
+					MerchantBuyEssences   = savedConfig.MerchantBuyEssences ~= false,
+					MerchantBuyCapsules   = savedConfig.MerchantBuyCapsules ~= false,
+					MerchantBuyTickets    = savedConfig.MerchantBuyTickets ~= false,
+					MerchantBuyMaterials  = savedConfig.MerchantBuyMaterials ~= false,
+					MerchantSelectedItems = savedConfig.MerchantSelectedItems or {},
+					MerchantMinGold       = savedConfig.MerchantMinGold or 0,
+					RollInterval          = rollInterval or 2.5,
+					SelectedUnits         = selectedUnits,
+					WalkSpeed             = savedConfig.WalkSpeed or 16,
+					JumpPower             = savedConfig.JumpPower or 50,
+					InfJump               = savedConfig.InfJump or false,
+					PotatoGraphics        = savedConfig.PotatoGraphics or false,
+					FarmMode              = savedConfig.FarmMode or false,
+					AntiLag               = savedConfig.AntiLag or false,
+					HideOtherPlayers      = savedConfig.HideOtherPlayers or false,
+					FreezeNPCs            = savedConfig.FreezeNPCs or false,
+					DisableVFX            = savedConfig.DisableVFX or false,
+					TargetFPS             = savedConfig.TargetFPS or 60
 				})
 			end
 		end)

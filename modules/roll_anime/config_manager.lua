@@ -17,7 +17,9 @@ local LocalPlayer = Players.LocalPlayer or (function() local t = tick() while no
 
 local ROOT_FOLDER = "RitodHub"
 local GAME_FOLDER = "RitodHub/RollAnimeForFight"
-local CONFIG_PATH = "RitodHub/RollAnimeForFight/config.json"
+local username = LocalPlayer and LocalPlayer.Name or "Default"
+local CONFIG_PATH = string.format("RitodHub/RollAnimeForFight/%s.json", username)
+local LEGACY_PATH = "RitodHub/RollAnimeForFight/config.json"
 
 ConfigManager.ConfigPath = CONFIG_PATH
 ConfigManager.GameFolder = GAME_FOLDER
@@ -111,6 +113,8 @@ function ConfigManager.Load()
         if typeof(readfile) == "function" and typeof(isfile) == "function" then
             if isfile(CONFIG_PATH) then
                 raw = readfile(CONFIG_PATH)
+            elseif isfile(LEGACY_PATH) then
+                raw = readfile(LEGACY_PATH)
             elseif isfile(GAME_FOLDER .. "/Configs/Default.json") then
                 raw = readfile(GAME_FOLDER .. "/Configs/Default.json")
             end
