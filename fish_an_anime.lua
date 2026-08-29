@@ -91,6 +91,7 @@ local AutoFish = loadModule("auto_fish", false)
 local AutoFarm = loadModule("auto_farm", false)
 local AutoMerchants = loadModule("auto_merchants", false)
 local BaseUnits = loadModule("base_units", false)
+local Graphics = loadModule("graphics", false)
 local AntiAFK = loadModule("anti_afk", false)
 local ConfigManager = loadModule("config_manager", false)
 
@@ -98,6 +99,7 @@ if not AutoFish and _G.FishAnAnimeAutoFish then AutoFish = _G.FishAnAnimeAutoFis
 if not AutoFarm and _G.FishAnAnimeAutoFarm then AutoFarm = _G.FishAnAnimeAutoFarm end
 if not AutoMerchants and _G.FishAnAnimeAutoMerchants then AutoMerchants = _G.FishAnAnimeAutoMerchants end
 if not BaseUnits and _G.FishAnAnimeBaseUnits then BaseUnits = _G.FishAnAnimeBaseUnits end
+if not Graphics and _G.FishAnAnimeGraphics then Graphics = _G.FishAnAnimeGraphics end
 if not AntiAFK and _G.FishAnAnimeAntiAFK then AntiAFK = _G.FishAnAnimeAntiAFK end
 if not ConfigManager and _G.FishAnAnimeConfigManager then ConfigManager = _G.FishAnAnimeConfigManager end
 
@@ -658,7 +660,84 @@ QuestTab:AddButton("⚡ Rebirth Now (Instant 1x)", function()
     Window.Notify("Rebirth", "Mencoba melakukan Rebirth!", 2.0)
 end)
 
--- ── Tab 7: ⚙️ Settings (Config Manager & Anti-AFK) ──
+-- ── Tab 7: ⚡ Graphics & FPS Booster ──
+local GraphicsTab = Window:CreateTab("Graphics", "⚡")
+
+GraphicsTab:AddSection("🥔 FPS Booster & Low Detail Mode")
+
+GraphicsTab:AddToggle("Potato Graphics (Texture & Shadow Stripper)", CurrentConfig.PotatoGraphics or false, function(state)
+    CurrentConfig.PotatoGraphics = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if Graphics then Graphics.EnablePotatoGraphics() end
+        Window.Notify("Graphics", "Potato Graphics diaktifkan (Max FPS)!", 2.5)
+    else
+        if Graphics then Graphics.DisablePotatoGraphics() end
+        Window.Notify("Graphics", "Potato Graphics dinonaktifkan!", 2.0)
+    end
+end)
+
+GraphicsTab:AddToggle("In-Game Performance Mode (Disable Heavy VFX)", CurrentConfig.PerformanceMode ~= false, function(state)
+    CurrentConfig.PerformanceMode = state
+    if ConfigManager then ConfigManager.Save() end
+    pcall(function()
+        LocalPlayer:SetAttribute("PerformanceMode", state)
+    end)
+    Window.Notify("Performance Mode", state and "Aktif" or "Nonaktif", 2.0)
+end)
+
+GraphicsTab:AddToggle("Disable Character VFX & Particles", CurrentConfig.DisableVFX ~= false, function(state)
+    CurrentConfig.DisableVFX = state
+    if ConfigManager then ConfigManager.Save() end
+    pcall(function()
+        LocalPlayer:SetAttribute("DisableCharacterVFX", state)
+    end)
+    Window.Notify("VFX Particles", state and "VFX Dimatikan" or "VFX Dinyalakan", 2.0)
+end)
+
+GraphicsTab:AddSection("🖥️ GPU Saver (Black Screen AFK - 90% GPU Drop)")
+
+GraphicsTab:AddToggle("3D Rendering Off (Black Screen AFK)", CurrentConfig.BlackScreenAFK or false, function(state)
+    CurrentConfig.BlackScreenAFK = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if Graphics then Graphics.EnableScreenOff() end
+    else
+        if Graphics then Graphics.DisableScreenOff() end
+    end
+end)
+
+GraphicsTab:AddButton("🌙 Enable Black Screen AFK Now (1x)", function()
+    if Graphics then Graphics.EnableScreenOff() end
+end)
+
+GraphicsTab:AddSection("🎯 FPS Cap Limiter")
+
+local fpsOptions = { 15, 30, 60, 120, 144, 240 }
+for _, fps in ipairs(fpsOptions) do
+    GraphicsTab:AddButton(string.format("⚡ Set FPS Cap: %d FPS", fps), function()
+        CurrentConfig.TargetFPS = fps
+        if Graphics then Graphics.SetFPSCap(fps) end
+        if ConfigManager then ConfigManager.Save() end
+        Window.Notify("FPS Cap", string.format("FPS dibatasi ke: %d FPS", fps), 2.0)
+    end)
+end
+
+GraphicsTab:AddButton("🚀 Unlock FPS (Unlimited)", function()
+    CurrentConfig.TargetFPS = 999
+    if Graphics then Graphics.SetFPSCap(999) end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("FPS Cap", "FPS Unlock / Unlimited diaktifkan!", 2.0)
+end)
+
+GraphicsTab:AddSection("🧹 RAM & Memory Garbage Cleaner")
+
+GraphicsTab:AddButton("🧹 Clean RAM / Memory Now (1x)", function()
+    pcall(function() collectgarbage("collect") end)
+    Window.Notify("RAM Cleaner", "Garbage collection selesai! Memori dibersihkan.", 2.5)
+end)
+
+-- ── Tab 8: ⚙️ Settings (Config Manager & Anti-AFK) ──
 local SettingsTab = Window:CreateTab("Settings", "⚙️")
 
 SettingsTab:AddSection("🛡️ Protection & Anti-AFK")

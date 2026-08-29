@@ -135,6 +135,13 @@ ConfigManager.DefaultConfig = {
         Exclusive = true
     },
 
+    -- Graphics & Performance Booster
+    PotatoGraphics = false,
+    BlackScreenAFK = false,
+    PerformanceMode = true,
+    DisableVFX = true,
+    TargetFPS = 60,
+
     -- Misc / Protection
     AntiAFK = true
 }
