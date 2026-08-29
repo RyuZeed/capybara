@@ -239,8 +239,14 @@ local function enableRejoin(on, notify)
     _G._RitodRejoinInit = true
     local function doRejoin()
         if not _rejoin then return end
-        if notify then notify("Rejoin on Kick", "Terputus! Rejoining dalam 3 detik...", 3) end
-        task.wait(3); pcall(Teleport.Teleport, Teleport, game.PlaceId, LP)
+        if notify then notify("Rejoin on Kick", "Terputus! Menghubungkan ulang...", 3) end
+        task.wait(2)
+        local ps = _G.PrivateServer or _G.PrivateServerModule
+        if ps and typeof(ps.JoinPrivateServer) == "function" then
+            ps.JoinPrivateServer(notify)
+        else
+            pcall(Teleport.Teleport, Teleport, game.PlaceId, LP)
+        end
     end
     pcall(function()
         local p = CoreGui:FindFirstChild("RobloxPromptGui")

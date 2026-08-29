@@ -73,16 +73,22 @@ function AFKModule.Enable()
 
     -- 2. Intercept event Idled secara langsung jika terpanggil
     if idledConn then idledConn:Disconnect() end
-    idledConn = LocalPlayer.Idled:Connect(function()
-        simulateActivity()
+    pcall(function()
+        if LocalPlayer and LocalPlayer.Idled then
+            idledConn = LocalPlayer.Idled:Connect(function()
+                simulateActivity()
+                disableIdledConnections()
+            end)
+        end
     end)
 
-    -- 3. Loop hemat daya: Disable koneksi CoreScript & standby
+    -- 3. Proactive Heartbeat: Kirim input setiap 50 detik agar timer idle Roblox selalu 0
     if not afkThread then
         afkThread = task.spawn(function()
             while isEnabled do
-                disableIdledConnections()
-                task.wait(120)
+                pcall(disableIdledConnections)
+                pcall(simulateActivity)
+                task.wait(50)
             end
         end)
     end
@@ -99,6 +105,11 @@ function AFKModule.Enable()
                 end
                 return oldKick(self, ...)
             end)
+        end
+    end)
+    pcall(function()
+        if typeof(hookfunction) == "function" and LocalPlayer and LocalPlayer.Kick then
+            hookfunction(LocalPlayer.Kick, function() return nil end)
         end
     end)
 end
