@@ -102,16 +102,25 @@ function AutoFish.GetBestPond()
 end
 
 -- ── 🎣 Core Fishing Action ──
+function AutoFish.ClosestPointOnPond(pond, playerPos)
+    if not pond or not pond:IsA("BasePart") then return nil end
+    local objPos = pond.CFrame:PointToObjectSpace(playerPos)
+    local halfSize = pond.Size * 0.5
+    local clampX = math.clamp(objPos.X, -halfSize.X, halfSize.X)
+    local clampZ = math.clamp(objPos.Z, -halfSize.Z, halfSize.Z)
+    return pond.CFrame:PointToWorldSpace(Vector3.new(clampX, halfSize.Y + 0.1, clampZ))
+end
+
 function AutoFish.CastRod()
     if not Remotes or not Remotes:FindFirstChild("FishingRequestStart") then return false end
     local pond = AutoFish.GetBestPond()
     if not pond then return false end
 
-    local targetPos = pond.Position + Vector3.new(
-        math.random(-5, 5),
-        0,
-        math.random(-5, 5)
-    )
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local playerPos = root and root.Position or pond.Position
+
+    local targetPos = AutoFish.ClosestPointOnPond(pond, playerPos) or pond.Position
 
     isCastPending = true
     lastStateTime = tick()
