@@ -175,6 +175,9 @@ end
 
 -- Muat config tersimpan
 local savedConfig = ConfigManager and ConfigManager.Load() or {}
+if savedConfig.AutoPrivateServer == nil then
+    savedConfig.AutoPrivateServer = true
+end
 
 -- Auto-start Auto-Claim Engine
 if AutoClaimModule then
@@ -2260,7 +2263,7 @@ MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
 			AutoHuntEnabled       = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
 			AutoSniperOnly        = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
 			AutoSecretGod         = savedConfig.AutoSecretGod or false,
-			AutoPrivateServer     = savedConfig.AutoPrivateServer ~= false,
+			AutoPrivateServer     = (autoPrivateServerToggleRef and autoPrivateServerToggleRef:Get() == true) or (savedConfig.AutoPrivateServer == true),
 			AutoClaimQuests       = savedConfig.AutoClaimQuests ~= false,
 			AutoClaimRewards      = savedConfig.AutoClaimRewards ~= false,
 			AutoBuyMerchant       = savedConfig.AutoBuyMerchant or false,
@@ -2482,7 +2485,7 @@ _G.AutoSaveDaemonThread = task.spawn(function()
 					AutoHuntEnabled       = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
 					AutoSniperOnly        = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
 					AutoSecretGod         = savedConfig.AutoSecretGod or false,
-					AutoPrivateServer     = savedConfig.AutoPrivateServer ~= false,
+					AutoPrivateServer     = (autoPrivateServerToggleRef and autoPrivateServerToggleRef:Get() == true) or (savedConfig.AutoPrivateServer == true),
 					AutoClaimQuests       = savedConfig.AutoClaimQuests ~= false,
 					AutoClaimRewards      = savedConfig.AutoClaimRewards ~= false,
 					AutoBuyMerchant       = savedConfig.AutoBuyMerchant or false,
