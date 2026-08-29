@@ -184,7 +184,11 @@ function BaseUnits.ScanUnits()
         end
     end
 
+    -- Sort by lowest level first (then highest rarity, then highest CPS)
     table.sort(unitsList, function(a, b)
+        if a.Level ~= b.Level then
+            return a.Level < b.Level -- Lowest level first
+        end
         if a.RarityRank ~= b.RarityRank then
             return a.RarityRank > b.RarityRank
         end
@@ -241,26 +245,55 @@ function BaseUnits.LevelUpStand(standId)
     if not promptPart or not promptPart:IsA("BasePart") then return false end
 
     isLevelingUp = true
+
+    -- 🎣 Seamless AutoFish Pause Coordination
+    local autoFish = _G.FishAnAnimeAutoFish
+    local wasFishing = autoFish and autoFish.IsFishing
+    if wasFishing and typeof(autoFish.PauseFishing) == "function" then
+        autoFish.PauseFishing()
+        task.wait(0.12)
+    end
+
     local originalCF = root.CFrame
     local originalCamCF = camera.CFrame
     local originalCamType = camera.CameraType
 
-    camera.CameraType = Enum.CameraType.Scriptable
-    camera.CFrame = originalCamCF
+    pcall(function()
+        camera.CameraType = Enum.CameraType.Scriptable
+        camera.CFrame = originalCamCF
+    end)
 
-    root.CFrame = CFrame.new(promptPart.Position + Vector3.new(0, 2.5, 0))
-    task.wait(0.04)
+    root.CFrame = CFrame.new(promptPart.Position + Vector3.new(0, 2.0, 0))
+    task.wait(0.06)
 
-    maxPrompt.Enabled = true
+    pcall(function()
+        maxPrompt.Enabled = true
+        maxPrompt.RequiresLineOfSight = false
+        maxPrompt.MaxActivationDistance = 30
+    end)
+
     local holdTime = maxPrompt.HoldDuration or 0.2
     if typeof(fireproximityprompt) == "function" then
         fireproximityprompt(maxPrompt, holdTime)
+        task.wait(0.04)
+        fireproximityprompt(maxPrompt, 0)
     end
-    task.wait(holdTime + 0.05)
+    task.wait(math.max(0.15, holdTime + 0.08))
 
     root.CFrame = originalCF
-    camera.CFrame = originalCamCF
-    camera.CameraType = originalCamType
+    task.wait(0.04)
+
+    pcall(function()
+        camera.CFrame = originalCamCF
+        camera.CameraType = originalCamType
+    end)
+
+    -- 🎣 Seamless AutoFish Resume Coordination
+    if wasFishing and typeof(autoFish.ResumeFishing) == "function" then
+        task.wait(0.15)
+        autoFish.ResumeFishing()
+    end
+
     isLevelingUp = false
     return true
 end
@@ -304,34 +337,65 @@ function BaseUnits.LevelUpAllUnitsOnce()
     if not root or not camera then return 0 end
 
     isLevelingUp = true
+
+    -- 🎣 Seamless AutoFish Pause Coordination
+    local autoFish = _G.FishAnAnimeAutoFish
+    local wasFishing = autoFish and autoFish.IsFishing
+    if wasFishing and typeof(autoFish.PauseFishing) == "function" then
+        autoFish.PauseFishing()
+        task.wait(0.12)
+    end
+
     local originalCF = root.CFrame
     local originalCamCF = camera.CFrame
     local originalCamType = camera.CameraType
 
-    camera.CameraType = Enum.CameraType.Scriptable
-    camera.CFrame = originalCamCF
+    pcall(function()
+        camera.CameraType = Enum.CameraType.Scriptable
+        camera.CFrame = originalCamCF
+    end)
 
     local leveledCount = 0
 
     for _, unit in ipairs(affordableUnits) do
-        local promptPart = unit.Prompt.Parent
-        if promptPart and promptPart:IsA("BasePart") then
-            root.CFrame = CFrame.new(promptPart.Position + Vector3.new(0, 2.5, 0))
-            task.wait(0.03)
+        local prompt = unit.Prompt
+        local promptPart = prompt and prompt.Parent
+        if prompt and promptPart and promptPart:IsA("BasePart") then
+            root.CFrame = CFrame.new(promptPart.Position + Vector3.new(0, 2.0, 0))
+            task.wait(0.06)
 
-            unit.Prompt.Enabled = true
-            local holdTime = unit.Prompt.HoldDuration or 0.2
+            pcall(function()
+                prompt.Enabled = true
+                prompt.RequiresLineOfSight = false
+                prompt.MaxActivationDistance = 30
+            end)
+
+            local holdTime = prompt.HoldDuration or 0.2
             if typeof(fireproximityprompt) == "function" then
-                fireproximityprompt(unit.Prompt, holdTime)
+                fireproximityprompt(prompt, holdTime)
+                task.wait(0.04)
+                fireproximityprompt(prompt, 0)
             end
-            task.wait(holdTime + 0.04)
+            task.wait(math.max(0.15, holdTime + 0.08))
             leveledCount = leveledCount + 1
         end
     end
 
+    task.wait(0.04)
     root.CFrame = originalCF
-    camera.CFrame = originalCamCF
-    camera.CameraType = originalCamType
+    task.wait(0.04)
+
+    pcall(function()
+        camera.CFrame = originalCamCF
+        camera.CameraType = originalCamType
+    end)
+
+    -- 🎣 Seamless AutoFish Resume Coordination
+    if wasFishing and typeof(autoFish.ResumeFishing) == "function" then
+        task.wait(0.15)
+        autoFish.ResumeFishing()
+    end
+
     isLevelingUp = false
     return leveledCount
 end

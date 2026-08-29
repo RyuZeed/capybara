@@ -25,8 +25,9 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
 
--- State Flags
+-- Configuration & State
 AutoFish.IsFishing = false
+AutoFish.IsPaused = false
 AutoFish.FastClick = true
 AutoFish.SelectedPond = "Auto"
 
@@ -133,6 +134,7 @@ function AutoFish.ClosestPointOnPond(pond, playerPos)
 end
 
 function AutoFish.CastRod()
+    if AutoFish.IsPaused then return false end
     if not Remotes or not Remotes:FindFirstChild("FishingRequestStart") then return false end
     local pond = AutoFish.GetBestPond()
     if not pond then return false end
@@ -150,6 +152,7 @@ function AutoFish.CastRod()
 end
 
 function AutoFish.DoClick()
+    if AutoFish.IsPaused then return end
     if Remotes and Remotes:FindFirstChild("FishingClick") then
         Remotes.FishingClick:FireServer()
     end
@@ -162,6 +165,19 @@ function AutoFish.CancelFishing()
     isCastPending = false
 end
 
+function AutoFish.PauseFishing()
+    AutoFish.IsPaused = true
+    AutoFish.CancelFishing()
+end
+
+function AutoFish.ResumeFishing()
+    AutoFish.IsPaused = false
+    if AutoFish.IsFishing then
+        task.wait(0.2)
+        AutoFish.CastRod()
+    end
+end
+
 -- ── 🎣 Auto Fishing Controller ──
 function AutoFish.StartFishing()
     if AutoFish.IsFishing then return end
@@ -172,13 +188,14 @@ function AutoFish.StartFishing()
     if Remotes and Remotes:FindFirstChild("FishingState") then
         if fishingStateConn then fishingStateConn:Disconnect() end
         fishingStateConn = Remotes.FishingState.OnClientEvent:Connect(function(data)
-            if not AutoFish.IsFishing then return end
+            if not AutoFish.IsFishing or AutoFish.IsPaused then return end
             lastStateTime = tick()
 
             if typeof(data) == "table" then
                 local kind = data.kind
                 if kind == "Hooked" then
                     isCastPending = false
+                    if AutoFish.IsPaused then return end
                     -- Ikan menyambar! Klik otomatis
                     if AutoFish.FastClick then
                         AutoFish.DoClick()
@@ -189,7 +206,7 @@ function AutoFish.StartFishing()
                 elseif kind == "Completed" then
                     isCastPending = false
                     task.wait(0.1)
-                    if AutoFish.IsFishing then
+                    if AutoFish.IsFishing and not AutoFish.IsPaused then
                         AutoFish.CastRod()
                     end
                     -- Real-time instant auto sell for newly caught fish
