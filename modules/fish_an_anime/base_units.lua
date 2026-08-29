@@ -278,6 +278,8 @@ function BaseUnits.LevelUpStand(standId)
     -- 🎣 Seamless AutoFish Pause Coordination
     local autoFish = _G.FishAnAnimeAutoFish
     local wasFishing = autoFish and autoFish.IsFishing
+    local hadNativeAutoFish = (LocalPlayer:GetAttribute("AutoFishActive") == true) or (LocalPlayer:GetAttribute("AutoFishOwned") == true)
+
     if wasFishing and typeof(autoFish.PauseFishing) == "function" then
         autoFish.PauseFishing()
         task.wait(0.12)
@@ -318,8 +320,8 @@ function BaseUnits.LevelUpStand(standId)
     end)
 
     -- 🎣 Seamless AutoFish Resume Coordination
-    if wasFishing and typeof(autoFish.ResumeFishing) == "function" then
-        task.wait(0.15)
+    if (wasFishing or hadNativeAutoFish) and autoFish and typeof(autoFish.ResumeFishing) == "function" then
+        task.wait(0.2)
         autoFish.ResumeFishing()
     end
 
@@ -370,6 +372,8 @@ function BaseUnits.LevelUpAllUnitsOnce()
     -- 🎣 Seamless AutoFish Pause Coordination
     local autoFish = _G.FishAnAnimeAutoFish
     local wasFishing = autoFish and autoFish.IsFishing
+    local hadNativeAutoFish = (LocalPlayer:GetAttribute("AutoFishActive") == true) or (LocalPlayer:GetAttribute("AutoFishOwned") == true)
+
     if wasFishing and typeof(autoFish.PauseFishing) == "function" then
         autoFish.PauseFishing()
         task.wait(0.12)
@@ -420,8 +424,8 @@ function BaseUnits.LevelUpAllUnitsOnce()
     end)
 
     -- 🎣 Seamless AutoFish Resume Coordination
-    if wasFishing and typeof(autoFish.ResumeFishing) == "function" then
-        task.wait(0.15)
+    if (wasFishing or hadNativeAutoFish) and autoFish and typeof(autoFish.ResumeFishing) == "function" then
+        task.wait(0.2)
         autoFish.ResumeFishing()
     end
 

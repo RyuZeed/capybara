@@ -172,6 +172,26 @@ end
 
 function AutoFish.ResumeFishing()
     AutoFish.IsPaused = false
+
+    -- 1. Restore In-Game Native AutoFish (if owned and currently off)
+    task.spawn(function()
+        task.wait(0.1)
+        if LocalPlayer:GetAttribute("AutoFishOwned") == true and LocalPlayer:GetAttribute("AutoFishActive") ~= true then
+            local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            local fishAction = pg and pg:FindFirstChild("MainGui") and pg.MainGui:FindFirstChild("FishAction")
+            local autoFishBtn = fishAction and fishAction:FindFirstChild("AutoFish")
+            if autoFishBtn and typeof(getconnections) == "function" then
+                for _, c in ipairs(getconnections(autoFishBtn.MouseButton1Click)) do
+                    pcall(function() c:Fire() end)
+                end
+            end
+            if Remotes and Remotes:FindFirstChild("FishingAutoFishEnabledSync") then
+                pcall(function() Remotes.FishingAutoFishEnabledSync:FireServer(true) end)
+            end
+        end
+    end)
+
+    -- 2. Resume Script Fishing Controller
     if AutoFish.IsFishing then
         task.wait(0.2)
         AutoFish.CastRod()
