@@ -9,7 +9,7 @@ if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
 
 local PlaceId = game.PlaceId
 local GameId = game.GameId
-local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/"
+local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/main/"
 
 -- Deteksi game
 local rs = game:GetService("ReplicatedStorage")

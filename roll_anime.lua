@@ -86,8 +86,8 @@ end)
 -- =================================================================
 -- 🌐 ROLL ANIME MODULAR LOADER (LOCAL & GITHUB CLOUD SUPPORT)
 -- =================================================================
-local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/roll_anime/"
-local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/"
+local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/main/modules/roll_anime/"
+local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/main/modules/shared/"
 
 local function loadModule(name)
     -- 0. Cek memory global _G
@@ -96,7 +96,7 @@ local function loadModule(name)
     end
 
     -- 1. Prioritaskan GitHub Cloud langsung
-    local targetUrl = (name == "modern_settings" or name == "ritod_ui") and (SHARED_URL .. name .. ".lua") or (BASE_URL .. name .. ".lua")
+    local targetUrl = (name == "modern_settings" or name == "ritod_ui") and (SHARED_URL .. name .. ".lua?t=" .. tostring(os.time())) or (BASE_URL .. name .. ".lua?t=" .. tostring(os.time()))
     local success, result = pcall(function()
         local src = game:HttpGet(targetUrl)
         if src and #src > 10 and not src:find("404: Not Found") then
