@@ -1,13 +1,15 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - FISH AN ANIME RNG (SMART MODULAR SUITE V2.1)
+	⚡ RITOD HUB - FISH AN ANIME RNG (SMART MODULAR SUITE V3.0)
 	Game: Fish an Anime RNG 🎲 (PlaceId: 74729868188364)
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
 	- 🧩 MODULE DIRECTORY: modules/fish_an_anime/
 	  - auto_fish.lua (Event-Driven Auto Fishing & Backpack)
-	  - auto_farm.lua (Auto Quests, Index, Upgrades, Rebirth & All Merchants)
-	  - base_units.lua (Realtime Base Units Scanner & Smart Level Up)
+	  - auto_merchants.lua (Selene, Angelia, Valora Boosts Store, Rods & Carry)
+	  - auto_farm.lua (Specific Upgrades, Quests, All Rewards Claim & Rebirth)
+	  - base_units.lua (Realtime Base Units Scanner, Focus Rarity & Level Up)
+	  - graphics.lua (Potato Graphics, GPU Saver Black Screen & FPS Limiter)
 	  - anti_afk.lua (Bulletproof Keepalive & Anti-AFK Daemon)
 	  - config_manager.lua (Persistent Profile Config)
 	- 🛡️ 100% SMART & SILENT OPERATION (BAC Safe / Anti-Kick Hook)
@@ -49,8 +51,14 @@ pcall(function()
     if _G.FishAnAnimeAutoFarm and typeof(_G.FishAnAnimeAutoFarm.StopAll) == "function" then
         _G.FishAnAnimeAutoFarm.StopAll()
     end
+    if _G.FishAnAnimeAutoMerchants and typeof(_G.FishAnAnimeAutoMerchants.StopAll) == "function" then
+        _G.FishAnAnimeAutoMerchants.StopAll()
+    end
     if _G.FishAnAnimeBaseUnits and typeof(_G.FishAnAnimeBaseUnits.StopAutoLevelUp) == "function" then
         _G.FishAnAnimeBaseUnits.StopAutoLevelUp()
+    end
+    if _G.FishAnAnimeGraphics and typeof(_G.FishAnAnimeGraphics.DisableScreenOff) == "function" then
+        _G.FishAnAnimeGraphics.DisableScreenOff()
     end
     if _G.FishAnAnimeAntiAFK and typeof(_G.FishAnAnimeAntiAFK.Stop) == "function" then
         _G.FishAnAnimeAntiAFK.Stop()
@@ -108,6 +116,7 @@ local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {}
 -- Sinkronisasi konfigurasi ke module farm & merchants & base units
 if AutoFarm then
     if CurrentConfig.SelectedPotions then AutoFarm.SelectedPotions = CurrentConfig.SelectedPotions end
+    if CurrentConfig.AutoUpgradesSelected then AutoFarm.AutoUpgradesSelected = CurrentConfig.AutoUpgradesSelected end
 end
 if AutoMerchants then
     if CurrentConfig.AutoBuyBoostsSelected then AutoMerchants.AutoBuyBoostsSelected = CurrentConfig.AutoBuyBoostsSelected end
@@ -144,16 +153,19 @@ local Window = RitodUI:CreateWindow({
         if AutoFarm and AutoFarm.StopAll then AutoFarm.StopAll() end
         if AutoMerchants and AutoMerchants.StopAll then AutoMerchants.StopAll() end
         if BaseUnits and BaseUnits.StopAutoLevelUp then BaseUnits.StopAutoLevelUp() end
+        if Graphics and Graphics.DisableScreenOff then Graphics.DisableScreenOff() end
         if AntiAFK and AntiAFK.Stop then AntiAFK.Stop() end
     end
 })
 
--- ── Tab 1: 🎣 Fishing ──
-local FishingTab = Window:CreateTab("Fishing", "🎣")
+-- ═════════════════════════════════════════════════════════════════
+-- ── 🏠 Tab 1: Main (Fishing & Base Units) ──
+-- ═════════════════════════════════════════════════════════════════
+local MainTab = Window:CreateTab("Main", "🏠")
 
-FishingTab:AddSection("🎣 Auto Fishing Controller")
+MainTab:AddSection("🎣 Auto Fishing Controller")
 
-FishingTab:AddToggle("Auto Fish (Event-Driven Instant Reel)", CurrentConfig.AutoFish or false, function(state)
+MainTab:AddToggle("Auto Fish (Event-Driven Instant Reel)", CurrentConfig.AutoFish or false, function(state)
     CurrentConfig.AutoFish = state
     if ConfigManager then ConfigManager.Save() end
     if state then
@@ -166,15 +178,13 @@ FishingTab:AddToggle("Auto Fish (Event-Driven Instant Reel)", CurrentConfig.Auto
     end
 end)
 
-FishingTab:AddToggle("Instant Hook Catch (Fast Reel)", CurrentConfig.FastClick ~= false, function(state)
+MainTab:AddToggle("Instant Hook Catch (Fast Reel)", CurrentConfig.FastClick ~= false, function(state)
     CurrentConfig.FastClick = state
     if AutoFish then AutoFish.FastClick = state end
     if ConfigManager then ConfigManager.Save() end
 end)
 
-FishingTab:AddSection("⚡ Manual / Instant Controls")
-
-FishingTab:AddButton("🎣 Cast Rod (Instant 1x)", function()
+MainTab:AddButton("🎣 Cast Rod Now (Instant 1x)", function()
     local success = AutoFish and AutoFish.CastRod()
     if success then
         Window.Notify("Cast Rod", "Umpan berhasil dilempar!", 2.0)
@@ -183,45 +193,42 @@ FishingTab:AddButton("🎣 Cast Rod (Instant 1x)", function()
     end
 end)
 
-FishingTab:AddButton("🛑 Cancel Fishing (Instant 1x)", function()
+MainTab:AddButton("🛑 Cancel Fishing (Instant 1x)", function()
     if AutoFish then AutoFish.CancelFishing() end
     Window.Notify("Fishing", "Aktivitas memancing dibatalkan.", 2.0)
 end)
 
--- ── Tab 2: 🏰 Base Units (Level Up & Realtime Scanner) ──
-local BaseUnitsTab = Window:CreateTab("Base Units", "🏰")
+MainTab:AddSection("🏰 Base Units Level Up Controller")
 
-BaseUnitsTab:AddSection("⚡ Base Units Level Up Controller")
-
-BaseUnitsTab:AddToggle("Auto Level Up All Base Units (Max Level)", CurrentConfig.AutoLevelUpBaseUnits or false, function(state)
+MainTab:AddToggle("Auto Level Up Base Units (Max Level)", CurrentConfig.AutoLevelUpBaseUnits or false, function(state)
     CurrentConfig.AutoLevelUpBaseUnits = state
     if ConfigManager then ConfigManager.Save() end
     if state then
         if BaseUnits then BaseUnits.StartAutoLevelUp(CurrentConfig.BaseUnitsInterval or 10) end
-        Window.Notify("Base Units", "Auto Level Up All Units diaktifkan!", 2.5)
+        Window.Notify("Base Units", "Auto Level Up Units diaktifkan!", 2.5)
     else
         if BaseUnits then BaseUnits.StopAutoLevelUp() end
-        Window.Notify("Base Units", "Auto Level Up All Units dinonaktifkan!", 2.0)
+        Window.Notify("Base Units", "Auto Level Up Units dinonaktifkan!", 2.0)
     end
 end)
 
-BaseUnitsTab:AddButton("🌟 Max Level Up All Units Now (1x)", function()
+MainTab:AddButton("🌟 Max Level Up All Units Now (1x)", function()
     if BaseUnits then
         local count = BaseUnits.LevelUpAllUnitsOnce()
         Window.Notify("Base Units", string.format("Berhasil menaikkan level %d unit ke Max Level!", count), 3.0)
     end
 end)
 
-BaseUnitsTab:AddSection("🎯 Focus Level Up by Rarity")
+MainTab:AddSection("🎯 Focus Level Up by Rarity")
 
-BaseUnitsTab:AddToggle("Filter Level Up by Rarity (Focus Mode)", CurrentConfig.FilterLevelUpByRarity or false, function(state)
+MainTab:AddToggle("Filter Level Up by Rarity (Focus Mode)", CurrentConfig.FilterLevelUpByRarity or false, function(state)
     CurrentConfig.FilterLevelUpByRarity = state
     if BaseUnits then BaseUnits.FilterByRarity = state end
     if ConfigManager then ConfigManager.Save() end
     Window.Notify("Rarity Focus", state and "Focus Rarity Mode: AKTIF" or "Focus Rarity Mode: NONAKTIF (Semua Rarity)", 2.0)
 end)
 
-local gameRarities = {
+local officialRarities = {
     { name = "Common", icon = "⚪" },
     { name = "Uncommon", icon = "💚" },
     { name = "Rare", icon = "💙" },
@@ -241,61 +248,44 @@ local gameRarities = {
     { name = "Exclusive", icon = "💎" }
 }
 
-for _, r in ipairs(gameRarities) do
+for _, r in ipairs(officialRarities) do
     local isChecked = (CurrentConfig.LevelUpSelectedRarities and CurrentConfig.LevelUpSelectedRarities[r.name]) or false
-    BaseUnitsTab:AddToggle(string.format("%s %s", r.icon, r.name), isChecked, function(state)
+    MainTab:AddToggle(string.format("%s %s", r.icon, r.name), isChecked, function(state)
         CurrentConfig.LevelUpSelectedRarities[r.name] = state
         if BaseUnits then BaseUnits.SelectedRarities[r.name] = state end
         if ConfigManager then ConfigManager.Save() end
     end)
 end
 
-BaseUnitsTab:AddSection("🔍 Realtime Base Units Scanner")
-
-local scannerSectionLabels = {}
+MainTab:AddSection("🔍 Realtime Base Units Scanner")
 
 local function refreshUnitsScanner()
     if not BaseUnits then return end
     local units = BaseUnits.ScanUnits()
-    
     local plot = BaseUnits.GetPlayerPlot()
     local plotName = plot and plot.Name or "Unknown"
-
     Window.Notify("Scanner", string.format("Scan selesai: %d unit terpasang di %s!", #units, plotName), 2.5)
 end
 
-BaseUnitsTab:AddButton("🔄 Scan / Refresh Base Units", function()
+MainTab:AddButton("🔄 Scan / Refresh Base Units", function()
     refreshUnitsScanner()
 end)
 
 local rarityIcons = {
-    Common = "⚪",
-    Uncommon = "💚",
-    Rare = "💙",
-    Epic = "💜",
-    Legendary = "⚔️",
-    Mythical = "🔮",
-    Cosmic = "🪐",
-    Secret = "🗝️",
-    Rainbow = "🌈",
-    Ascended = "🔺",
-    Divine = "⚡",
-    Supreme = "🌟",
-    Celestial = "🌌",
-    Ancient = "👑",
-    God = "🔱",
-    Omniscient = "👁️",
+    Common = "⚪", Uncommon = "💚", Rare = "💙", Epic = "💜",
+    Legendary = "⚔️", Mythical = "🔮", Cosmic = "🪐", Secret = "🗝️",
+    Rainbow = "🌈", Ascended = "🔺", Divine = "⚡", Supreme = "🌟",
+    Celestial = "🌌", Ancient = "👑", God = "🔱", Omniscient = "👁️",
     Exclusive = "💎"
 }
 
--- Render unit list saat pertama kali dimuat
 local initialUnits = BaseUnits and BaseUnits.ScanUnits() or {}
 for _, u in ipairs(initialUnits) do
     local icon = rarityIcons[u.Rarity] or "⭐"
     local infoStr = string.format("%s [%s] %s (Stand %s) | Lvl %d | $%s/s | %s",
         icon, u.Rarity, u.Name, u.StandId, u.Level, formatNumber(u.CPS), u.UpgradeCostText
     )
-    BaseUnitsTab:AddButton(infoStr, function()
+    MainTab:AddButton(infoStr, function()
         if BaseUnits then
             local res = BaseUnits.LevelUpStand(u.StandId)
             if res then
@@ -307,12 +297,14 @@ for _, u in ipairs(initialUnits) do
     end)
 end
 
--- ── Tab 3: 🏪 Merchants & Secret Store ──
-local MerchantTab = Window:CreateTab("Merchants", "🏪")
+-- ═════════════════════════════════════════════════════════════════
+-- ── 🏪 Tab 2: Shop & Boosts (Merchants, Boost Store & Potions) ──
+-- ═════════════════════════════════════════════════════════════════
+local ShopTab = Window:CreateTab("Shop & Boosts", "🏪")
 
-MerchantTab:AddSection("🌙 Secret Merchant: Selene (Dark / Void)")
+ShopTab:AddSection("🌙 Secret Merchant: Selene (Dark / Void)")
 
-MerchantTab:AddToggle("Auto Buy Selene Items", CurrentConfig.AutoBuySelene or false, function(state)
+ShopTab:AddToggle("Auto Buy Selene Items", CurrentConfig.AutoBuySelene or false, function(state)
     CurrentConfig.AutoBuySelene = state
     if ConfigManager then ConfigManager.Save() end
     if state then
@@ -324,7 +316,7 @@ MerchantTab:AddToggle("Auto Buy Selene Items", CurrentConfig.AutoBuySelene or fa
     end
 end)
 
-MerchantTab:AddButton("⚡ Buy Selected Selene Items Now (1x)", function()
+ShopTab:AddButton("⚡ Buy Selected Selene Items Now (1x)", function()
     if AutoMerchants then AutoMerchants.BuySelectedSeleneOnce() end
     Window.Notify("Selene", "Membeli item Selene yang dipilih!", 2.0)
 end)
@@ -341,16 +333,16 @@ local seleneOffers = {
 
 for _, item in ipairs(seleneOffers) do
     local isChecked = (CurrentConfig.AutoBuySeleneSelected and CurrentConfig.AutoBuySeleneSelected[item.id]) or false
-    MerchantTab:AddToggle(string.format("[%s] %s (%s)", item.id, item.name, item.price), isChecked, function(state)
+    ShopTab:AddToggle(string.format("[%s] %s (%s)", item.id, item.name, item.price), isChecked, function(state)
         CurrentConfig.AutoBuySeleneSelected[item.id] = state
         if AutoMerchants then AutoMerchants.AutoBuySeleneSelected[item.id] = state end
         if ConfigManager then ConfigManager.Save() end
     end)
 end
 
-MerchantTab:AddSection("👼 Secret Merchant: Angelia (Heavens)")
+ShopTab:AddSection("👼 Secret Merchant: Angelia (Heavenly Gate)")
 
-MerchantTab:AddToggle("Auto Buy Angelia Items", CurrentConfig.AutoBuyAngelia or false, function(state)
+ShopTab:AddToggle("Auto Buy Angelia Items", CurrentConfig.AutoBuyAngelia or false, function(state)
     CurrentConfig.AutoBuyAngelia = state
     if ConfigManager then ConfigManager.Save() end
     if state then
@@ -362,7 +354,7 @@ MerchantTab:AddToggle("Auto Buy Angelia Items", CurrentConfig.AutoBuyAngelia or 
     end
 end)
 
-MerchantTab:AddButton("⚡ Buy Selected Angelia Items Now (1x)", function()
+ShopTab:AddButton("⚡ Buy Selected Angelia Items Now (1x)", function()
     if AutoMerchants then AutoMerchants.BuySelectedAngeliaOnce() end
     Window.Notify("Angelia", "Membeli item Angelia yang dipilih!", 2.0)
 end)
@@ -381,50 +373,16 @@ local angeliaOffers = {
 
 for _, item in ipairs(angeliaOffers) do
     local isChecked = (CurrentConfig.AutoBuyAngeliaSelected and CurrentConfig.AutoBuyAngeliaSelected[item.id]) or false
-    MerchantTab:AddToggle(string.format("[%s] %s (%s)", item.id, item.name, item.price), isChecked, function(state)
+    ShopTab:AddToggle(string.format("[%s] %s (%s)", item.id, item.name, item.price), isChecked, function(state)
         CurrentConfig.AutoBuyAngeliaSelected[item.id] = state
         if AutoMerchants then AutoMerchants.AutoBuyAngeliaSelected[item.id] = state end
         if ConfigManager then ConfigManager.Save() end
     end)
 end
 
-MerchantTab:AddSection("🎣 Fishing Rods & Carry Capacity")
+ShopTab:AddSection("🏪 Boosts Store (NPC Valora - Auto Restock)")
 
-MerchantTab:AddToggle("Auto Buy Available Fishing Rods", CurrentConfig.AutoBuyFishingRods or false, function(state)
-    CurrentConfig.AutoBuyFishingRods = state
-    if ConfigManager then ConfigManager.Save() end
-    if state then
-        if AutoMerchants then AutoMerchants.StartAutoBuyFishingRods(10) end
-        Window.Notify("Rods Auto Buy", "Auto Buy Fishing Rods diaktifkan!", 2.0)
-    else
-        if AutoMerchants then AutoMerchants.StopAutoBuyFishingRods() end
-        Window.Notify("Rods Auto Buy", "Auto Buy Fishing Rods dinonaktifkan!", 2.0)
-    end
-end)
-
-MerchantTab:AddButton("⚡ Buy Available Rods Now (1x)", function()
-    if AutoMerchants then AutoMerchants.BuyAvailableFishingRodsOnce() end
-    Window.Notify("Fishing Rods", "Membeli pancingan yang memenuhi syarat!", 2.0)
-end)
-
-MerchantTab:AddToggle("Auto Buy Carry Capacity (+1)", CurrentConfig.AutoBuyCarry or false, function(state)
-    CurrentConfig.AutoBuyCarry = state
-    if ConfigManager then ConfigManager.Save() end
-    if state then
-        if AutoMerchants then AutoMerchants.StartAutoBuyCarry(10) end
-        Window.Notify("Carry Auto Buy", "Auto Buy Carry Capacity diaktifkan!", 2.0)
-    else
-        if AutoMerchants then AutoMerchants.StopAutoBuyCarry() end
-        Window.Notify("Carry Auto Buy", "Auto Buy Carry Capacity dinonaktifkan!", 2.0)
-    end
-end)
-
--- ── Tab 4: 🧪 Boosts Store & Potions ──
-local BoostTab = Window:CreateTab("Boosts", "🧪")
-
-BoostTab:AddSection("🏪 Boosts Store (NPC Valora - Auto Restock)")
-
-BoostTab:AddToggle("Auto Buy Boosts Store Items", CurrentConfig.AutoBuyBoosts or false, function(state)
+ShopTab:AddToggle("Auto Buy Boosts Store Items", CurrentConfig.AutoBuyBoosts or false, function(state)
     CurrentConfig.AutoBuyBoosts = state
     if ConfigManager then ConfigManager.Save() end
     if state then
@@ -436,7 +394,7 @@ BoostTab:AddToggle("Auto Buy Boosts Store Items", CurrentConfig.AutoBuyBoosts or
     end
 end)
 
-BoostTab:AddToggle("Pay with Cash (OFF = Pay with Gems)", CurrentConfig.AutoBuyBoostsCurrency ~= "Gems", function(state)
+ShopTab:AddToggle("Pay with Cash (OFF = Pay with Gems)", CurrentConfig.AutoBuyBoostsCurrency ~= "Gems", function(state)
     local cur = state and "Cash" or "Gems"
     CurrentConfig.AutoBuyBoostsCurrency = cur
     if AutoMerchants then AutoMerchants.AutoBuyBoostsCurrency = cur end
@@ -444,7 +402,7 @@ BoostTab:AddToggle("Pay with Cash (OFF = Pay with Gems)", CurrentConfig.AutoBuyB
     Window.Notify("Currency", "Metode bayar Boosts Store: " .. cur, 2.0)
 end)
 
-BoostTab:AddButton("⚡ Buy Selected Boosts Now (1x)", function()
+ShopTab:AddButton("⚡ Buy Selected Boosts Now (1x)", function()
     if AutoMerchants then AutoMerchants.BuySelectedBoostsOnce() end
     Window.Notify("Boosts Store", "Membeli seluruh stock boosts yang dipilih!", 2.0)
 end)
@@ -463,16 +421,16 @@ local boostsStoreOffers = {
 
 for _, item in ipairs(boostsStoreOffers) do
     local isChecked = (CurrentConfig.AutoBuyBoostsSelected and CurrentConfig.AutoBuyBoostsSelected[item.id]) or false
-    BoostTab:AddToggle(string.format("[%s] %s ($%s / %s 💎)", item.id, item.name, item.cash, item.gems), isChecked, function(state)
+    ShopTab:AddToggle(string.format("[%s] %s ($%s / %s 💎)", item.id, item.name, item.cash, item.gems), isChecked, function(state)
         CurrentConfig.AutoBuyBoostsSelected[item.id] = state
         if AutoMerchants then AutoMerchants.AutoBuyBoostsSelected[item.id] = state end
         if ConfigManager then ConfigManager.Save() end
     end)
 end
 
-BoostTab:AddSection("🧪 Potion Uptime (Auto Use when Expired)")
+ShopTab:AddSection("🧪 Potions Uptime Buff (24/7 Buff)")
 
-BoostTab:AddToggle("Auto Maintain Active Potions (24/7 Buff)", CurrentConfig.AutoPotions or false, function(state)
+ShopTab:AddToggle("Auto Maintain Active Potions (24/7 Buff)", CurrentConfig.AutoPotions or false, function(state)
     CurrentConfig.AutoPotions = state
     if ConfigManager then ConfigManager.Save() end
     if state then
@@ -484,39 +442,62 @@ BoostTab:AddToggle("Auto Maintain Active Potions (24/7 Buff)", CurrentConfig.Aut
     end
 end)
 
-BoostTab:AddButton("⚡ Use Selected Potions Now (1x)", function()
+ShopTab:AddButton("⚡ Use Selected Potions Now (1x)", function()
     if AutoFarm then AutoFarm.UseSelectedPotionsOnce() end
     Window.Notify("Potions", "Menggunakan ramuan yang dipilih dari tas!", 2.0)
 end)
 
 local commonPotions = {
-    "Luck Potion Lvl. 1",
-    "Luck Potion Lvl. 2",
-    "Luck Potion Lvl. 3",
-    "Fast Catch Potion Lvl. 1",
-    "Fast Catch Potion Lvl. 2",
-    "Mutation Potion Lvl. 1",
-    "Gems Potion Lvl. 1",
-    "Gems Potion Lvl. 2",
-    "Gems Potion Lvl. 3",
-    "Cash Potion Lvl. 1",
-    "Cash Potion Lvl. 2",
-    "Cash Potion Lvl. 3",
-    "Heaven's Collide Potion",
-    "Sinister Potion",
-    "Meteorite Potion"
+    "Luck Potion Lvl. 1", "Luck Potion Lvl. 2", "Luck Potion Lvl. 3",
+    "Fast Catch Potion Lvl. 1", "Fast Catch Potion Lvl. 2", "Mutation Potion Lvl. 1",
+    "Gems Potion Lvl. 1", "Gems Potion Lvl. 2", "Gems Potion Lvl. 3",
+    "Cash Potion Lvl. 1", "Cash Potion Lvl. 2", "Cash Potion Lvl. 3",
+    "Heaven's Collide Potion", "Sinister Potion", "Meteorite Potion"
 }
 
 for _, pot in ipairs(commonPotions) do
     local isChecked = (CurrentConfig.SelectedPotions and CurrentConfig.SelectedPotions[pot]) or false
-    BoostTab:AddToggle(pot, isChecked, function(state)
+    ShopTab:AddToggle(pot, isChecked, function(state)
         CurrentConfig.SelectedPotions[pot] = state
         if AutoFarm then AutoFarm.SelectedPotions[pot] = state end
         if ConfigManager then ConfigManager.Save() end
     end)
 end
 
--- ── Tab 5: 🎒 Backpack & Sell ──
+ShopTab:AddSection("🎣 Fishing Rods & Carry Capacity")
+
+ShopTab:AddToggle("Auto Buy Available Fishing Rods", CurrentConfig.AutoBuyFishingRods or false, function(state)
+    CurrentConfig.AutoBuyFishingRods = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if AutoMerchants then AutoMerchants.StartAutoBuyFishingRods(10) end
+        Window.Notify("Rods Auto Buy", "Auto Buy Fishing Rods diaktifkan!", 2.0)
+    else
+        if AutoMerchants then AutoMerchants.StopAutoBuyFishingRods() end
+        Window.Notify("Rods Auto Buy", "Auto Buy Fishing Rods dinonaktifkan!", 2.0)
+    end
+end)
+
+ShopTab:AddButton("⚡ Buy Available Rods Now (1x)", function()
+    if AutoMerchants then AutoMerchants.BuyAvailableFishingRodsOnce() end
+    Window.Notify("Fishing Rods", "Membeli pancingan yang memenuhi syarat!", 2.0)
+end)
+
+ShopTab:AddToggle("Auto Buy Carry Capacity (+1)", CurrentConfig.AutoBuyCarry or false, function(state)
+    CurrentConfig.AutoBuyCarry = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if AutoMerchants then AutoMerchants.StartAutoBuyCarry(10) end
+        Window.Notify("Carry Auto Buy", "Auto Buy Carry Capacity diaktifkan!", 2.0)
+    else
+        if AutoMerchants then AutoMerchants.StopAutoBuyCarry() end
+        Window.Notify("Carry Auto Buy", "Auto Buy Carry Capacity dinonaktifkan!", 2.0)
+    end
+end)
+
+-- ═════════════════════════════════════════════════════════════════
+-- ── 🎒 Tab 3: Backpack & Sell ──
+-- ═════════════════════════════════════════════════════════════════
 local BackpackTab = Window:CreateTab("Backpack", "🎒")
 
 BackpackTab:AddSection("🎒 Auto Inventory Actions")
@@ -574,16 +555,120 @@ BackpackTab:AddButton("💰 Sell All Items Now (1x)", function()
     Window.Notify("Sell All", "Berhasil menjual seluruh isi backpack!", 2.5)
 end)
 
-BackpackTab:AddSection("💎 Sell by Rarity (Instant 1x)")
-local rarities = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical", "Secret"}
-for _, r in ipairs(rarities) do
-    BackpackTab:AddButton("💰 Sell All " .. r .. " (1x)", function()
-        if AutoFish then AutoFish.SellRarityOnce(r) end
-        Window.Notify("Sell Rarity", "Berhasil menjual item rarity: " .. r, 2.0)
+BackpackTab:AddSection("💎 Sell by Rarity (All 17 Rarities)")
+
+for _, r in ipairs(officialRarities) do
+    BackpackTab:AddButton(string.format("%s Sell All %s (1x)", r.icon, r.name), function()
+        if AutoFish then AutoFish.SellRarityOnce(r.name) end
+        Window.Notify("Sell Rarity", string.format("Berhasil menjual item rarity: %s %s!", r.icon, r.name), 2.0)
     end)
 end
 
--- ── Tab 6: 📜 Quests & Progression ──
+-- ═════════════════════════════════════════════════════════════════
+-- ── ⚡ Tab 4: Upgrades (Specific Tiers) ──
+-- ═════════════════════════════════════════════════════════════════
+local UpgradesTab = Window:CreateTab("Upgrades", "⚡")
+
+UpgradesTab:AddSection("⚡ Auto Upgrades Controller")
+
+UpgradesTab:AddToggle("Auto Buy Selected Upgrades", CurrentConfig.AutoUpgrades or false, function(state)
+    CurrentConfig.AutoUpgrades = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        AutoFarm.StartAutoUpgrades(CurrentConfig.UpgradesInterval or 3)
+        Window.Notify("Auto Upgrades", "Auto Buy Selected Upgrades diaktifkan!", 2.0)
+    else
+        AutoFarm.StopAutoUpgrades()
+        Window.Notify("Auto Upgrades", "Auto Buy Upgrades dinonaktifkan!", 2.0)
+    end
+end)
+
+UpgradesTab:AddButton("⚡ Buy Selected Affordable Upgrades (1x)", function()
+    if AutoFarm then AutoFarm.BuySelectedUpgradesOnce() end
+    Window.Notify("Upgrades", "Membeli seluruh upgrade yang dipilih & terjangkau!", 2.0)
+end)
+
+UpgradesTab:AddSection("🟢 Tier 1 Upgrades")
+
+local tier1Upgrades = {
+    { id = "T1O1", name = "More Cash", stat = "+5% Cash" },
+    { id = "T1O2", name = "Extra Luck", stat = "+2.5% Luck" }
+}
+for _, upg in ipairs(tier1Upgrades) do
+    local isChecked = (CurrentConfig.AutoUpgradesSelected and CurrentConfig.AutoUpgradesSelected[upg.id] ~= false)
+    UpgradesTab:AddToggle(string.format("[%s] %s (%s)", upg.id, upg.name, upg.stat), isChecked, function(state)
+        CurrentConfig.AutoUpgradesSelected[upg.id] = state
+        if AutoFarm then AutoFarm.AutoUpgradesSelected[upg.id] = state end
+        if ConfigManager then ConfigManager.Save() end
+    end)
+end
+
+UpgradesTab:AddSection("🔵 Tier 2 Upgrades")
+
+local tier2Upgrades = {
+    { id = "T2O1", name = "Mutation Chance", stat = "+6.7% Mutations" },
+    { id = "T2O2", name = "Better Mutations", stat = "+1% Mutations" },
+    { id = "T2O3", name = "Level Discount", stat = "+1% Discount" }
+}
+for _, upg in ipairs(tier2Upgrades) do
+    local isChecked = (CurrentConfig.AutoUpgradesSelected and CurrentConfig.AutoUpgradesSelected[upg.id] ~= false)
+    UpgradesTab:AddToggle(string.format("[%s] %s (%s)", upg.id, upg.name, upg.stat), isChecked, function(state)
+        CurrentConfig.AutoUpgradesSelected[upg.id] = state
+        if AutoFarm then AutoFarm.AutoUpgradesSelected[upg.id] = state end
+        if ConfigManager then ConfigManager.Save() end
+    end)
+end
+
+UpgradesTab:AddSection("🟣 Tier 3 Upgrades")
+
+local tier3Upgrades = {
+    { id = "T3O1", name = "Offline Earnings", stat = "+1% Earnings" },
+    { id = "T3O2", name = "Potion Time", stat = "+1% Time" },
+    { id = "T3O3", name = "Faster Catch", stat = "+1.25% Speed" }
+}
+for _, upg in ipairs(tier3Upgrades) do
+    local isChecked = (CurrentConfig.AutoUpgradesSelected and CurrentConfig.AutoUpgradesSelected[upg.id] ~= false)
+    UpgradesTab:AddToggle(string.format("[%s] %s (%s)", upg.id, upg.name, upg.stat), isChecked, function(state)
+        CurrentConfig.AutoUpgradesSelected[upg.id] = state
+        if AutoFarm then AutoFarm.AutoUpgradesSelected[upg.id] = state end
+        if ConfigManager then ConfigManager.Save() end
+    end)
+end
+
+UpgradesTab:AddSection("🟡 Tier 4 Upgrades")
+
+local tier4Upgrades = {
+    { id = "T4O1", name = "Secret Catch Rate", stat = "+10% Secret Chance" },
+    { id = "T4O2", name = "Rainbow Catch Rate", stat = "+10% Rainbow Chance" },
+    { id = "T4O3", name = "Ancient Catch Rate", stat = "+5% Ancient Chance" }
+}
+for _, upg in ipairs(tier4Upgrades) do
+    local isChecked = (CurrentConfig.AutoUpgradesSelected and CurrentConfig.AutoUpgradesSelected[upg.id] ~= false)
+    UpgradesTab:AddToggle(string.format("[%s] %s (%s)", upg.id, upg.name, upg.stat), isChecked, function(state)
+        CurrentConfig.AutoUpgradesSelected[upg.id] = state
+        if AutoFarm then AutoFarm.AutoUpgradesSelected[upg.id] = state end
+        if ConfigManager then ConfigManager.Save() end
+    end)
+end
+
+UpgradesTab:AddSection("🔴 Tier 5 Upgrades (Godly)")
+
+local tier5Upgrades = {
+    { id = "T5O1", name = "God Catch Rate", stat = "+100% God Chance" },
+    { id = "T5O2", name = "Omniscient Catch Rate", stat = "+4.75% Omniscient Chance" }
+}
+for _, upg in ipairs(tier5Upgrades) do
+    local isChecked = (CurrentConfig.AutoUpgradesSelected and CurrentConfig.AutoUpgradesSelected[upg.id] ~= false)
+    UpgradesTab:AddToggle(string.format("[%s] %s (%s)", upg.id, upg.name, upg.stat), isChecked, function(state)
+        CurrentConfig.AutoUpgradesSelected[upg.id] = state
+        if AutoFarm then AutoFarm.AutoUpgradesSelected[upg.id] = state end
+        if ConfigManager then ConfigManager.Save() end
+    end)
+end
+
+-- ═════════════════════════════════════════════════════════════════
+-- ── 📜 Tab 5: Quests & Rewards ──
+-- ═════════════════════════════════════════════════════════════════
 local QuestTab = Window:CreateTab("Quests", "📜")
 
 QuestTab:AddSection("📜 Auto Quests")
@@ -605,7 +690,7 @@ QuestTab:AddButton("⚡ Claim All Quests Now (1x)", function()
     Window.Notify("Claim Quests", "Semua quest yang selesai berhasil di-claim!", 2.5)
 end)
 
-QuestTab:AddSection("📖 Auto Index Rewards")
+QuestTab:AddSection("📖 Auto Index Collection Rewards")
 
 QuestTab:AddToggle("Auto Claim Index Rewards", CurrentConfig.AutoClaimIndex or false, function(state)
     CurrentConfig.AutoClaimIndex = state
@@ -624,30 +709,25 @@ QuestTab:AddButton("⚡ Claim All Index Rewards Now (1x)", function()
     Window.Notify("Claim Index", "Semua reward index berhasil di-claim!", 2.5)
 end)
 
-QuestTab:AddSection("⚡ Upgrades & Rebirth")
+QuestTab:AddSection("🎁 Free Gifts, Medals & Leave Offers")
 
-QuestTab:AddToggle("Auto Upgrades (All Tiers)", CurrentConfig.AutoUpgrades or false, function(state)
-    CurrentConfig.AutoUpgrades = state
-    if ConfigManager then ConfigManager.Save() end
-    if state then
-        AutoFarm.StartAutoUpgrades(CurrentConfig.UpgradesInterval or 3)
-        Window.Notify("Auto Upgrades", "Auto Upgrades diaktifkan!", 2.0)
-    else
-        AutoFarm.StopAutoUpgrades()
-        Window.Notify("Auto Upgrades", "Auto Upgrades dinonaktifkan!", 2.0)
-    end
+QuestTab:AddButton("⚡ Claim All Free Rewards & Medals (1x)", function()
+    if AutoFarm then AutoFarm.ClaimAllFreeRewardsOnce() end
+    Window.Notify("Free Rewards", "Berhasil men-claim semua reward gratis yang tersedia!", 2.5)
 end)
 
-QuestTab:AddButton("⚡ Buy All Affordable Upgrades (1x)", function()
-    if AutoFarm then AutoFarm.BuyAllUpgradesOnce() end
-    Window.Notify("Upgrades", "Membeli seluruh upgrade yang terjangkau!", 2.0)
-end)
+-- ═════════════════════════════════════════════════════════════════
+-- ── 🔄 Tab 6: Rebirth (Separated) ──
+-- ═════════════════════════════════════════════════════════════════
+local RebirthTab = Window:CreateTab("Rebirth", "🔄")
 
-QuestTab:AddToggle("Auto Rebirth", CurrentConfig.AutoRebirth or false, function(state)
+RebirthTab:AddSection("🔄 Auto Rebirth Progression")
+
+RebirthTab:AddToggle("Auto Rebirth (Continuous Progression)", CurrentConfig.AutoRebirth or false, function(state)
     CurrentConfig.AutoRebirth = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        AutoFarm.StartAutoRebirth(3)
+        AutoFarm.StartAutoRebirth(CurrentConfig.RebirthInterval or 3)
         Window.Notify("Auto Rebirth", "Auto Rebirth diaktifkan!", 2.0)
     else
         AutoFarm.StopAutoRebirth()
@@ -655,12 +735,18 @@ QuestTab:AddToggle("Auto Rebirth", CurrentConfig.AutoRebirth or false, function(
     end
 end)
 
-QuestTab:AddButton("⚡ Rebirth Now (Instant 1x)", function()
+RebirthTab:AddButton("⚡ Rebirth Now (Instant 1x)", function()
     local res = AutoFarm and AutoFarm.RebirthOnce()
-    Window.Notify("Rebirth", "Mencoba melakukan Rebirth!", 2.0)
+    if res then
+        Window.Notify("Rebirth", "Berhasil melakukan Rebirth!", 2.5)
+    else
+        Window.Notify("Rebirth", "Syarat Rebirth belum terpenuhi!", 2.0)
+    end
 end)
 
--- ── Tab 7: ⚡ Graphics & FPS Booster ──
+-- ═════════════════════════════════════════════════════════════════
+-- ── ⚡ Tab 7: Graphics & FPS Booster ──
+-- ═════════════════════════════════════════════════════════════════
 local GraphicsTab = Window:CreateTab("Graphics", "⚡")
 
 GraphicsTab:AddSection("🥔 FPS Booster & Low Detail Mode")
@@ -737,7 +823,9 @@ GraphicsTab:AddButton("🧹 Clean RAM / Memory Now (1x)", function()
     Window.Notify("RAM Cleaner", "Garbage collection selesai! Memori dibersihkan.", 2.5)
 end)
 
--- ── Tab 8: ⚙️ Settings (Config Manager & Anti-AFK) ──
+-- ═════════════════════════════════════════════════════════════════
+-- ── ⚙️ Tab 8: Settings (Config Manager & Anti-AFK) ──
+-- ═════════════════════════════════════════════════════════════════
 local SettingsTab = Window:CreateTab("Settings", "⚙️")
 
 SettingsTab:AddSection("🛡️ Protection & Anti-AFK")
@@ -830,6 +918,7 @@ _G.RitodHubCleanup = function()
         if AutoFarm and AutoFarm.StopAll then AutoFarm.StopAll() end
         if AutoMerchants and AutoMerchants.StopAll then AutoMerchants.StopAll() end
         if BaseUnits and BaseUnits.StopAutoLevelUp then BaseUnits.StopAutoLevelUp() end
+        if Graphics and Graphics.DisableScreenOff then Graphics.DisableScreenOff() end
         if AntiAFK and AntiAFK.Stop then AntiAFK.Stop() end
         if Window.ScreenGui and Window.ScreenGui.Parent then Window.ScreenGui:Destroy() end
     end)

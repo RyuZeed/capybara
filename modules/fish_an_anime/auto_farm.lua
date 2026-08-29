@@ -102,7 +102,7 @@ function AutoFarm.StopAutoQuests()
     end
 end
 
--- ── 📖 2. Auto Claim Index ──
+-- ── 📖 2. Auto Claim Index & Free Rewards ──
 function AutoFarm.ClaimAllIndexOnce()
     if not Remotes then return false end
     local claimed = false
@@ -115,13 +115,32 @@ function AutoFarm.ClaimAllIndexOnce()
     return claimed
 end
 
+function AutoFarm.ClaimAllFreeRewardsOnce()
+    if not Remotes then return end
+    if Remotes:FindFirstChild("IndexClaimAllRewards") then
+        pcall(function() Remotes.IndexClaimAllRewards:InvokeServer() end)
+    end
+    if Remotes:FindFirstChild("QuestClaimAll") then
+        pcall(function() Remotes.QuestClaimAll:InvokeServer() end)
+    end
+    if Remotes:FindFirstChild("MedalQuestClaim") then
+        pcall(function() Remotes.MedalQuestClaim:InvokeServer() end)
+    end
+    if Remotes:FindFirstChild("AlphaClaimRequest") then
+        pcall(function() Remotes.AlphaClaimRequest:InvokeServer() end)
+    end
+    if Remotes:FindFirstChild("LeaveOfferClaim") then
+        pcall(function() Remotes.LeaveOfferClaim:InvokeServer() end)
+    end
+end
+
 function AutoFarm.StartAutoIndex(interval)
     AutoFarm.AutoIndexEnabled = true
     interval = interval or 10
     if indexThread then task.cancel(indexThread) end
     indexThread = task.spawn(function()
         while AutoFarm.AutoIndexEnabled do
-            AutoFarm.ClaimAllIndexOnce()
+            AutoFarm.ClaimAllFreeRewardsOnce()
             task.wait(interval)
         end
     end)
@@ -135,14 +154,32 @@ function AutoFarm.StopAutoIndex()
     end
 end
 
--- ── ⚡ 3. Auto Upgrades ──
-function AutoFarm.BuyAllUpgradesOnce()
+-- ── ⚡ 3. Specific Auto Upgrades ──
+AutoFarm.AutoUpgradesSelected = {
+    T1O1 = true,
+    T1O2 = true,
+    T2O1 = true,
+    T2O2 = true,
+    T2O3 = true,
+    T3O1 = true,
+    T3O2 = true,
+    T3O3 = true,
+    T4O1 = true,
+    T4O2 = true,
+    T4O3 = true,
+    T5O1 = true,
+    T5O2 = true
+}
+
+function AutoFarm.BuySelectedUpgradesOnce()
     if not Remotes or not Remotes:FindFirstChild("UpgradesStorePurchase") then return end
     for _, id in ipairs(UPGRADE_IDS) do
-        pcall(function()
-            Remotes.UpgradesStorePurchase:InvokeServer(id)
-        end)
-        task.wait(0.05)
+        if AutoFarm.AutoUpgradesSelected[id] == true then
+            pcall(function()
+                Remotes.UpgradesStorePurchase:InvokeServer(id)
+            end)
+            task.wait(0.04)
+        end
     end
 end
 
@@ -152,7 +189,7 @@ function AutoFarm.StartAutoUpgrades(interval)
     if upgradesThread then task.cancel(upgradesThread) end
     upgradesThread = task.spawn(function()
         while AutoFarm.AutoUpgradesEnabled do
-            AutoFarm.BuyAllUpgradesOnce()
+            AutoFarm.BuySelectedUpgradesOnce()
             task.wait(interval)
         end
     end)

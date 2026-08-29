@@ -1,6 +1,6 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - FISH AN ANIME RNG (CONFIG MANAGER)
+	⚡ RITOD HUB - FISH AN ANIME RNG (CONFIG MANAGER V2.5)
 	Module: modules/fish_an_anime/config_manager.lua
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
@@ -10,44 +10,71 @@ local ConfigManager = {}
 ConfigManager.__index = ConfigManager
 
 local HttpService = game:GetService("HttpService")
-
-local GAME_FOLDER = "RitodHub/FishAnAnime"
-local CONFIG_FILE = GAME_FOLDER .. "/config.json"
+local FILE_NAME = "RitodHub_FishAnAnime_Config.json"
 
 ConfigManager.DefaultConfig = {
     -- Auto Fishing
     AutoFish = false,
     FastClick = true,
-    AutoFishDelay = 0.05,
-    SelectedPond = "Auto",
-
-    -- Backpack & Sell
     AutoEquipBest = false,
     AutoPickUpAll = false,
     AutoSellAll = false,
     AutoSellInterval = 10,
-    AutoSellRarities = {
+
+    -- Base Units Level Up & Scanner
+    AutoLevelUpBaseUnits = false,
+    BaseUnitsInterval = 10,
+    FilterLevelUpByRarity = false,
+    LevelUpSelectedRarities = {
         Common = false,
         Uncommon = false,
         Rare = false,
         Epic = false,
-        Legendary = false,
-        Mythical = false,
-        Secret = false,
-        Cosmic = false
+        Legendary = true,
+        Mythical = true,
+        Cosmic = true,
+        Secret = true,
+        Rainbow = true,
+        Ascended = true,
+        Divine = true,
+        Supreme = true,
+        Celestial = true,
+        Ancient = true,
+        God = true,
+        Omniscient = true,
+        Exclusive = true
     },
 
-    -- Quests & Index
+    -- Quests & Rewards
     AutoClaimQuests = false,
-    AutoClaimIndex = false,
     QuestClaimInterval = 5,
+    AutoClaimIndex = false,
+    AutoClaimMedals = false,
 
-    -- Upgrades & Rebirth
+    -- Specific Upgrades
     AutoUpgrades = false,
-    AutoRebirth = false,
     UpgradesInterval = 3,
+    AutoUpgradesSelected = {
+        T1O1 = true, -- Cash
+        T1O2 = true, -- Luck
+        T2O1 = true, -- Mutation Chance
+        T2O2 = true, -- Better Mutations
+        T2O3 = true, -- Level Discount
+        T3O1 = true, -- Offline Earnings
+        T3O2 = true, -- Potion Time
+        T3O3 = true, -- Faster Catch
+        T4O1 = true, -- Secret Catch Rate
+        T4O2 = true, -- Rainbow Catch Rate
+        T4O3 = true, -- Ancient Catch Rate
+        T5O1 = true, -- God Catch Rate
+        T5O2 = true  -- Omniscient Catch Rate
+    },
 
-    -- Potions Active Uptime
+    -- Rebirth
+    AutoRebirth = false,
+    RebirthInterval = 3,
+
+    -- Potions Uptime Buffer
     AutoPotions = false,
     PotionInterval = 10,
     SelectedPotions = {
@@ -65,77 +92,52 @@ ConfigManager.DefaultConfig = {
         ["Cash Potion Lvl. 3"] = true
     },
 
-    -- Auto Buy Boosts Store (Valora)
+    -- Boosts Store (NPC Valora)
     AutoBuyBoosts = false,
-    AutoBuyBoostsCurrency = "Cash", -- "Cash" or "Gems"
-    AutoBuyBoostsInterval = 10,
+    AutoBuyBoostsCurrency = "Cash",
     AutoBuyBoostsSelected = {
-        Offer1 = true, -- Cash 2x ($7.5K)
-        Offer2 = false, -- Cash 4x ($20B)
-        Offer3 = false, -- Cash 8x ($10Qa)
-        Offer4 = true, -- Gems 2x ($15M)
-        Offer5 = false, -- Gems 4x ($30B)
-        Offer6 = false, -- Gems 8x ($15Qa)
-        Offer7 = false, -- Mutation 2x ($50T)
-        Offer8 = true, -- Fast Catch 2x ($2.5M)
-        Offer9 = false  -- Luck 2x ($10B)
+        Offer1 = true,
+        Offer2 = true,
+        Offer3 = true,
+        Offer4 = true,
+        Offer5 = true,
+        Offer6 = true,
+        Offer7 = true,
+        Offer8 = true,
+        Offer9 = true
     },
 
-    -- Auto Buy Secret Merchant (Selene)
+    -- Secret Merchant: Selene
     AutoBuySelene = false,
     AutoBuySeleneSelected = {
-        Offer1 = false, -- Character (5K Gems)
-        Offer2 = true,  -- Luck Potion L3 (25K Gems)
-        Offer3 = true,  -- Heaven's Collide (20K Gems)
-        Offer4 = false, -- Luck Potion L2 ($2.5Qa Cash)
-        Offer5 = true,  -- Meteorite ($11M Cash)
-        Offer6 = true,  -- Honey ($2M Cash)
-        Offer7 = true   -- Sinister ($200M Cash)
+        Offer1 = true,
+        Offer2 = true,
+        Offer3 = true,
+        Offer4 = true,
+        Offer5 = true,
+        Offer6 = true,
+        Offer7 = true
     },
 
-    -- Auto Buy Secret Merchant (Angelia)
+    -- Secret Merchant: Angelia
     AutoBuyAngelia = false,
     AutoBuyAngeliaSelected = {
-        Offer1 = false, -- Forgotten Potion (5M Gems)
-        Offer2 = true,  -- Backpack Storage +500 (75K Gems)
-        Offer3 = false, -- Cybernetic Glitch (750K Gems)
-        Offer4 = false, -- Dreamer Potion (200K Gems)
-        Offer5 = true,  -- Party Potion (50K Gems)
-        Offer6 = false, -- Fast Catch L2 ($100T Cash)
-        Offer7 = true,  -- Luck Potion L3 (25K Gems)
-        Offer8 = true,  -- EXE Potion (10K Gems)
-        Offer9 = true   -- Cosmic Case ($100B Cash)
+        Offer1 = true,
+        Offer2 = true,
+        Offer3 = true,
+        Offer4 = true,
+        Offer5 = true,
+        Offer6 = true,
+        Offer7 = true,
+        Offer8 = true,
+        Offer9 = true
     },
 
     -- Auto Buy Fishing Rods & Carry
     AutoBuyFishingRods = false,
     AutoBuyCarry = false,
 
-    -- Base Units Level Up & Scanner
-    AutoLevelUpBaseUnits = false,
-    BaseUnitsInterval = 10,
-    FilterLevelUpByRarity = false,
-    LevelUpSelectedRarities = {
-        Common = false,
-        Uncommon = false,
-        Rare = false,
-        Epic = false,
-        Legendary = true,
-        Mythical = true,
-        Ascended = true,
-        Divine = true,
-        Supreme = true,
-        Ancient = true,
-        Celestial = true,
-        God = true,
-        Omniscient = true,
-        Cosmic = true,
-        Secret = true,
-        Rainbow = true,
-        Exclusive = true
-    },
-
-    -- Graphics & Performance Booster
+    -- Graphics & Performance
     PotatoGraphics = false,
     BlackScreenAFK = false,
     PerformanceMode = true,
@@ -148,53 +150,43 @@ ConfigManager.DefaultConfig = {
 
 ConfigManager.CurrentConfig = {}
 for k, v in pairs(ConfigManager.DefaultConfig) do
-    if typeof(v) == "table" then
-        local copy = {}
-        for subK, subV in pairs(v) do copy[subK] = subV end
-        ConfigManager.CurrentConfig[k] = copy
+    if type(v) == "table" then
+        ConfigManager.CurrentConfig[k] = {}
+        for subK, subV in pairs(v) do
+            ConfigManager.CurrentConfig[k][subK] = subV
+        end
     else
         ConfigManager.CurrentConfig[k] = v
     end
 end
 
-local function ensureFolder()
-    pcall(function()
-        if typeof(makefolder) == "function" and typeof(isfolder) == "function" then
-            if not isfolder("RitodHub") then makefolder("RitodHub") end
-            if not isfolder(GAME_FOLDER) then makefolder(GAME_FOLDER) end
-        end
-    end)
-end
-
-function ConfigManager.Save(customData)
-    local dataToSave = customData or ConfigManager.CurrentConfig
-    local success, err = pcall(function()
-        ensureFolder()
-        if typeof(writefile) == "function" then
-            local encoded = HttpService:JSONEncode(dataToSave)
-            writefile(CONFIG_FILE, encoded)
-        end
+function ConfigManager.Save()
+    if typeof(writefile) ~= "function" then return false end
+    local success = pcall(function()
+        local json = HttpService:JSONEncode(ConfigManager.CurrentConfig)
+        writefile(FILE_NAME, json)
     end)
     return success
 end
 
 function ConfigManager.Load()
-    ensureFolder()
-    local success, err = pcall(function()
-        if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(CONFIG_FILE) then
-            local raw = readfile(CONFIG_FILE)
-            if raw and #raw > 0 then
-                local decoded = HttpService:JSONDecode(raw)
-                if typeof(decoded) == "table" then
-                    for k, v in pairs(decoded) do
-                        if typeof(v) == "table" and typeof(ConfigManager.CurrentConfig[k]) == "table" then
-                            for subK, subV in pairs(v) do
-                                ConfigManager.CurrentConfig[k][subK] = subV
-                            end
-                        else
-                            ConfigManager.CurrentConfig[k] = v
-                        end
+    if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then return false end
+    if not isfile(FILE_NAME) then
+        ConfigManager.Save()
+        return true
+    end
+
+    local success, result = pcall(function()
+        local json = readfile(FILE_NAME)
+        local data = HttpService:JSONDecode(json)
+        if type(data) == "table" then
+            for k, v in pairs(data) do
+                if type(v) == "table" and type(ConfigManager.CurrentConfig[k]) == "table" then
+                    for subK, subV in pairs(v) do
+                        ConfigManager.CurrentConfig[k][subK] = subV
                     end
+                else
+                    ConfigManager.CurrentConfig[k] = v
                 end
             end
         end
@@ -204,10 +196,11 @@ end
 
 function ConfigManager.Reset()
     for k, v in pairs(ConfigManager.DefaultConfig) do
-        if typeof(v) == "table" then
-            local copy = {}
-            for subK, subV in pairs(v) do copy[subK] = subV end
-            ConfigManager.CurrentConfig[k] = copy
+        if type(v) == "table" then
+            ConfigManager.CurrentConfig[k] = {}
+            for subK, subV in pairs(v) do
+                ConfigManager.CurrentConfig[k][subK] = subV
+            end
         else
             ConfigManager.CurrentConfig[k] = v
         end
@@ -216,6 +209,5 @@ function ConfigManager.Reset()
 end
 
 ConfigManager.Load()
-
 _G.FishAnAnimeConfigManager = ConfigManager
 return ConfigManager
