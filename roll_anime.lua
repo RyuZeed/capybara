@@ -183,7 +183,7 @@ if AutoClaimModule then
 end
 
 -- Auto-start Auto-Merchant Engine
-if AutoMerchantModule and savedConfig.AutoBuyMerchant then
+if AutoMerchantModule and savedConfig.AutoBuyMerchant ~= false then
     pcall(function()
         AutoMerchantModule.Start({
             Enabled         = true,
@@ -1823,7 +1823,7 @@ local MerchantTab = RitodLib:CreateTab("Merchant", "🛒")
 
 MerchantTab:AddSection("Auto Buy Merchant (Trader Event)")
 
-merchantToggleRef = MerchantTab:AddToggle("🛒 Auto Buy Merchant (Trader Event)", savedConfig.AutoBuyMerchant or false, function(state)
+merchantToggleRef = MerchantTab:AddToggle("🛒 Auto Buy Merchant (Trader Event)", savedConfig.AutoBuyMerchant ~= false, function(state)
 	savedConfig.AutoBuyMerchant = state
 	if ConfigManager then ConfigManager.Save({ AutoBuyMerchant = state }) end
 	if AutoMerchantModule then
