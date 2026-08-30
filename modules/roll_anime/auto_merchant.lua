@@ -364,24 +364,42 @@ function AutoMerchant.CloseMerchantUI()
 		local pGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
 		if not pGui then return end
 		local mainUI = pGui:FindFirstChild("MainUI")
-		if not mainUI or not mainUI:FindFirstChild("Frames") then return end
-		local tFrame = mainUI.Frames:FindFirstChild("Trader (Merchant)")
-		if tFrame then
-			-- 1. Klik Close Button di header
-			local closeBtn = tFrame:FindFirstChild("Frame")
-				and tFrame.Frame:FindFirstChild("Header")
-				and tFrame.Frame.Header:FindFirstChild("CloseButton")
-				and tFrame.Frame.Header.CloseButton:FindFirstChild("CloseButton")
-			if closeBtn then
-				if typeof(firesignal) == "function" then
-					if closeBtn.Activated then pcall(function() firesignal(closeBtn.Activated) end) end
-					if closeBtn.MouseButton1Click then pcall(function() firesignal(closeBtn.MouseButton1Click) end) end
+		if mainUI and mainUI:FindFirstChild("Frames") then
+			local tFrame = mainUI.Frames:FindFirstChild("Trader (Merchant)")
+			if tFrame then
+				-- 1. Klik Close Button di header
+				local closeBtn = tFrame:FindFirstChild("Frame")
+					and tFrame.Frame:FindFirstChild("Header")
+					and tFrame.Frame.Header:FindFirstChild("CloseButton")
+					and tFrame.Frame.Header.CloseButton:FindFirstChild("CloseButton")
+				if closeBtn then
+					if typeof(firesignal) == "function" then
+						if closeBtn.Activated then pcall(function() firesignal(closeBtn.Activated) end) end
+						if closeBtn.MouseButton1Click then pcall(function() firesignal(closeBtn.MouseButton1Click) end) end
+					end
+				end
+				-- 2. Sembunyikan langsung frame
+				tFrame.Visible = false
+				if tFrame:FindFirstChild("Frame") then
+					tFrame.Frame.Visible = false
 				end
 			end
-			-- 2. Sembunyikan langsung frame
-			tFrame.Visible = false
-			if tFrame:FindFirstChild("Frame") then
-				tFrame.Frame.Visible = false
+		end
+
+		-- 3. Hapus sisa efek Blur & DepthOfField di Lighting agar layar jernih kembali
+		local Lighting = game:GetService("Lighting")
+		if Lighting then
+			for _, effect in ipairs(Lighting:GetDescendants()) do
+				if effect:IsA("BlurEffect") then
+					effect.Size = 0
+					effect.Enabled = false
+				end
+			end
+			for _, effect in ipairs(Lighting:GetChildren()) do
+				if effect:IsA("BlurEffect") then
+					effect.Size = 0
+					effect.Enabled = false
+				end
 			end
 		end
 	end)
