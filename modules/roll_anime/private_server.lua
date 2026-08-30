@@ -121,6 +121,11 @@ function PrivateServer.IsPrivateServer()
     if game.PrivateServerOwnerId and game.PrivateServerOwnerId > 0 then
         return true
     end
+    -- 4. Jika hanya ada 1 pemain di server (Solo / Private Server)
+    local players = Players:GetPlayers()
+    if #players <= 1 then
+        return true
+    end
     return false
 end
 

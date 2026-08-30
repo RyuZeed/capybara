@@ -57,7 +57,7 @@ ConfigManager.DefaultConfig = {
     TargetFPS             = 60,
 
     -- 🌐 Server & Protection
-    AutoPrivateServer     = true,
+    AutoPrivateServer     = false,
     AntiAFK               = true
 }
 
