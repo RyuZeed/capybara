@@ -2262,10 +2262,10 @@ MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
 			AutoHuntEnabled       = (AutoRollModule and AutoRollModule.IsRunning()) or savedConfig.AutoHuntEnabled or false,
 			AutoSniperOnly        = (AutoRollModule and AutoRollModule.IsSniperRunning()) or savedConfig.AutoSniperOnly or false,
 			AutoSecretGod         = savedConfig.AutoSecretGod or false,
-			AutoPrivateServer     = (autoPrivateServerToggleRef and autoPrivateServerToggleRef:Get() == true) or (savedConfig.AutoPrivateServer == true),
+			AutoPrivateServer     = savedConfig.AutoPrivateServer ~= false,
 			AutoClaimQuests       = savedConfig.AutoClaimQuests ~= false,
 			AutoClaimRewards      = savedConfig.AutoClaimRewards ~= false,
-			AutoBuyMerchant       = savedConfig.AutoBuyMerchant or false,
+			AutoBuyMerchant       = savedConfig.AutoBuyMerchant ~= false,
 			MerchantBuyAll        = savedConfig.MerchantBuyAll or false,
 			MerchantBuyPotions    = savedConfig.MerchantBuyPotions ~= false,
 			MerchantBuyEssences   = savedConfig.MerchantBuyEssences ~= false,
@@ -2276,7 +2276,7 @@ MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
 			MerchantMinGold       = savedConfig.MerchantMinGold or 0,
 			RollInterval          = rollInterval or 2.5,
 			SelectedUnits         = selectedUnits,
-			WalkSpeed             = savedConfig.WalkSpeed or 40,
+			WalkSpeed             = savedConfig.WalkSpeed or 16,
 			JumpPower             = savedConfig.JumpPower or 50,
 			InfJump               = savedConfig.InfJump or false,
 			PotatoGraphics        = savedConfig.PotatoGraphics or false,
@@ -2287,6 +2287,7 @@ MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
 			DisableVFX            = savedConfig.DisableVFX or false,
 			TargetFPS             = savedConfig.TargetFPS or 60
 		}
+		for k, v in pairs(currentData) do savedConfig[k] = v end
 		local success = ConfigManager.Save(currentData)
 		if success then
 			local unitCount = 0

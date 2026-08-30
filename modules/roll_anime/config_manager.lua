@@ -1,6 +1,6 @@
 --[[
 	===============================================================
-	💾 RITOD HUB - ROLL ANIME TO FIGHT (CONFIG MANAGER)
+	💾 RITOD HUB - ROLL ANIME TO FIGHT (CONFIG MANAGER V2.5)
 	Module: modules/roll_anime/config_manager.lua
 	Game: Roll Anime to Fight! / Anime Auto Roll
 	GitHub: https://github.com/RyuZeed/capybara
@@ -10,13 +10,10 @@
 local ConfigManager = {}
 ConfigManager.__index = ConfigManager
 _G.ConfigManager = ConfigManager
+_G.RollAnimeConfigManager = ConfigManager
 
 local HttpService = game:GetService("HttpService")
 local FILE_NAME = "RitodHub_RollAnime_Config.json"
-local LEGACY_FILES = {
-    "RitodHub/RollAnimeForFight/config.json",
-    "RitodHub_RollAnimeForFight_Config.json"
-}
 
 ConfigManager.ConfigPath = FILE_NAME
 ConfigManager.FileName = FILE_NAME
@@ -59,32 +56,32 @@ ConfigManager.DefaultConfig = {
     DisableVFX            = false,
     TargetFPS             = 60,
 
-    -- 🌐 Server & Connection
+    -- 🌐 Server & Protection
     AutoPrivateServer     = true,
     AntiAFK               = true
 }
 
-ConfigManager.CurrentConfig = {}
-for k, v in pairs(ConfigManager.DefaultConfig) do
-    if type(v) == "table" then
-        ConfigManager.CurrentConfig[k] = {}
-        for subK, subV in pairs(v) do
-            ConfigManager.CurrentConfig[k][subK] = subV
-        end
+local function deepCopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for k, v in next, orig, nil do copy[deepCopy(k)] = deepCopy(v) end
     else
-        ConfigManager.CurrentConfig[k] = v
+        copy = orig
     end
+    return copy
 end
+
+ConfigManager.CurrentConfig = deepCopy(ConfigManager.DefaultConfig)
 
 function ConfigManager.Save(customData)
     if typeof(writefile) ~= "function" then return false end
+
     if customData and type(customData) == "table" then
         for k, v in pairs(customData) do
             if type(v) == "table" then
-                ConfigManager.CurrentConfig[k] = {}
-                for subK, subV in pairs(v) do
-                    ConfigManager.CurrentConfig[k][subK] = subV
-                end
+                ConfigManager.CurrentConfig[k] = deepCopy(v)
             else
                 ConfigManager.CurrentConfig[k] = v
             end
@@ -99,15 +96,21 @@ function ConfigManager.Save(customData)
 end
 
 function ConfigManager.Load()
-    if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then return ConfigManager.CurrentConfig end
+    if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then
+        return ConfigManager.CurrentConfig
+    end
 
     local raw = nil
     if isfile(FILE_NAME) then
         pcall(function() raw = readfile(FILE_NAME) end)
     else
-        for _, leg in ipairs(LEGACY_FILES) do
-            if isfile(leg) then
-                pcall(function() raw = readfile(leg) end)
+        local legacyList = {
+            "RitodHub/RollAnimeForFight/config.json",
+            "RitodHub_RollAnimeForFight_Config.json"
+        }
+        for _, path in ipairs(legacyList) do
+            if isfile(path) then
+                pcall(function() raw = readfile(path) end)
                 if raw and #raw > 0 then break end
             end
         end
@@ -118,20 +121,21 @@ function ConfigManager.Load()
         return ConfigManager.CurrentConfig
     end
 
-    local success, result = pcall(function()
+    pcall(function()
         local data = HttpService:JSONDecode(raw)
         if type(data) == "table" then
+            -- Reset ke default dulu sebelum merge agar key lama terhapus jika di-uncheck
+            ConfigManager.CurrentConfig = deepCopy(ConfigManager.DefaultConfig)
             for k, v in pairs(data) do
-                if type(v) == "table" and type(ConfigManager.CurrentConfig[k]) == "table" then
-                    for subK, subV in pairs(v) do
-                        ConfigManager.CurrentConfig[k][subK] = subV
-                    end
+                if type(v) == "table" then
+                    ConfigManager.CurrentConfig[k] = deepCopy(v)
                 else
                     ConfigManager.CurrentConfig[k] = v
                 end
             end
         end
     end)
+
     return ConfigManager.CurrentConfig
 end
 
@@ -141,20 +145,10 @@ function ConfigManager.Reset()
             delfile(FILE_NAME)
         end
     end)
-    for k, v in pairs(ConfigManager.DefaultConfig) do
-        if type(v) == "table" then
-            ConfigManager.CurrentConfig[k] = {}
-            for subK, subV in pairs(v) do
-                ConfigManager.CurrentConfig[k][subK] = subV
-            end
-        else
-            ConfigManager.CurrentConfig[k] = v
-        end
-    end
+    ConfigManager.CurrentConfig = deepCopy(ConfigManager.DefaultConfig)
     ConfigManager.Save()
     return ConfigManager.CurrentConfig
 end
 
 ConfigManager.Load()
-_G.RollAnimeConfigManager = ConfigManager
 return ConfigManager
