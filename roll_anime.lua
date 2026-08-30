@@ -2440,14 +2440,12 @@ if savedConfig.AutoPrivateServer == true and PrivateServerModule then
 		if not game:IsLoaded() then
 			pcall(function() game.Loaded:Wait() end)
 		end
-		-- Tunggu 8 detik agar seluruh pemain & server data tereplikasi
-		task.wait(8)
-		local count = #Players:GetPlayers()
-		if count > 1 and not PrivateServerModule.IsPrivateServer() and not _G.AutoPrivateServerDone then
+		task.wait(6)
+		if not PrivateServerModule.IsPrivateServer() and not _G.AutoPrivateServerDone then
 			_G.AutoPrivateServerDone = true
-			Notify("🔒 Auto Private Server", string.format("Mendeteksi %d pemain di server publik, berpindah ke Private Server...", count), 3.5)
+			Notify("🔒 Auto Private Server", "Mendeteksi server publik, berpindah ke Private Server...", 3.5)
 			task.wait(1.5)
-			if count > 1 and not PrivateServerModule.IsPrivateServer() then
+			if not PrivateServerModule.IsPrivateServer() then
 				PrivateServerModule.JoinPrivateServer(Notify)
 			end
 		end

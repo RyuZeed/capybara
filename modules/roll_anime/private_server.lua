@@ -105,15 +105,17 @@ local function clickButton(btn)
     end)
 end
 
+local HANDSHAKE_FILE = "RitodHub_PSTeleportHandshake.txt"
+
 -- =================================================================
 -- 🔍 HELPER: CEK APAKAH SUDAH DI PRIVATE SERVER
 -- =================================================================
 function PrivateServer.IsPrivateServer()
-    -- 1. Reserved Server (Server buatan in-game private server)
+    -- 1. Reserved Server (Roblox ReservedServerId)
     if game.PrivateServerId and game.PrivateServerId ~= "" then
         return true
     end
-    -- 2. VIP Server
+    -- 2. VIP Server (Roblox VIPServerId)
     if game.VIPServerId and game.VIPServerId ~= "" then
         return true
     end
@@ -121,12 +123,34 @@ function PrivateServer.IsPrivateServer()
     if game.PrivateServerOwnerId and game.PrivateServerOwnerId > 0 then
         return true
     end
-    -- 4. Jika hanya ada 1 pemain di server (Solo / Private Server)
-    local players = Players:GetPlayers()
-    if #players <= 1 then
+    -- 4. Game Attribute Flags
+    if workspace:GetAttribute("PrivateServer") == true or workspace:GetAttribute("IsPrivate") == true or workspace:GetAttribute("Private") == true then
         return true
     end
+    if ReplicatedStorage:GetAttribute("PrivateServer") == true or ReplicatedStorage:GetAttribute("IsPrivate") == true then
+        return true
+    end
+    -- 5. Session Handshake Flag (Sudah berhasil berpindah via auto-teleport)
+    if _G.AlreadyInPrivateServer == true then
+        return true
+    end
+    if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(HANDSHAKE_FILE) then
+        pcall(function()
+            if typeof(delfile) == "function" then delfile(HANDSHAKE_FILE) end
+        end)
+        _G.AlreadyInPrivateServer = true
+        return true
+    end
+
     return false
+end
+
+function PrivateServer.MarkTeleportHandshake()
+    pcall(function()
+        if typeof(writefile) == "function" then
+            writefile(HANDSHAKE_FILE, tostring(game.JobId))
+        end
+    end)
 end
 
 -- =================================================================
@@ -285,6 +309,7 @@ end
 -- ⚡ 4. MASTER FUNCTION: JOIN / RELOG KE PRIVATE SERVER
 -- =================================================================
 function PrivateServer.JoinPrivateServer(notify)
+    PrivateServer.MarkTeleportHandshake()
     PrivateServer.QueueScript()
     if notify then pcall(function() notify("Private Server", "Mempersiapkan teleport ke Private Server...", 3) end) end
 
