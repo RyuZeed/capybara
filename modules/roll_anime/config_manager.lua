@@ -1,47 +1,36 @@
--- =================================================================
--- 💾 RITOD HUB | CONFIG MANAGER (PER-USER FILE PERSISTENCE)
--- Game: Roll Anime For Fight / Anime Auto Roll
--- Path: RitodHub/RollAnimeForFight/<Username>.json
--- =================================================================
+--[[
+	===============================================================
+	💾 RITOD HUB - ROLL ANIME TO FIGHT (CONFIG MANAGER)
+	Module: modules/roll_anime/config_manager.lua
+	Game: Roll Anime to Fight! / Anime Auto Roll
+	GitHub: https://github.com/RyuZeed/capybara
+	===============================================================
+]]
 
 local ConfigManager = {}
+ConfigManager.__index = ConfigManager
 _G.ConfigManager = ConfigManager
 
--- 🔇 SILENT MODE (Zero terminal/console spam)
-local print = function(...) end
-local warn = function(...) end
-
 local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer or (function() local t = tick() while not Players.LocalPlayer and (tick() - t) < 3 do task.wait(0.05) end return Players.LocalPlayer end)()
-
-local ROOT_FOLDER = "RitodHub"
-local GAME_FOLDER = "RitodHub/RollAnimeForFight"
-local username = LocalPlayer and LocalPlayer.Name or "Default"
-local CONFIG_PATH = string.format("RitodHub/RollAnimeForFight/%s.json", username)
-local LEGACY_PATH = "RitodHub/RollAnimeForFight/config.json"
-
-ConfigManager.ConfigPath = CONFIG_PATH
-ConfigManager.GameFolder = GAME_FOLDER
-
-local function deepCopy(orig)
-    local orig_type = type(orig)
-    local copy
-    if orig_type == 'table' then
-        copy = {}
-        for k, v in next, orig, nil do copy[deepCopy(k)] = deepCopy(v) end
-    else
-        copy = orig
-    end
-    return copy
-end
+local FILE_NAME = "RitodHub_RollAnime_Config.json"
+local LEGACY_FILES = {
+    "RitodHub/RollAnimeForFight/config.json",
+    "RitodHub_RollAnimeForFight_Config.json"
+}
 
 ConfigManager.DefaultConfig = {
+    -- 🎰 Auto Roll / Gacha
     AutoHuntEnabled       = false,
     AutoSniperOnly        = false,
     AutoSecretGod         = false,
+    RollInterval          = 2.5,
+    SelectedUnits         = {},
+
+    -- 📜 Quests & Free Rewards
     AutoClaimQuests       = true,
     AutoClaimRewards      = true,
+
+    -- 🛒 Trader / Merchant
     AutoBuyMerchant       = true,
     MerchantBuyAll        = false,
     MerchantBuyPotions    = true,
@@ -51,11 +40,13 @@ ConfigManager.DefaultConfig = {
     MerchantBuyMaterials  = true,
     MerchantSelectedItems = {},
     MerchantMinGold       = 0,
-    RollInterval          = 2.5,
-    SelectedUnits         = {},
+
+    -- 🏃 Player Stats & Movement
     WalkSpeed             = 16,
     JumpPower             = 50,
     InfJump               = false,
+
+    -- 🖥️ Graphics & Performance
     PotatoGraphics        = false,
     FarmMode              = false,
     AntiLag               = false,
@@ -63,28 +54,33 @@ ConfigManager.DefaultConfig = {
     FreezeNPCs            = false,
     DisableVFX            = false,
     TargetFPS             = 60,
-    AutoPrivateServer     = true
+
+    -- 🌐 Server & Connection
+    AutoPrivateServer     = true,
+    AntiAFK               = true
 }
 
-ConfigManager.CurrentConfig = deepCopy(ConfigManager.DefaultConfig)
-
-local function ensureFolders()
-    pcall(function()
-        if typeof(makefolder) == "function" and typeof(isfolder) == "function" then
-            if not isfolder(ROOT_FOLDER) then makefolder(ROOT_FOLDER) end
-            if not isfolder(GAME_FOLDER) then makefolder(GAME_FOLDER) end
-            if not isfolder(GAME_FOLDER .. "/Configs") then makefolder(GAME_FOLDER .. "/Configs") end
+ConfigManager.CurrentConfig = {}
+for k, v in pairs(ConfigManager.DefaultConfig) do
+    if type(v) == "table" then
+        ConfigManager.CurrentConfig[k] = {}
+        for subK, subV in pairs(v) do
+            ConfigManager.CurrentConfig[k][subK] = subV
         end
-    end)
+    else
+        ConfigManager.CurrentConfig[k] = v
+    end
 end
 
-function ConfigManager.Save(newConfig)
-    if newConfig and type(newConfig) == "table" then
-        for k, v in pairs(newConfig) do
-            if k == "SelectedUnits" and type(v) == "table" then
-                ConfigManager.CurrentConfig.SelectedUnits = deepCopy(v)
-            elseif k == "MerchantSelectedItems" and type(v) == "table" then
-                ConfigManager.CurrentConfig.MerchantSelectedItems = deepCopy(v)
+function ConfigManager.Save(customData)
+    if typeof(writefile) ~= "function" then return false end
+    if customData and type(customData) == "table" then
+        for k, v in pairs(customData) do
+            if type(v) == "table" then
+                ConfigManager.CurrentConfig[k] = {}
+                for subK, subV in pairs(v) do
+                    ConfigManager.CurrentConfig[k][subK] = subV
+                end
             else
                 ConfigManager.CurrentConfig[k] = v
             end
@@ -92,57 +88,44 @@ function ConfigManager.Save(newConfig)
     end
 
     local success = pcall(function()
-        if typeof(writefile) == "function" then
-            ensureFolders()
-            local jsonString = HttpService:JSONEncode(ConfigManager.CurrentConfig)
-            writefile(CONFIG_PATH, jsonString)
-            -- Sync to Default profile as well for ModernSettings
-            pcall(function()
-                writefile(GAME_FOLDER .. "/Configs/Default.json", jsonString)
-            end)
-        end
+        local json = HttpService:JSONEncode(ConfigManager.CurrentConfig)
+        writefile(FILE_NAME, json)
     end)
-
     return success
 end
 
 function ConfigManager.Load()
-    ensureFolders()
-    ConfigManager.CurrentConfig = deepCopy(ConfigManager.DefaultConfig)
-    pcall(function()
-        local raw = nil
-        if typeof(readfile) == "function" and typeof(isfile) == "function" then
-            if isfile(CONFIG_PATH) then
-                raw = readfile(CONFIG_PATH)
+    if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then return ConfigManager.CurrentConfig end
+
+    local raw = nil
+    if isfile(FILE_NAME) then
+        pcall(function() raw = readfile(FILE_NAME) end)
+    else
+        for _, leg in ipairs(LEGACY_FILES) do
+            if isfile(leg) then
+                pcall(function() raw = readfile(leg) end)
+                if raw and #raw > 0 then break end
             end
         end
+    end
 
-        if raw and #raw > 0 then
-            local data = HttpService:JSONDecode(raw)
-            if typeof(data) == "table" then
-                for k, v in pairs(data) do
-                    if k == "SelectedUnits" and type(v) == "table" then
-                        ConfigManager.CurrentConfig.SelectedUnits = {}
-                        for name, val in pairs(v) do
-                            if val then
-                                ConfigManager.CurrentConfig.SelectedUnits[tostring(name):lower()] = true
-                            end
-                        end
-                    elseif k == "MerchantSelectedItems" and type(v) == "table" then
-                        ConfigManager.CurrentConfig.MerchantSelectedItems = {}
-                        for name, val in pairs(v) do
-                            if val then
-                                ConfigManager.CurrentConfig.MerchantSelectedItems[tostring(name)] = true
-                            end
-                        end
-                    else
-                        ConfigManager.CurrentConfig[k] = v
+    if not raw or #raw == 0 then
+        ConfigManager.Save()
+        return ConfigManager.CurrentConfig
+    end
+
+    local success, result = pcall(function()
+        local data = HttpService:JSONDecode(raw)
+        if type(data) == "table" then
+            for k, v in pairs(data) do
+                if type(v) == "table" and type(ConfigManager.CurrentConfig[k]) == "table" then
+                    for subK, subV in pairs(v) do
+                        ConfigManager.CurrentConfig[k][subK] = subV
                     end
+                else
+                    ConfigManager.CurrentConfig[k] = v
                 end
             end
-        else
-            -- First run for this user: auto-save default config
-            ConfigManager.Save(ConfigManager.DefaultConfig)
         end
     end)
     return ConfigManager.CurrentConfig
@@ -150,13 +133,24 @@ end
 
 function ConfigManager.Reset()
     pcall(function()
-        if typeof(delfile) == "function" and typeof(isfile) == "function" and isfile(CONFIG_PATH) then
-            delfile(CONFIG_PATH)
+        if typeof(delfile) == "function" and typeof(isfile) == "function" and isfile(FILE_NAME) then
+            delfile(FILE_NAME)
         end
     end)
-    for k in pairs(ConfigManager.CurrentConfig) do ConfigManager.CurrentConfig[k] = nil end
-    for k, v in pairs(ConfigManager.DefaultConfig) do ConfigManager.CurrentConfig[k] = deepCopy(v) end
+    for k, v in pairs(ConfigManager.DefaultConfig) do
+        if type(v) == "table" then
+            ConfigManager.CurrentConfig[k] = {}
+            for subK, subV in pairs(v) do
+                ConfigManager.CurrentConfig[k][subK] = subV
+            end
+        else
+            ConfigManager.CurrentConfig[k] = v
+        end
+    end
+    ConfigManager.Save()
     return ConfigManager.CurrentConfig
 end
 
+ConfigManager.Load()
+_G.RollAnimeConfigManager = ConfigManager
 return ConfigManager

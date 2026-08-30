@@ -349,6 +349,42 @@ function AutoMerchant.ScanAndBuyAllStock()
 			end
 		end
 	end
+
+	-- 4. Auto Close Merchant UI setelah transaksi selesai
+	task.delay(0.5, function()
+		AutoMerchant.CloseMerchantUI()
+	end)
+end
+
+-- =================================================================
+-- 🚪 AUTO CLOSE MERCHANT UI HANDLER
+-- =================================================================
+function AutoMerchant.CloseMerchantUI()
+	pcall(function()
+		local pGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+		if not pGui then return end
+		local mainUI = pGui:FindFirstChild("MainUI")
+		if not mainUI or not mainUI:FindFirstChild("Frames") then return end
+		local tFrame = mainUI.Frames:FindFirstChild("Trader (Merchant)")
+		if tFrame then
+			-- 1. Klik Close Button di header
+			local closeBtn = tFrame:FindFirstChild("Frame")
+				and tFrame.Frame:FindFirstChild("Header")
+				and tFrame.Frame.Header:FindFirstChild("CloseButton")
+				and tFrame.Frame.Header.CloseButton:FindFirstChild("CloseButton")
+			if closeBtn then
+				if typeof(firesignal) == "function" then
+					if closeBtn.Activated then pcall(function() firesignal(closeBtn.Activated) end) end
+					if closeBtn.MouseButton1Click then pcall(function() firesignal(closeBtn.MouseButton1Click) end) end
+				end
+			end
+			-- 2. Sembunyikan langsung frame
+			tFrame.Visible = false
+			if tFrame:FindFirstChild("Frame") then
+				tFrame.Frame.Visible = false
+			end
+		end
+	end)
 end
 
 -- =================================================================

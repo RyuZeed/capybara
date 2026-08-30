@@ -150,8 +150,32 @@ function PrivateServer.TriggerInGamePrivateServer()
     local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
     if not pGui then return false end
 
-    -- 1. Cari langsung di TopbarPlus (TopbarStandardClipped / TopbarCenteredClipped)
-    for _, guiName in ipairs({"TopbarStandardClipped", "TopbarCenteredClipped", "TopbarApp", "Topbar"}) do
+    -- 1. Cari dan klik tombol "Menu" di TopbarStandard
+    local menuBtn = nil
+    for _, guiName in ipairs({"TopbarStandard", "TopbarCentered", "TopbarApp"}) do
+        local topGui = pGui:FindFirstChild(guiName)
+        if topGui then
+            for _, desc in ipairs(topGui:GetDescendants()) do
+                if (desc:IsA("TextLabel") and desc.Text:lower() == "menu") or (desc:IsA("GuiButton") and desc.Name:lower():find("menu")) then
+                    local spot = desc:FindFirstAncestor("IconButton") or desc:FindFirstAncestor("IconSpot") or desc.Parent
+                    local mBtn = spot and (spot:FindFirstChild("ClickRegion", true) or spot:FindFirstChildOfClass("TextButton") or spot:FindFirstChildOfClass("ImageButton")) or (desc:IsA("GuiButton") and desc)
+                    if mBtn then
+                        menuBtn = mBtn
+                        break
+                    end
+                end
+            end
+        end
+        if menuBtn then break end
+    end
+
+    if menuBtn then
+        clickButton(menuBtn)
+        task.wait(0.35)
+    end
+
+    -- 2. Cari tombol "Private Server" di Dropdown / TopbarStandardClipped
+    for _, guiName in ipairs({"TopbarStandardClipped", "TopbarCenteredClipped", "TopbarStandard", "TopbarCentered"}) do
         local topGui = pGui:FindFirstChild(guiName)
         if topGui then
             for _, desc in ipairs(topGui:GetDescendants()) do
@@ -170,36 +194,7 @@ function PrivateServer.TriggerInGamePrivateServer()
         end
     end
 
-    -- 2. Jika dropdown belum terbuka, coba klik tombol "Menu" di Topbar terlebih dahulu
-    for _, guiName in ipairs({"TopbarStandardClipped", "TopbarCenteredClipped", "TopbarApp", "Topbar"}) do
-        local topGui = pGui:FindFirstChild(guiName)
-        if topGui then
-            for _, desc in ipairs(topGui:GetDescendants()) do
-                if (desc:IsA("TextLabel") and desc.Text:lower() == "menu") or (desc:IsA("GuiButton") and desc.Name:lower():find("menu")) then
-                    local spot = desc:FindFirstAncestor("IconButton") or desc:FindFirstAncestor("IconSpot") or desc.Parent
-                    local mBtn = spot and (spot:FindFirstChild("ClickRegion", true) or spot:FindFirstChildOfClass("TextButton") or spot:FindFirstChildOfClass("ImageButton")) or (desc:IsA("GuiButton") and desc)
-                    if mBtn then
-                        clickButton(mBtn)
-                        task.wait(0.4)
-                        -- Cari lagi tombol Private Server
-                        for _, d2 in ipairs(topGui:GetDescendants()) do
-                            if d2:IsA("TextLabel") and d2.Text:lower():find("private") and d2.Text:lower():find("server") then
-                                local s2 = d2:FindFirstAncestor("IconSpot") or d2:FindFirstAncestor("IconButton") or d2.Parent
-                                local b2 = s2 and (s2:FindFirstChild("ClickRegion", true) or s2:FindFirstChildOfClass("TextButton") or s2:FindFirstChildOfClass("ImageButton"))
-                                if b2 then
-                                    PrivateServer.QueueScript()
-                                    clickButton(b2)
-                                    return true
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    -- 3. General search di seluruh PlayerGui untuk IconLabel / TextButton "Private Server"
+    -- 3. General fallback search di seluruh PlayerGui
     for _, desc in ipairs(pGui:GetDescendants()) do
         if (desc:IsA("TextLabel") or desc:IsA("TextButton")) and desc.Text:lower():find("private") and desc.Text:lower():find("server") then
             if desc:IsA("TextButton") then

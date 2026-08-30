@@ -10,10 +10,7 @@ local ConfigManager = {}
 ConfigManager.__index = ConfigManager
 
 local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-
-local GAME_FOLDER = "RitodHub/GrowAChickenFighter"
-local CONFIG_FILE = GAME_FOLDER .. "/config.json"
+local FILE_NAME = "RitodHub_ChickenFighter_Config.json"
 
 ConfigManager.DefaultConfig = {
     AutoCollectEgg = false,
@@ -26,61 +23,64 @@ ConfigManager.DefaultConfig = {
 
 ConfigManager.CurrentConfig = {}
 for k, v in pairs(ConfigManager.DefaultConfig) do
-    ConfigManager.CurrentConfig[k] = v
+    if type(v) == "table" then
+        ConfigManager.CurrentConfig[k] = {}
+        for subK, subV in pairs(v) do
+            ConfigManager.CurrentConfig[k][subK] = subV
+        end
+    else
+        ConfigManager.CurrentConfig[k] = v
+    end
 end
 
-local function ensureFolder()
-    pcall(function()
-        if typeof(makefolder) == "function" and typeof(isfolder) == "function" then
-            if not isfolder("RitodHub") then makefolder("RitodHub") end
-            if not isfolder(GAME_FOLDER) then makefolder(GAME_FOLDER) end
-        end
-    end)
-end
-
-function ConfigManager.Save(customData)
-    local dataToSave = customData or ConfigManager.CurrentConfig
-    local success, err = pcall(function()
-        ensureFolder()
-        if typeof(writefile) == "function" then
-            local encoded = HttpService:JSONEncode(dataToSave)
-            writefile(CONFIG_FILE, encoded)
-        end
+function ConfigManager.Save()
+    if typeof(writefile) ~= "function" then return false end
+    local success = pcall(function()
+        local json = HttpService:JSONEncode(ConfigManager.CurrentConfig)
+        writefile(FILE_NAME, json)
     end)
     return success
 end
 
 function ConfigManager.Load()
-    ensureFolder()
-    local success, err = pcall(function()
-        if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(CONFIG_FILE) then
-            local raw = readfile(CONFIG_FILE)
-            if raw and #raw > 0 then
-                local decoded = HttpService:JSONDecode(raw)
-                if typeof(decoded) == "table" then
-                    for k, v in pairs(decoded) do
-                        ConfigManager.CurrentConfig[k] = v
+    if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then return false end
+    if not isfile(FILE_NAME) then
+        ConfigManager.Save()
+        return true
+    end
+
+    local success, result = pcall(function()
+        local json = readfile(FILE_NAME)
+        local data = HttpService:JSONDecode(json)
+        if type(data) == "table" then
+            for k, v in pairs(data) do
+                if type(v) == "table" and type(ConfigManager.CurrentConfig[k]) == "table" then
+                    for subK, subV in pairs(v) do
+                        ConfigManager.CurrentConfig[k][subK] = subV
                     end
+                else
+                    ConfigManager.CurrentConfig[k] = v
                 end
             end
         end
     end)
-    return ConfigManager.CurrentConfig
+    return success
 end
 
 function ConfigManager.Reset()
-    for k in pairs(ConfigManager.CurrentConfig) do
-        ConfigManager.CurrentConfig[k] = nil
-    end
     for k, v in pairs(ConfigManager.DefaultConfig) do
-        ConfigManager.CurrentConfig[k] = v
+        if type(v) == "table" then
+            ConfigManager.CurrentConfig[k] = {}
+            for subK, subV in pairs(v) do
+                ConfigManager.CurrentConfig[k][subK] = subV
+            end
+        else
+            ConfigManager.CurrentConfig[k] = v
+        end
     end
     ConfigManager.Save()
-    return ConfigManager.CurrentConfig
 end
 
--- Muat saat inisialisasi
 ConfigManager.Load()
-
 _G.ChickenFighterConfigManager = ConfigManager
 return ConfigManager
