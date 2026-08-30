@@ -1945,10 +1945,19 @@ local MiscTab = RitodLib:CreateTab("Settings", "⚙️")
 
 MiscTab:AddSection("Server & Private Server")
 
-autoPrivateServerToggleRef = MiscTab:AddToggle("🔒 Auto Join Private Server (Saat Load/Execute)", savedConfig.AutoPrivateServer ~= false, function(state)
+autoPrivateServerToggleRef = MiscTab:AddToggle("🔒 Auto Join Private Server (Saat Load/Execute)", savedConfig.AutoPrivateServer == true, function(state)
 	savedConfig.AutoPrivateServer = state
 	if ConfigManager then ConfigManager.Save({ AutoPrivateServer = state }) end
-	Notify("Private Server", state and "Auto Join Private Server AKTIF!" or "Auto Join Private Server NONAKTIF", 2)
+	if state and PrivateServerModule and not PrivateServerModule.IsPrivateServer() then
+		Notify("Private Server", "Auto Join AKTIF! Menghubungkan ke Private Server sekarang...", 3.5)
+		task.delay(0.8, function()
+			if savedConfig.AutoPrivateServer and PrivateServerModule then
+				PrivateServerModule.JoinPrivateServer(Notify)
+			end
+		end)
+	else
+		Notify("Private Server", state and "Auto Join Private Server AKTIF!" or "Auto Join Private Server NONAKTIF", 2)
+	end
 end)
 
 MiscTab:AddButton("🏠 Masuk / Relog ke Private Server (Menu Game)", function()

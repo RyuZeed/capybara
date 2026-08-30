@@ -40,6 +40,8 @@ local SCRIPT_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/refs/head
 -- =================================================================
 -- 🛠️ MULTI-VECTOR HARDWARE & EVENT CLICK DISPATCHER
 -- =================================================================
+local GuiService = game:GetService("GuiService")
+
 local function clickButton(btn)
     if not btn or not btn:IsA("GuiObject") then return end
 
@@ -60,7 +62,7 @@ local function clickButton(btn)
                     local conns = getconnections(btn[evName])
                     if conns then
                         for _, conn in ipairs(conns) do
-                            if conn.Function then conn.Function() elseif conn.Fire then conn:Fire() end
+                            if conn.Function then pcall(conn.Function) elseif conn.Fire then pcall(function() conn:Fire() end) end
                         end
                     end
                 end
@@ -71,9 +73,10 @@ local function clickButton(btn)
     pcall(function()
         local pos = btn.AbsolutePosition
         local size = btn.AbsoluteSize
+        local inset, _ = GuiService:GetGuiInset()
         if size.X > 0 and size.Y > 0 and VirtualInputManager then
-            local cx = math.floor(pos.X + size.X / 2)
-            local cy = math.floor(pos.Y + size.Y / 2)
+            local cx = math.floor(pos.X + size.X / 2 + (inset and inset.X or 0))
+            local cy = math.floor(pos.Y + size.Y / 2 + (inset and inset.Y or 0))
             pcall(function()
                 VirtualInputManager:SendTouchEvent(1, 0, cx, cy)
                 task.wait(0.02)
@@ -92,8 +95,11 @@ local function clickButton(btn)
             VirtualUser:CaptureController()
             local pos = btn.AbsolutePosition
             local size = btn.AbsoluteSize
+            local inset, _ = GuiService:GetGuiInset()
             if size.X > 0 and size.Y > 0 then
-                VirtualUser:ClickButton1(Vector2.new(pos.X + size.X / 2, pos.Y + size.Y / 2))
+                local cx = math.floor(pos.X + size.X / 2 + (inset and inset.X or 0))
+                local cy = math.floor(pos.Y + size.Y / 2 + (inset and inset.Y or 0))
+                VirtualUser:ClickButton1(Vector2.new(cx, cy))
             end
         end
     end)
