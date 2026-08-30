@@ -1,19 +1,8 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - PRIVATE SERVER & SERVER HOP ENGINE
-	Game: Roll Anime For Fight / Anime Auto Roll
+	⚡ RITOD HUB - PRIVATE SERVER ENGINE (IN-GAME MENU & DIRECT REMOTE)
+	Game: Roll Anime To Fight!
 	GitHub: https://github.com/RyuZeed/capybara
-	===============================================================
-	🎯 FEATURES:
-	- 🏠 IN-GAME PRIVATE SERVER TRIGGER:
-	  • Otomatis mencari dan mengklik tombol 'Private Server' di Menu UI game.
-	  • Membuka Menu dropdown jika masih tertutup.
-	- 📡 DIRECT REMOTE TELEPORT DISPATCHER:
-	  • Mencari RemoteEvent/RemoteFunction PrivateServer di ReplicatedStorage.
-	- 🌐 API SERVER HOP FALLBACK (Server Sepi / Kosong):
-	  • Jika tombol game belum ready, otomatis mencari server dengan 1 pemain via Roblox Public API.
-	- 🔄 AUTO-EXECUTE PERSISTENCE:
-	  • Menanamkan script ke queue_on_teleport agar Ritod Hub langsung aktif saat masuk ke Private Server.
 	===============================================================
 ]]
 
@@ -21,14 +10,14 @@ local PrivateServer = {}
 _G.PrivateServer = PrivateServer
 _G.PrivateServerModule = PrivateServer
 
--- 🔇 SILENT MODE (Zero terminal/console spam)
+-- 🔇 SILENT MODE
 local print = function(...) end
 local warn = function(...) end
 
 local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local TeleportService     = game:GetService("TeleportService")
-local HttpService         = game:GetService("HttpService")
+local GuiService          = game:GetService("GuiService")
 local VirtualInputManager = nil
 pcall(function() VirtualInputManager = game:GetService("VirtualInputManager") end)
 local VirtualUser         = game:GetService("VirtualUser")
@@ -36,15 +25,15 @@ local VirtualUser         = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer or (function() local t = tick() while not Players.LocalPlayer and (tick() - t) < 3 do task.wait(0.05) end return Players.LocalPlayer end)()
 
 local SCRIPT_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/main/main.lua"
+local HANDSHAKE_FILE = "RitodHub_PSTeleportHandshake.txt"
 
 -- =================================================================
 -- 🛠️ MULTI-VECTOR HARDWARE & EVENT CLICK DISPATCHER
 -- =================================================================
-local GuiService = game:GetService("GuiService")
-
 local function clickButton(btn)
     if not btn or not btn:IsA("GuiObject") then return end
 
+    -- 1. firesignal
     if typeof(firesignal) == "function" then
         if btn:IsA("GuiButton") then
             if btn.Activated then pcall(function() firesignal(btn.Activated) end) end
@@ -55,6 +44,7 @@ local function clickButton(btn)
         end
     end
 
+    -- 2. getconnections
     if typeof(getconnections) == "function" then
         for _, evName in ipairs({"Activated", "MouseButton1Click", "MouseButton1Down", "MouseButton1Up", "TouchTap"}) do
             pcall(function()
@@ -70,6 +60,26 @@ local function clickButton(btn)
         end
     end
 
+    -- 3. TopbarPlus Icon selected object handler
+    if typeof(getconnections) == "function" and typeof(getupvalues) == "function" and btn.MouseButton1Click then
+        pcall(function()
+            local conns = getconnections(btn.MouseButton1Click)
+            if #conns > 0 then
+                local upvals = getupvalues(conns[1].Function)
+                local iconObj = upvals and upvals[2]
+                if type(iconObj) == "table" then
+                    if iconObj.selected and iconObj.selected.Fire then
+                        pcall(function() iconObj.selected:Fire() end)
+                    end
+                    if type(iconObj.select) == "function" then
+                        pcall(function() iconObj:select() end)
+                    end
+                end
+            end
+        end)
+    end
+
+    -- 4. VirtualInputManager with Topbar Inset calculation
     pcall(function()
         local pos = btn.AbsolutePosition
         local size = btn.AbsoluteSize
@@ -90,6 +100,7 @@ local function clickButton(btn)
         end
     end)
 
+    -- 5. VirtualUser
     pcall(function()
         if VirtualUser then
             VirtualUser:CaptureController()
@@ -103,18 +114,10 @@ local function clickButton(btn)
             end
         end
     end)
-
-    pcall(function()
-        if btn and type(rawget(getmetatable(btn) or {}, "Activate")) == "function" then
-            btn:Activate()
-        end
-    end)
 end
 
-local HANDSHAKE_FILE = "RitodHub_PSTeleportHandshake.txt"
-
 -- =================================================================
--- 🔍 HELPER: CEK APAKAH SUDAH DI PRIVATE SERVER
+-- 🔍 HELPER: CEK APAKAH SUDAH BERADA DI PRIVATE SERVER (ANTI-LOOP)
 -- =================================================================
 function PrivateServer.IsPrivateServer()
     -- 1. Reserved Server (Roblox ReservedServerId)
@@ -136,15 +139,17 @@ function PrivateServer.IsPrivateServer()
     if ReplicatedStorage:GetAttribute("PrivateServer") == true or ReplicatedStorage:GetAttribute("IsPrivate") == true then
         return true
     end
-    -- 5. Session Handshake Flag (Sudah berhasil berpindah via auto-teleport)
-    if _G.AlreadyInPrivateServer == true then
+    -- 5. Session Flag (Sudah ditandai di sesi ini)
+    if _G.AlreadyInPrivateServer == true or _G.AutoPrivateServerDone == true then
         return true
     end
+    -- 6. Handshake Token File (Dibuat saat teleport sebelum load)
     if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(HANDSHAKE_FILE) then
         pcall(function()
             if typeof(delfile) == "function" then delfile(HANDSHAKE_FILE) end
         end)
         _G.AlreadyInPrivateServer = true
+        _G.AutoPrivateServerDone = true
         return true
     end
 
@@ -160,7 +165,7 @@ function PrivateServer.MarkTeleportHandshake()
 end
 
 -- =================================================================
--- 🚀 QUEUE ON TELEPORT HANDLER (DEBOUNCED: Hanya queue 1x per sesi)
+-- 🚀 QUEUE ON TELEPORT HANDLER
 -- =================================================================
 local _queuedThisSession = false
 
@@ -179,14 +184,13 @@ function PrivateServer.QueueScript(customUrl)
 end
 
 -- =================================================================
--- 🏠 1. TRIGGER IN-GAME 'PRIVATE SERVER' BUTTON (TOPBAR & DROPDOWN)
+-- 🏠 1. TRIGGER IN-GAME 'PRIVATE SERVER' BUTTON (MENU GAME)
 -- =================================================================
 function PrivateServer.TriggerInGamePrivateServer()
     local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
     if not pGui then return false end
 
-    -- 1. Cari dan klik tombol "Menu" di TopbarStandard
-    local menuBtn = nil
+    -- 1. Buka Dropdown 'Menu' di Topbar
     for _, guiName in ipairs({"TopbarStandard", "TopbarCentered", "TopbarApp"}) do
         local topGui = pGui:FindFirstChild(guiName)
         if topGui then
@@ -195,21 +199,17 @@ function PrivateServer.TriggerInGamePrivateServer()
                     local spot = desc:FindFirstAncestor("IconButton") or desc:FindFirstAncestor("IconSpot") or desc.Parent
                     local mBtn = spot and (spot:FindFirstChild("ClickRegion", true) or spot:FindFirstChildOfClass("TextButton") or spot:FindFirstChildOfClass("ImageButton")) or (desc:IsA("GuiButton") and desc)
                     if mBtn then
-                        menuBtn = mBtn
+                        clickButton(mBtn)
                         break
                     end
                 end
             end
         end
-        if menuBtn then break end
     end
 
-    if menuBtn then
-        clickButton(menuBtn)
-        task.wait(0.35)
-    end
+    task.wait(0.35)
 
-    -- 2. Cari tombol "Private Server" di Dropdown / TopbarStandardClipped
+    -- 2. Klik tombol 'Private Server' di Dropdown
     for _, guiName in ipairs({"TopbarStandardClipped", "TopbarCenteredClipped", "TopbarStandard", "TopbarCentered"}) do
         local topGui = pGui:FindFirstChild(guiName)
         if topGui then
@@ -219,7 +219,6 @@ function PrivateServer.TriggerInGamePrivateServer()
                     if spot then
                         local btn = spot:FindFirstChild("ClickRegion", true) or spot:FindFirstChildOfClass("TextButton") or spot:FindFirstChildOfClass("ImageButton")
                         if btn then
-                            PrivateServer.QueueScript()
                             clickButton(btn)
                             return true
                         end
@@ -229,11 +228,10 @@ function PrivateServer.TriggerInGamePrivateServer()
         end
     end
 
-    -- 3. General fallback search di seluruh PlayerGui
+    -- 3. Fallback scan di seluruh PlayerGui
     for _, desc in ipairs(pGui:GetDescendants()) do
         if (desc:IsA("TextLabel") or desc:IsA("TextButton")) and desc.Text:lower():find("private") and desc.Text:lower():find("server") then
             if desc:IsA("TextButton") then
-                PrivateServer.QueueScript()
                 clickButton(desc)
                 return true
             end
@@ -241,7 +239,6 @@ function PrivateServer.TriggerInGamePrivateServer()
             if spot then
                 local btn = spot:FindFirstChild("ClickRegion", true) or spot:FindFirstChildOfClass("TextButton") or spot:FindFirstChildOfClass("ImageButton")
                 if btn then
-                    PrivateServer.QueueScript()
                     clickButton(btn)
                     return true
                 end
@@ -253,87 +250,55 @@ function PrivateServer.TriggerInGamePrivateServer()
 end
 
 -- =================================================================
--- 📡 2. TRIGGER DIRECT REMOTES JIKA ADA
+-- 📡 2. DIRECT REMOTE TELEPORT DISPATCHER (AFKTeleport: "PrivateServer")
 -- =================================================================
 function PrivateServer.TriggerRemotes()
+    local ok = false
+    -- Remote utama bawaan game Roll Anime:
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     if remotes then
+        local afkRem = remotes:FindFirstChild("AFKTeleport")
+        if afkRem and afkRem:IsA("RemoteEvent") then
+            pcall(function()
+                afkRem:FireServer("PrivateServer")
+                ok = true
+            end)
+        end
+
         for _, r in ipairs(remotes:GetDescendants()) do
             local rName = r.Name:lower()
-            if rName:find("privateserver") or rName:find("vipserver") or rName:find("createserver") then
-                PrivateServer.QueueScript()
+            if rName:find("privateserver") or rName:find("vipserver") then
                 if r:IsA("RemoteEvent") then
-                    pcall(function() r:FireServer() end)
-                    return true
+                    pcall(function() r:FireServer() ok = true end)
                 elseif r:IsA("RemoteFunction") then
-                    pcall(function() r:InvokeServer() end)
-                    return true
+                    pcall(function() r:InvokeServer() ok = true end)
                 end
             end
         end
     end
-    return false
+    return ok
 end
 
 -- =================================================================
--- 🌐 3. SERVER HOP KE SERVER SEPI (1 PEMAIN / KOSONG) VIA API
--- =================================================================
-function PrivateServer.HopToLowPlayerServer()
-    PrivateServer.QueueScript()
-    
-    local placeId = game.PlaceId
-    local currentJob = game.JobId
-    
-    local success, res = pcall(function()
-        local url = string.format("https://games.roblox.com/v1/games/%s/servers/Public?sortOrder=Asc&limit=100", tostring(placeId))
-        return game:HttpGet(url)
-    end)
-
-    if success and res and #res > 0 then
-        local sData, parsed = pcall(function() return HttpService:JSONDecode(res) end)
-        if sData and parsed and type(parsed.data) == "table" then
-            for _, srv in ipairs(parsed.data) do
-                if srv.id ~= currentJob and (srv.playing or 0) < (srv.maxPlayers or 12) then
-                    local sId = srv.id
-                    pcall(function()
-                        TeleportService:TeleportToPlaceInstance(placeId, sId, LocalPlayer)
-                    end)
-                    return true
-                end
-            end
-        end
-    end
-
-    -- Fallback normal teleport
-    pcall(function()
-        TeleportService:Teleport(placeId, LocalPlayer)
-    end)
-    return true
-end
-
--- =================================================================
--- ⚡ 4. MASTER FUNCTION: JOIN / RELOG KE PRIVATE SERVER
+-- ⚡ 3. MASTER FUNCTION: JOIN / RELOG KE PRIVATE SERVER
 -- =================================================================
 function PrivateServer.JoinPrivateServer(notify)
+    -- Jika sudah di private server, batalkan agar tidak loop
+    if PrivateServer.IsPrivateServer() then
+        if notify then pcall(function() notify("Private Server", "Anda sudah berada di Private Server ✅", 2.5) end) end
+        return true
+    end
+
     PrivateServer.MarkTeleportHandshake()
     PrivateServer.QueueScript()
-    if notify then pcall(function() notify("Private Server", "Mempersiapkan teleport ke Private Server...", 3) end) end
+    if notify then pcall(function() notify("Private Server", "Membuka Private Server bawaan game...", 3) end) end
 
-    -- 1. Coba klik in-game Private Server button
+    -- Eksekusi Remote & In-Game Menu Click secara bersamaan
     task.spawn(function()
-        pcall(function() PrivateServer.TriggerInGamePrivateServer() end)
+        PrivateServer.TriggerRemotes()
     end)
-
-    -- 2. Coba panggil remote private server jika ada
     task.spawn(function()
-        task.wait(0.5)
-        pcall(function() PrivateServer.TriggerRemotes() end)
-    end)
-
-    -- 3. Jaminan Teleport: Server Hop ke Server Sepi / Private jika dalam 1.8 detik belum pindah
-    task.delay(1.8, function()
-        if notify then pcall(function() notify("Private Server", "Menghubungkan ke Server Baru...", 2.5) end) end
-        PrivateServer.HopToLowPlayerServer()
+        PrivateServer.TriggerInGamePrivateServer()
     end)
 
     return true

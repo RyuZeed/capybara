@@ -2446,10 +2446,19 @@ end
 
 if savedConfig.AutoPrivateServer == true and PrivateServerModule then
 	task.spawn(function()
+		-- Pastikan game, player, dan gui sudah 100% loaded
 		if not game:IsLoaded() then
 			pcall(function() game.Loaded:Wait() end)
 		end
-		task.wait(4)
+		while not Players.LocalPlayer or not Players.LocalPlayer.Character do
+			task.wait(0.2)
+		end
+		while not Players.LocalPlayer:FindFirstChildOfClass("PlayerGui") do
+			task.wait(0.2)
+		end
+		task.wait(3.5)
+
+		-- Cek apakah sudah di private server
 		if not PrivateServerModule.IsPrivateServer() and not _G.AutoPrivateServerDone then
 			_G.AutoPrivateServerDone = true
 			Notify("🔒 Auto Private Server", "Mendeteksi server publik, berpindah ke Private Server...", 3.5)
@@ -2457,6 +2466,8 @@ if savedConfig.AutoPrivateServer == true and PrivateServerModule then
 			if not PrivateServerModule.IsPrivateServer() then
 				PrivateServerModule.JoinPrivateServer(Notify)
 			end
+		else
+			_G.AutoPrivateServerDone = true
 		end
 	end)
 end
