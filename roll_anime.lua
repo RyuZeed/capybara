@@ -2292,7 +2292,8 @@ MiscTab:AddButton("💾 Simpan Config Sekarang (Save Config)", function()
 			local unitCount = 0
 			for _, v in pairs(selectedUnits) do if v then unitCount = unitCount + 1 end end
 			local targetUnits = math.floor(unitCount / 2) > 0 and math.floor(unitCount / 2) or unitCount
-			Notify("💾 Config Saved", string.format("Berhasil disimpan ke %s (%d unit target)!", ConfigManager.ConfigPath, targetUnits), 3.5)
+			local pathName = (ConfigManager and ConfigManager.ConfigPath) or "RitodHub_RollAnime_Config.json"
+			Notify("💾 Config Saved", string.format("Berhasil disimpan ke %s (%d unit target)!", tostring(pathName), targetUnits), 3.5)
 		else
 			Notify("Config Error", "Gagal menyimpan file config!", 3)
 		end

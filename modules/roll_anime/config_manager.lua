@@ -18,6 +18,10 @@ local LEGACY_FILES = {
     "RitodHub_RollAnimeForFight_Config.json"
 }
 
+ConfigManager.ConfigPath = FILE_NAME
+ConfigManager.FileName = FILE_NAME
+ConfigManager.GameFolder = "RitodHub"
+
 ConfigManager.DefaultConfig = {
     -- 🎰 Auto Roll / Gacha
     AutoHuntEnabled       = false,
