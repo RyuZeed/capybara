@@ -180,11 +180,32 @@ function AutoRollModule.TriggerRoll(prompt)
     end
 end
 
+local function getInstancePosition(inst)
+    if not inst then return Vector3.zero end
+    if inst:IsA("Model") then
+        local prim = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
+        if prim then return prim.Position end
+        local ok, piv = pcall(function() return inst:GetPivot().Position end)
+        if ok and piv then return piv end
+    elseif inst:IsA("BasePart") then
+        return inst.Position
+    elseif inst:IsA("Folder") or inst:IsA("Instance") then
+        local part = inst:FindFirstChildWhichIsA("BasePart", true)
+        if part then return part.Position end
+    end
+    return Vector3.zero
+end
+
 function AutoRollModule.GetTargetUnitsOnPedestals(plot, selectedUnitsMap, allUnitsMap, autoSecretGod)
     local targetsFound = {}
     local seenModels = {}
+    if not plot then return targetsFound end
+
     local roll = plot:FindFirstChild("Roll")
-    local rollOrigin = roll and roll:GetPivot().Position or plot:GetPivot().Position
+    local rollOrigin = getInstancePosition(roll)
+    if rollOrigin == Vector3.zero then
+        rollOrigin = getInstancePosition(plot)
+    end
     
     for _, model in ipairs(plot:GetDescendants()) do
         if model:IsA("Model") and not seenModels[model] then
