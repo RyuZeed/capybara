@@ -319,23 +319,23 @@ function PrivateServer.JoinPrivateServer(notify)
     PrivateServer.QueueScript()
     if notify then pcall(function() notify("Private Server", "Mempersiapkan teleport ke Private Server...", 3) end) end
 
-    -- Coba Metode 1: In-Game Private Server Button (Sesuai Menu game)
-    local ok1 = PrivateServer.TriggerInGamePrivateServer()
-    if ok1 then
-        if notify then pcall(function() notify("Private Server", "Membuka Private Server in-game...", 3) end) end
-        return true
-    end
+    -- 1. Coba klik in-game Private Server button
+    task.spawn(function()
+        pcall(function() PrivateServer.TriggerInGamePrivateServer() end)
+    end)
 
-    -- Coba Metode 2: Direct Remote
-    local ok2 = PrivateServer.TriggerRemotes()
-    if ok2 then
-        if notify then pcall(function() notify("Private Server", "Menghubungi Server Private...", 3) end) end
-        return true
-    end
+    -- 2. Coba panggil remote private server jika ada
+    task.spawn(function()
+        task.wait(0.5)
+        pcall(function() PrivateServer.TriggerRemotes() end)
+    end)
 
-    -- Coba Metode 3: Server Hop ke Server Sepi
-    if notify then pcall(function() notify("Private Server", "Mencari server sepi (Server Hop)...", 3) end) end
-    PrivateServer.HopToLowPlayerServer()
+    -- 3. Jaminan Teleport: Server Hop ke Server Sepi / Private jika dalam 1.8 detik belum pindah
+    task.delay(1.8, function()
+        if notify then pcall(function() notify("Private Server", "Menghubungkan ke Server Baru...", 2.5) end) end
+        PrivateServer.HopToLowPlayerServer()
+    end)
+
     return true
 end
 

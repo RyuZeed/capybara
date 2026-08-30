@@ -2449,11 +2449,11 @@ if savedConfig.AutoPrivateServer == true and PrivateServerModule then
 		if not game:IsLoaded() then
 			pcall(function() game.Loaded:Wait() end)
 		end
-		task.wait(6)
+		task.wait(4)
 		if not PrivateServerModule.IsPrivateServer() and not _G.AutoPrivateServerDone then
 			_G.AutoPrivateServerDone = true
 			Notify("🔒 Auto Private Server", "Mendeteksi server publik, berpindah ke Private Server...", 3.5)
-			task.wait(1.5)
+			task.wait(1)
 			if not PrivateServerModule.IsPrivateServer() then
 				PrivateServerModule.JoinPrivateServer(Notify)
 			end
