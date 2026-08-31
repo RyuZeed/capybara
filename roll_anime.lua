@@ -2038,7 +2038,7 @@ antiLagToggleRef = MiscTab:AddToggle("❄️ Anti-Lag AFK (FPS Cap 10)", savedCo
 	end
 end)
 
-fpsCapSliderRef = MiscTab:AddSlider("🎯 Batas FPS (FPS Cap)", 10, 240, savedConfig.TargetFPS or 60, function(val)
+fpsCapSliderRef = MiscTab:AddSlider("🎯 Batas FPS (FPS Cap)", 5, 240, savedConfig.TargetFPS or 60, function(val)
 	savedConfig.TargetFPS = val
 	if ConfigManager then ConfigManager.Save({ TargetFPS = val }) end
 	if GraphicsModule then

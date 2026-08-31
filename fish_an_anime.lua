@@ -1118,7 +1118,7 @@ end)
 
 GraphicsTab:AddSection("🎯 FPS Cap Limiter")
 
-local fpsOptions = { 15, 30, 60, 120, 144, 240 }
+local fpsOptions = { 5, 15, 30, 60, 120, 144, 240 }
 for _, fps in ipairs(fpsOptions) do
     GraphicsTab:AddButton(string.format("⚡ Set FPS Cap: %d FPS", fps), function()
         CurrentConfig.TargetFPS = fps
