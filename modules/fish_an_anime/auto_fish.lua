@@ -245,8 +245,34 @@ function AutoFish.PauseFishing()
     AutoFish.CancelFishing()
 end
 
+function AutoFish.EnableInGameAutoFish()
+    pcall(function()
+        if LocalPlayer:GetAttribute("AutoFishOwned") == true then
+            if Remotes:FindFirstChild("FishingAutoFishEnabledSync") then
+                Remotes.FishingAutoFishEnabledSync:FireServer(true)
+            end
+            if Remotes:FindFirstChild("FishingForceAutoFish") then
+                Remotes.FishingForceAutoFish:FireServer(true)
+            end
+            local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            local fishAction = pg and pg:FindFirstChild("MainGui") and pg.MainGui:FindFirstChild("FishAction")
+            local autoFishBtn = fishAction and fishAction:FindFirstChild("AutoFish")
+            if autoFishBtn and LocalPlayer:GetAttribute("AutoFishActive") ~= true then
+                if typeof(getconnections) == "function" then
+                    for _, c in ipairs(getconnections(autoFishBtn.MouseButton1Click)) do
+                        pcall(function() c:Fire() end)
+                    end
+                end
+            end
+        end
+    end)
+end
+
 function AutoFish.ResumeFishing()
     AutoFish.IsPaused = false
+
+    -- Sync and activate in-game AutoFish button
+    AutoFish.EnableInGameAutoFish()
 
     if AutoFish.IsFishing then
         task.wait(0.2)
@@ -263,6 +289,7 @@ function AutoFish.StartFishing()
     -- 1. Ensure best rod equipped & in valid fishing spot ONCE at start
     AutoFish.EquipBestRod()
     AutoFish.GoToNearestPond(true)
+    AutoFish.EnableInGameAutoFish()
     task.wait(0.3)
 
     -- 2. Event listener
