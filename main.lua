@@ -15,7 +15,7 @@ _G.RitodHubLauncherLock = tick()
 
 local PlaceId = game.PlaceId
 local GameId = game.GameId
-local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/main/"
+local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/"
 
 -- Deteksi game
 local rs = game:GetService("ReplicatedStorage")
@@ -40,6 +40,6 @@ elseif isFishAnAnime then
     targetScript = "fish_an_anime.lua"
 end
 
-local url = BASE_URL .. targetScript .. "?t=" .. tostring(os.time())
+local url = BASE_URL .. targetScript .. "?t=" .. tostring(os.time()) .. "&nocache=" .. tostring(math.random(100000, 999999))
 return loadstring(game:HttpGet(url))()
 

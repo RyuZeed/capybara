@@ -60,8 +60,8 @@ end)
 -- =================================================================
 -- 🌐 3. MODULAR LOADER (LOCAL & GITHUB SUPPORT)
 -- =================================================================
-local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/HEAD/modules/fish_an_anime/"
-local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/HEAD/modules/shared/"
+local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/fish_an_anime/"
+local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/"
 
 local function loadModule(name, isShared)
     local targetUrl = (isShared and SHARED_URL or BASE_URL) .. name .. ".lua?t=" .. tostring(os.time()) .. "&nocache=" .. tostring(math.random(100000, 999999))
