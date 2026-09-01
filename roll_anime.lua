@@ -75,6 +75,13 @@ pcall(function()
         _G.AutoPrivateServerThread = nil
     end
 
+    _G.AutoRollModule = nil
+    _G.CatalogModule = nil
+    _G.AutoClaimModule = nil
+    _G.AutoMerchantModule = nil
+    _G.GraphicsModule = nil
+    _G.PrivateServerModule = nil
+
     if _G.RitodHubRollAnime and typeof(_G.RitodHubRollAnime) == "Instance" then
         pcall(function() _G.RitodHubRollAnime:Destroy() end)
     end
