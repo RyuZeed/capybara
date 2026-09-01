@@ -480,7 +480,13 @@ end)
 autoQuestRollToggleRef = RollTab:AddToggle("🎯 Auto Roll Daily (250x) & Weekly (5000x) Quests", savedConfig.AutoQuestRollMode or false, function(state)
 	savedConfig.AutoQuestRollMode = state
 	if ConfigManager then ConfigManager.Save({ AutoQuestRollMode = state }) end
-	Notify("Quest Roll Mode", state and "Mode Quest Roll (250x & 5000x Auto Switch & Reset) AKTIF!" or "Mode Quest Roll NONAKTIF", 2.5)
+	if state then
+		if huntToggleRef then huntToggleRef:Set(true, false) end
+		startHunt()
+		Notify("Quest Roll Mode", "🎯 Auto Roll Quest Aktif! Memulai roll target 250x & 5000x...", 2.5)
+	else
+		Notify("Quest Roll Mode", "Mode Quest Roll dinonaktifkan (kembali ke roll biasa).", 2)
+	end
 end)
 
 autoSniperToggleRef = RollTab:AddToggle("🎯 Auto Buy / Sniper (Hanya Beli Tanpa Roll)", savedConfig.AutoSniperOnly or false, function(state)
