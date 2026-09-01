@@ -1,9 +1,11 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - AUTO DEPOLARIZER MODULE (V1.0)
+	⚡ RITOD HUB - AUTO DEPOLARIZER MODULE (V1.1 - ANTI SPAM & SAFE)
 	Game: Fish an Anime RNG 🎲
-	Function: Automatically inserts units with unwanted mutations
-	          into the Depolarizer machine to strip/purify mutations.
+	Function: Otomatis memasukkan unit dengan mutasi yang dipilih ke
+	          mesin Depolarizer saat mesin KOSONG / READY.
+	          Tidak akan memproses jika mesin sedang ada unit / berjalan.
+	          Hanya memproses unit yang memiliki MUTASI sesuai filter.
 	===============================================================
 ]]
 
@@ -17,6 +19,7 @@ local AutoDepolarizer = {}
 AutoDepolarizer.Enabled = false
 AutoDepolarizer.Interval = 5
 AutoDepolarizer.LastStatus = "Idle"
+AutoDepolarizer.ProcessingUnit = false
 
 -- Selected Rarities to Depolarize
 AutoDepolarizer.SelectedRarities = {
@@ -40,7 +43,7 @@ AutoDepolarizer.SelectedRarities = {
     ["Exclusive"] = false
 }
 
--- Selected Mutations / Types to Depolarize (Remove)
+-- Selected Mutations / Types to Depolarize (Hanya mutasi yang dipilih yang akan di-strip)
 AutoDepolarizer.SelectedMutations = {
     ["Mars"] = false,
     ["Electric"] = false,
@@ -95,7 +98,7 @@ function AutoDepolarizer.GetMyPlot()
     return nil
 end
 
--- ── 🏭 2. Helper: Get Depolarizer Machine Info ──
+-- ── 🏭 2. Helper: Get Depolarizer Machine State ──
 function AutoDepolarizer.GetDepolarizerInfo()
     local plot = AutoDepolarizer.GetMyPlot()
     if not plot then
@@ -117,33 +120,49 @@ function AutoDepolarizer.GetDepolarizerInfo()
         return nil, "CharacterInsert tidak ditemukan"
     end
 
-    -- Check if busy (timer running)
-    local isBusy = false
-    local remainingText = ""
+    -- 1. Check ButtonModel for Skip (Robux) prompt (Artinya sedang ada unit di dalam mesin)
+    local buttonModel = charInsert:FindFirstChild("ButtonModel")
+    local skipPrompt = buttonModel and buttonModel:FindFirstChildWhichIsA("ProximityPrompt", true)
+
+    -- 2. Check TimePart / StatsGui / TimeLeft
     local timePart = charInsert:FindFirstChild("TimePart")
-    if timePart then
-        local statsGui = timePart:FindFirstChild("StatsGui")
-        local timeLeft = statsGui and statsGui:FindFirstChild("TimeLeft")
-        if timeLeft and timeLeft:IsA("TextLabel") and timeLeft.Text ~= "" and timeLeft.Text ~= "0s" then
-            isBusy = true
-            remainingText = timeLeft.Text
+    local statsGui = timePart and timePart:FindFirstChild("StatsGui")
+    local timeLeftLabel = statsGui and statsGui:FindFirstChild("TimeLeft")
+
+    local remainingText = ""
+    local isBusy = false
+
+    if timeLeftLabel and timeLeftLabel:IsA("TextLabel") and timeLeftLabel.Text ~= "" and timeLeftLabel.Text ~= "0s" and timeLeftLabel.Visible ~= false then
+        isBusy = true
+        remainingText = timeLeftLabel.Text
+    end
+
+    if skipPrompt and skipPrompt.Enabled == true and string.find(string.lower(skipPrompt.ActionText or ""), "skip") then
+        isBusy = true
+        if remainingText == "" then
+            remainingText = "Sedang Berjalan"
         end
     end
 
+    -- 3. Check PromptPart for Character Insert ProximityPrompt
     local promptPart = charInsert:FindFirstChild("PromptPart")
-    local prompt = promptPart and promptPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+    local insertPrompt = promptPart and promptPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+
+    -- Mesin HANYA READY jika TIDAK BUSY dan insertPrompt ADA & ENABLED
+    local isReady = (not isBusy) and (insertPrompt ~= nil) and (insertPrompt.Enabled == true)
 
     return {
         model = depolarizer,
         charInsert = charInsert,
-        prompt = prompt,
+        prompt = insertPrompt,
         promptPart = promptPart,
         isBusy = isBusy,
+        isReady = isReady,
         remainingText = remainingText
     }
 end
 
--- ── 🎒 3. Helper: Get Eligible Backpack Units ──
+-- ── 🎒 3. Helper: Get Eligible Units (HANYA YANG MEMILIKI MUTASI) ──
 function AutoDepolarizer.GetEligibleUnits()
     local summary = nil
     if Remotes:FindFirstChild("BackpackCharSummaryGet") then
@@ -164,11 +183,12 @@ function AutoDepolarizer.GetEligibleUnits()
 
     for key, data in pairs(summary) do
         if typeof(data) == "table" then
-            local mutation = data.ty or ""
-            local rarity = data.ra or ""
+            local mutation = tostring(data.ty or "")
+            local rarity = tostring(data.ra or "")
             local count = tonumber(data.c) or 1
 
-            if mutation ~= "" and mutation ~= "nil" and mutation ~= "None" then
+            -- PASTIKAN unit BENAR-BENAR MEMILIKI MUTASI (Bukan kosong / nil / None)
+            if mutation ~= "" and mutation ~= "nil" and mutation ~= "None" and #mutation > 1 then
                 local mutMatch = (AutoDepolarizer.SelectedMutations[mutation] == true)
                 local rarMatch = (AutoDepolarizer.SelectedRarities[rarity] == true)
 
@@ -187,7 +207,7 @@ function AutoDepolarizer.GetEligibleUnits()
         end
     end
 
-    -- Sort by lowest rarity / level first
+    -- Prioritaskan level terendah / cps terendah
     table.sort(eligible, function(a, b)
         if a.level ~= b.level then
             return a.level < b.level
@@ -198,10 +218,15 @@ function AutoDepolarizer.GetEligibleUnits()
     return eligible
 end
 
--- ── ⚡ 4. Action: Depolarize Single Unit ──
+-- ── ⚡ 4. Action: Depolarize Single Unit (Safe Execution) ──
 function AutoDepolarizer.DepolarizeUnit(unit)
     if not unit or not unit.key then
         return false, "Unit tidak valid"
+    end
+
+    -- Pastikan unit benar-benar punya mutasi sebelum dimasukkan
+    if not unit.mutation or unit.mutation == "" or unit.mutation == "nil" or unit.mutation == "None" then
+        return false, "Unit tidak memiliki mutasi (Dibatalkan untuk keamanan)"
     end
 
     local info, err = AutoDepolarizer.GetDepolarizerInfo()
@@ -210,17 +235,23 @@ function AutoDepolarizer.DepolarizeUnit(unit)
     end
 
     if info.isBusy then
-        return false, "Depolarizer sedang berjalan (" .. tostring(info.remainingText) .. ")"
+        return false, "Mesin sedang berjalan (" .. tostring(info.remainingText) .. ")"
     end
+
+    if not info.isReady or not info.prompt then
+        return false, "Mesin Depolarizer belum siap (Prompt belum muncul)"
+    end
+
+    AutoDepolarizer.ProcessingUnit = true
 
     -- 1. Hold character in hand
     if Remotes:FindFirstChild("BackpackHoldCharacter") then
         Remotes.BackpackHoldCharacter:FireServer(unit.key)
-        task.wait(0.25)
+        task.wait(0.35)
     end
 
     -- 2. Trigger ProximityPrompt
-    if info.prompt then
+    if info.prompt and info.prompt.Parent then
         if fireproximityprompt then
             fireproximityprompt(info.prompt, 0, true)
         else
@@ -231,19 +262,20 @@ function AutoDepolarizer.DepolarizeUnit(unit)
             end)
         end
     end
-    task.wait(0.3)
+    task.wait(0.35)
 
     -- 3. Confirm dialog
     if Remotes:FindFirstChild("DepolarizrConfirm") then
         Remotes.DepolarizrConfirm:FireServer(true)
     end
-    task.wait(0.2)
+    task.wait(0.3)
 
     -- 4. Reset hand
     if Remotes:FindFirstChild("BackpackHoldCharacter") then
         Remotes.BackpackHoldCharacter:FireServer("")
     end
 
+    AutoDepolarizer.ProcessingUnit = false
     return true, string.format("Unit %s (%s [%s]) berhasil dimasukkan ke Depolarizer!", unit.name, unit.rarity, unit.mutation)
 end
 
@@ -251,23 +283,32 @@ end
 function AutoDepolarizer.StepOnce()
     local info, err = AutoDepolarizer.GetDepolarizerInfo()
     if not info then
-        AutoDepolarizer.LastStatus = "Error: " .. tostring(err)
+        AutoDepolarizer.LastStatus = "Status: " .. tostring(err)
         return false, err
     end
 
+    -- JIKA MESIN SEDANG SIBUK: JANGAN LAKUKAN APA-APA, TUNGGU SAMPAI SELESAI
     if info.isBusy then
-        AutoDepolarizer.LastStatus = string.format("Sedang Depolarize: %s tersisa", tostring(info.remainingText))
+        AutoDepolarizer.LastStatus = string.format("Sedang Berjalan: %s tersisa (Menunggu mesin kosong)", tostring(info.remainingText))
         return false, AutoDepolarizer.LastStatus
     end
 
+    -- JIKA MESIN BELUM READY
+    if not info.isReady then
+        AutoDepolarizer.LastStatus = "Menunggu mesin Depolarizer siap..."
+        return false, AutoDepolarizer.LastStatus
+    end
+
+    -- CARI UNIT DI TAS DENGAN MUTASI SESUAI FILTER
     local eligibleUnits = AutoDepolarizer.GetEligibleUnits()
     if #eligibleUnits == 0 then
-        AutoDepolarizer.LastStatus = "Idle (Tidak ada unit yang cocok dengan filter Rarity & Mutasi)"
+        AutoDepolarizer.LastStatus = "Mesin Kosong (Tidak ada unit di tas dengan mutasi & rarity terpilih)"
         return false, AutoDepolarizer.LastStatus
     end
 
     local targetUnit = eligibleUnits[1]
-    AutoDepolarizer.LastStatus = string.format("Memproses %s [%s]...", targetUnit.name, targetUnit.mutation)
+    AutoDepolarizer.LastStatus = string.format("Memasukkan %s (%s [%s]) ke Depolarizer...", targetUnit.name, targetUnit.rarity, targetUnit.mutation)
+    
     local success, msg = AutoDepolarizer.DepolarizeUnit(targetUnit)
     if success then
         AutoDepolarizer.LastStatus = msg
@@ -277,19 +318,33 @@ function AutoDepolarizer.StepOnce()
     return success, msg
 end
 
--- ── ▶️ 6. Start / Stop Automation ──
+-- ── ▶️ 6. Start / Stop Automation (Smart Interval) ──
 function AutoDepolarizer.StartAutoDepolarizer(interval)
     AutoDepolarizer.Enabled = true
     interval = interval or AutoDepolarizer.Interval or 5
 
     if depolarizerThread then task.cancel(depolarizerThread) end
     depolarizerThread = task.spawn(function()
-        -- Initial check
-        AutoDepolarizer.StepOnce()
         while AutoDepolarizer.Enabled do
-            task.wait(interval)
-            if not AutoDepolarizer.Enabled then break end
-            AutoDepolarizer.StepOnce()
+            local info = AutoDepolarizer.GetDepolarizerInfo()
+            
+            if info and info.isBusy then
+                -- Jika mesin sedang berjalan, tidur lebih lama (15 detik) untuk menghemat network / tidak spam
+                AutoDepolarizer.LastStatus = string.format("Sedang Berjalan: %s tersisa (Menunggu mesin kosong)", tostring(info.remainingText))
+                task.wait(15)
+            elseif info and info.isReady then
+                -- Mesin ready, coba masukkan 1 unit
+                local success = AutoDepolarizer.StepOnce()
+                if success then
+                    -- Berhasil masuk, tunggu 5 detik agar state mesin ter-update
+                    task.wait(5)
+                else
+                    -- Tidak ada unit yang cocok, tunggu sebelum scan ulang
+                    task.wait(interval)
+                end
+            else
+                task.wait(interval)
+            end
         end
     end)
 end
@@ -300,6 +355,7 @@ function AutoDepolarizer.StopAutoDepolarizer()
         pcall(function() task.cancel(depolarizerThread) end)
         depolarizerThread = nil
     end
+    AutoDepolarizer.ProcessingUnit = false
     AutoDepolarizer.LastStatus = "Nonaktif"
 end
 
@@ -310,7 +366,8 @@ end
 -- ── 🔔 7. Auto Confirm Remote Event Listener ──
 if Remotes:FindFirstChild("DepolarizrUI") then
     Remotes.DepolarizrUI.OnClientEvent:Connect(function(data)
-        if AutoDepolarizer.Enabled and data and data.action == "ShowConfirm" then
+        -- Hanya confirm jika AutoDepolarizer sedang memproses unit secara aktif
+        if AutoDepolarizer.Enabled and AutoDepolarizer.ProcessingUnit and data and data.action == "ShowConfirm" then
             task.wait(0.1)
             if Remotes:FindFirstChild("DepolarizrConfirm") then
                 Remotes.DepolarizrConfirm:FireServer(true)
