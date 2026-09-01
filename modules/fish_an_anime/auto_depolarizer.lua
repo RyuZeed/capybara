@@ -124,15 +124,15 @@ function AutoDepolarizer.GetDepolarizerInfo()
     local buttonModel = charInsert:FindFirstChild("ButtonModel")
     local skipPrompt = buttonModel and buttonModel:FindFirstChildWhichIsA("ProximityPrompt", true)
 
-    -- 2. Check TimePart / StatsGui / TimeLeft
+    -- 2. Check TimePart / StatsGui / TimeLeft (Recursive TextLabel search)
     local timePart = charInsert:FindFirstChild("TimePart")
     local statsGui = timePart and timePart:FindFirstChild("StatsGui")
-    local timeLeftLabel = statsGui and statsGui:FindFirstChild("TimeLeft")
+    local timeLeftLabel = statsGui and statsGui:FindFirstChildWhichIsA("TextLabel", true)
 
     local remainingText = ""
     local isBusy = false
 
-    if timeLeftLabel and timeLeftLabel:IsA("TextLabel") and timeLeftLabel.Text ~= "" and timeLeftLabel.Text ~= "0s" and timeLeftLabel.Visible ~= false then
+    if timeLeftLabel and timeLeftLabel.Text ~= "" and timeLeftLabel.Text ~= "0s" then
         isBusy = true
         remainingText = timeLeftLabel.Text
     end
