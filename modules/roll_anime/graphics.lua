@@ -799,7 +799,101 @@ end
 Graphics.StartAutoMemoryCleanup(45)
 
 -- =================================================================
--- 11. 🚀 ONE-CLICK ULTRA POTATO PRESET
+-- 11. 🎮 IN-GAME SETTINGS AUTO PRESET ENFORCER
+-- =================================================================
+Graphics.GameSettingsPreset = {
+	Sounds              = false, -- OFF (Screenshot 1)
+	Music               = false, -- OFF (Screenshot 1)
+	ShowText            = false, -- OFF (Screenshot 1)
+	FPSBoost            = true,  -- ON  (Screenshot 2)
+	Effects             = false, -- OFF (Screenshot 2)
+	AutoAbility         = true,  -- ON  (Screenshot 2)
+	OtherPlayerEffects  = true,  -- ON  (Screenshot 2)
+	HideOtherCharacters = true,  -- ON  (Screenshot 2 - Hide Other Player Animes)
+}
+
+Graphics.AutoGameSettingsEnabled = true
+local gameSettingsWatchdogThread = nil
+
+function Graphics.ApplyGameSettingsPreset(customPreset)
+	local target = customPreset or Graphics.GameSettingsPreset
+	local RS = game:GetService("ReplicatedStorage")
+	local settingsRemote = nil
+	pcall(function()
+		settingsRemote = RS:FindFirstChild("Remotes") and RS.Remotes:FindFirstChild("Settings")
+	end)
+
+	local client = nil
+	pcall(function()
+		client = require(RS.Data.DataService).client
+	end)
+
+	local pGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	local scroll = pGui and pGui:FindFirstChild("MainUI")
+		and pGui.MainUI:FindFirstChild("Frames")
+		and pGui.MainUI.Frames:FindFirstChild("Settings")
+		and pGui.MainUI.Frames.Settings:FindFirstChild("Frame")
+		and pGui.MainUI.Frames.Settings.Frame:FindFirstChild("Main")
+		and pGui.MainUI.Frames.Settings.Frame.Main:FindFirstChild("ScrollingFrame")
+
+	local anyChanged = false
+	for key, desired in pairs(target) do
+		local curVal = nil
+		if client then
+			pcall(function() curVal = client:get({ "Settings", key }) end)
+		end
+
+		if curVal == nil and scroll then
+			local f = scroll:FindFirstChild(key)
+			if f and f:FindFirstChild("Button") and f.Button:FindFirstChild("Frame") and f.Button.Frame:FindFirstChild("TextLabel") then
+				curVal = (f.Button.Frame.TextLabel.Text == "ON")
+			end
+		end
+
+		if curVal ~= desired then
+			anyChanged = true
+			if settingsRemote and typeof(settingsRemote.FireServer) == "function" then
+				pcall(function() settingsRemote:FireServer(key) end)
+			end
+			if scroll then
+				local f = scroll:FindFirstChild(key)
+				local btn = f and f:FindFirstChild("Button") and f.Button:FindFirstChild("Button")
+				if btn and typeof(firesignal) == "function" then
+					pcall(function() firesignal(btn.MouseButton1Click) end)
+				end
+			end
+			task.wait(0.08)
+		end
+	end
+
+	return anyChanged
+end
+
+function Graphics.StartGameSettingsWatchdog(interval)
+	interval = interval or 10
+	Graphics.AutoGameSettingsEnabled = true
+	if gameSettingsWatchdogThread then task.cancel(gameSettingsWatchdogThread) end
+	gameSettingsWatchdogThread = task.spawn(function()
+		while Graphics.AutoGameSettingsEnabled do
+			pcall(function()
+				Graphics.ApplyGameSettingsPreset()
+			end)
+			task.wait(interval)
+		end
+		gameSettingsWatchdogThread = nil
+	end)
+end
+
+function Graphics.StopGameSettingsWatchdog()
+	Graphics.AutoGameSettingsEnabled = false
+	if gameSettingsWatchdogThread then
+		task.cancel(gameSettingsWatchdogThread)
+		gameSettingsWatchdogThread = nil
+	end
+end
+
+-- =================================================================
+-- 12. 🚀 ONE-CLICK ULTRA POTATO PRESET
 -- =================================================================
 function Graphics.EnableUltraPotato()
 	Graphics.EnablePotatoGraphics()
@@ -807,6 +901,7 @@ function Graphics.EnableUltraPotato()
 	Graphics.FreezeAllNPCsAndAnimations()
 	Graphics.DisableAllVFX()
 	Graphics.SetAntiLag(true, 60)
+	Graphics.ApplyGameSettingsPreset()
 end
 
 function Graphics.DisableUltraPotato()
@@ -818,7 +913,7 @@ function Graphics.DisableUltraPotato()
 end
 
 -- =================================================================
--- 12. 🔄 BACKWARD COMPATIBILITY WRAPPERS
+-- 13. 🔄 BACKWARD COMPATIBILITY WRAPPERS
 -- =================================================================
 function Graphics.EnablePotato(enable)
 	if enable then
@@ -836,6 +931,7 @@ function Graphics.Unload()
 	Graphics.SetFarmMode(false)
 	Graphics.DisableUltraPotato()
 	Graphics.StopAutoMemoryCleanup()
+	Graphics.StopGameSettingsWatchdog()
 
 	for _, conn in ipairs(connections) do
 		pcall(function() conn:Disconnect() end)

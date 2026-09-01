@@ -35,6 +35,7 @@
 
 local RitodUI = {}
 RitodUI.__index = RitodUI
+_G.RitodUI = RitodUI
 
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -66,43 +67,47 @@ end
 local function makeDraggable(frame, dragHandle, onClick)
 	dragHandle = dragHandle or frame
 	local dragging = false
-	local dragInput, dragStart, startPos
+	local dragStart, startPos
 	local hasMoved = false
+	local pressStartTime = 0
+	local lastClickTime = 0
 
 	dragHandle.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
 			hasMoved = false
+			pressStartTime = tick()
 			dragStart = input.Position
 			startPos = frame.Position
-
-			local endConn
-			endConn = input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-					endConn:Disconnect()
-					if not hasMoved and onClick then onClick() end
-				end
-			end)
-		end
-	end)
-
-	dragHandle.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local delta = input.Position - dragStart
-			if delta.Magnitude > 6 then hasMoved = true end
-			frame.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
-			)
+			if delta.Magnitude > 12 then
+				hasMoved = true
+				frame.Position = UDim2.new(
+					startPos.X.Scale,
+					startPos.X.Offset + delta.X,
+					startPos.Y.Scale,
+					startPos.Y.Offset + delta.Y
+				)
+			end
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+			dragging = false
+			local duration = tick() - pressStartTime
+			if not hasMoved and onClick and duration < 0.5 then
+				local now = tick()
+				if now - lastClickTime > 0.08 then
+					lastClickTime = now
+					onClick()
+				end
+			end
 		end
 	end)
 end
@@ -425,7 +430,7 @@ function RitodUI:CreateWindow(options)
 	end)
 
 	-- ── Floating Widget (Icon ⚡ + Gradient + Pulse) ─────────────
-	local floatWidget = n("Frame", {
+	local floatWidget = n("TextButton", {
 		Name = "FloatWidget",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 24, 0.5, 0),
@@ -433,7 +438,9 @@ function RitodUI:CreateWindow(options)
 		BackgroundColor3 = Color3.fromRGB(20, 14, 28),
 		BorderSizePixel = 0,
 		ZIndex = 100,
-		Active = true
+		Active = true,
+		AutoButtonColor = false,
+		Text = ""
 	}, screenGui)
 	corner(18, floatWidget)
 
@@ -491,28 +498,43 @@ function RitodUI:CreateWindow(options)
 	end)
 
 	local isHubVisible = true
-	local lastSavedPosition = mainFrame.Position
+	local hubSavedPosition = mainFrame.Position
 
 	local function toggleHub()
 		isHubVisible = not isHubVisible
 		if isHubVisible then
 			mainFrame.Visible = true
-			mainFrame.Position = UDim2.new(lastSavedPosition.X.Scale, lastSavedPosition.X.Offset, lastSavedPosition.Y.Scale, lastSavedPosition.Y.Offset + 30)
-			TweenService:Create(mainFrame, TW_BOUNCE, {Position = lastSavedPosition}):Play()
+			mainFrame.Position = UDim2.new(hubSavedPosition.X.Scale, hubSavedPosition.X.Offset, hubSavedPosition.Y.Scale, hubSavedPosition.Y.Offset + 20)
+			TweenService:Create(mainFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = hubSavedPosition}):Play()
 		else
-			lastSavedPosition = mainFrame.Position
-			local closeTween = TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Position = UDim2.new(lastSavedPosition.X.Scale, lastSavedPosition.X.Offset, lastSavedPosition.Y.Scale, lastSavedPosition.Y.Offset + 30)
+			local closeTween = TweenService:Create(mainFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Position = UDim2.new(hubSavedPosition.X.Scale, hubSavedPosition.X.Offset, hubSavedPosition.Y.Scale, hubSavedPosition.Y.Offset + 20)
 			})
 			closeTween:Play()
 			closeTween.Completed:Connect(function()
 				if not isHubVisible then mainFrame.Visible = false end
+				mainFrame.Position = hubSavedPosition
 			end)
 		end
 	end
 
-	makeDraggable(floatWidget, floatWidget, function() toggleHub() end)
-	minBtn.Activated:Connect(function() toggleHub() end)
+	local lastFloatClick = 0
+	local function triggerFloatToggle()
+		local now = tick()
+		if now - lastFloatClick < 0.1 then return end
+		lastFloatClick = now
+		TweenService:Create(floatWidget, TweenInfo.new(0.06), {Size = UDim2.new(0, 52, 0, 52)}):Play()
+		task.delay(0.07, function()
+			pcall(function()
+				TweenService:Create(floatWidget, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 60, 0, 60)}):Play()
+			end)
+		end)
+		toggleHub()
+	end
+
+	makeDraggable(floatWidget, floatWidget, triggerFloatToggle)
+	floatWidget.Activated:Connect(triggerFloatToggle)
+	minBtn.Activated:Connect(toggleHub)
 
 	UserInputService.InputBegan:Connect(function(input, gpe)
 		if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
@@ -569,7 +591,8 @@ function RitodUI:CreateWindow(options)
 			TextSize = 12,
 			Font = Enum.Font.GothamMedium,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			ZIndex = 12
+			ZIndex = 12,
+			Active = true
 		}, sideBar)
 		corner(10, tabBtn)
 		pad(12, 0, 0, 0, tabBtn)
@@ -614,12 +637,13 @@ function RitodUI:CreateWindow(options)
 				if ind then TweenService:Create(ind, TW_FAST, {BackgroundTransparency = 1}):Play() end
 			end
 			page.Visible = true
-			TweenService:Create(tabBtn, TW_FAST, {BackgroundTransparency = 0, TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+			TweenService:Create(tabBtn, TW_FAST, {BackgroundTransparency = 0, TextColor3 = Color3.fromRGB(255, 255, 255), BackgroundColor3 = Color3.fromRGB(150, 65, 240)}):Play()
 			TweenService:Create(indicator, TW_FAST, {BackgroundTransparency = 0}):Play()
 			WindowObj.ActiveTab = tabData
 		end
 
 		tabBtn.Activated:Connect(activateTab)
+		tabBtn.MouseButton1Click:Connect(activateTab)
 
 		if not WindowObj.ActiveTab then
 			activateTab()
@@ -654,14 +678,35 @@ function RitodUI:CreateWindow(options)
 				TextColor3 = Color3.fromRGB(235, 225, 245),
 				TextSize = 12,
 				Font = Enum.Font.GothamBold,
-				ZIndex = 14
+				ZIndex = 14,
+				Active = true
 			}, page)
 			corner(8, btn)
-			stroke(1, Color3.fromRGB(70, 50, 85), btn)
+			local bStroke = stroke(1, Color3.fromRGB(70, 50, 85), btn)
 
-			btn.MouseEnter:Connect(function() TweenService:Create(btn, TW_FAST, {BackgroundColor3 = Color3.fromRGB(38, 28, 50), TextColor3 = Color3.fromRGB(255, 255, 255)}):Play() end)
-			btn.MouseLeave:Connect(function() TweenService:Create(btn, TW_FAST, {BackgroundColor3 = Color3.fromRGB(26, 20, 34), TextColor3 = Color3.fromRGB(235, 225, 245)}):Play() end)
-			btn.Activated:Connect(function() if callback then callback() end end)
+			btn.MouseEnter:Connect(function()
+				TweenService:Create(btn, TW_FAST, {BackgroundColor3 = Color3.fromRGB(38, 28, 50), TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+				TweenService:Create(bStroke, TW_FAST, {Color = Color3.fromRGB(180, 90, 255)}):Play()
+			end)
+			btn.MouseLeave:Connect(function()
+				TweenService:Create(btn, TW_FAST, {BackgroundColor3 = Color3.fromRGB(26, 20, 34), TextColor3 = Color3.fromRGB(235, 225, 245)}):Play()
+				TweenService:Create(bStroke, TW_FAST, {Color = Color3.fromRGB(70, 50, 85)}):Play()
+			end)
+
+			local lastBtnClick = 0
+			local function onClick()
+				local now = tick()
+				if now - lastBtnClick < 0.15 then return end
+				lastBtnClick = now
+				TweenService:Create(btn, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(160, 75, 250)}):Play()
+				task.delay(0.12, function()
+					pcall(function() TweenService:Create(btn, TW_FAST, {BackgroundColor3 = Color3.fromRGB(26, 20, 34)}):Play() end)
+				end)
+				if callback then callback() end
+			end
+
+			btn.Activated:Connect(onClick)
+			btn.MouseButton1Click:Connect(onClick)
 			return btn
 		end
 
@@ -682,13 +727,12 @@ function RitodUI:CreateWindow(options)
 				ZIndex = 15
 			}, toggleFrame)
 
-			local switch = n("TextButton", {
+			local switch = n("Frame", {
 				AnchorPoint = Vector2.new(1, 0.5),
 				Position = UDim2.new(1, -10, 0.5, 0),
 				Size = UDim2.new(0, 44, 0, 22),
 				BackgroundColor3 = state and Color3.fromRGB(175, 75, 255) or Color3.fromRGB(50, 38, 60),
-				AutoButtonColor = false,
-				Text = "",
+				BorderSizePixel = 0,
 				ZIndex = 15
 			}, toggleFrame)
 			corner(1, switch)
@@ -714,10 +758,25 @@ function RitodUI:CreateWindow(options)
 				if fireCallback and callback then callback(state) end
 			end
 
-			switch.Activated:Connect(function()
+			local fullClick = n("TextButton", {
+				Size = UDim2.new(1, 0, 1, 0),
+				BackgroundTransparency = 1,
+				Text = "",
+				ZIndex = 20,
+				Active = true
+			}, toggleFrame)
+
+			local lastToggleClick = 0
+			local function onToggleClick()
+				local now = tick()
+				if now - lastToggleClick < 0.15 then return end
+				lastToggleClick = now
 				state = not state
 				updateToggle(true)
-			end)
+			end
+
+			fullClick.Activated:Connect(onToggleClick)
+			fullClick.MouseButton1Click:Connect(onToggleClick)
 
 			return {
 				Set = function(self, val, fireCallback)
@@ -777,14 +836,26 @@ function RitodUI:CreateWindow(options)
 
 			local sliding = false
 			local function setSlider(input)
-				local pos = UDim2.new(math.clamp((input.Position.X - barBack.AbsolutePosition.X) / barBack.AbsoluteSize.X, 0, 1), 0, 1, 0)
-				barFill.Size = pos
-				local current = math.floor(min + ((max - min) * pos.X.Scale))
+				local absPos = barBack.AbsolutePosition.X
+				local absSize = barBack.AbsoluteSize.X
+				if absSize <= 0 then return end
+				local relX = math.clamp((input.Position.X - absPos) / absSize, 0, 1)
+				barFill.Size = UDim2.new(relX, 0, 1, 0)
+				local current = math.floor(min + ((max - min) * relX))
+				val = current
 				valLabel.Text = tostring(current)
 				if callback then callback(current) end
 			end
 
-			barBack.InputBegan:Connect(function(input)
+			local slideClick = n("TextButton", {
+				Size = UDim2.new(1, 0, 1, 0),
+				BackgroundTransparency = 1,
+				Text = "",
+				ZIndex = 20,
+				Active = true
+			}, sliderFrame)
+
+			slideClick.InputBegan:Connect(function(input)
 				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					sliding = true
 					setSlider(input)
@@ -812,6 +883,145 @@ function RitodUI:CreateWindow(options)
 					if fireCallback and callback then callback(val) end
 				end,
 				Get = function(self) return val end
+			}
+		end
+
+		function elements:AddInput(placeholder, callback)
+			local inputFrame = n("Frame", {
+				Size = UDim2.new(1, 0, 0, 40),
+				BackgroundColor3 = Color3.fromRGB(26, 20, 34),
+				BorderSizePixel = 0,
+				ZIndex = 14
+			}, page)
+			corner(8, inputFrame)
+
+			local tb = n("TextBox", {
+				Size = UDim2.new(1, -24, 1, 0),
+				Position = UDim2.new(0, 12, 0, 0),
+				BackgroundTransparency = 1,
+				PlaceholderText = placeholder or "Type here...",
+				PlaceholderColor3 = Color3.fromRGB(140, 120, 155),
+				Text = "",
+				TextColor3 = Color3.fromRGB(255, 255, 255),
+				TextSize = 12,
+				Font = Enum.Font.GothamMedium,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ClearTextOnFocus = false,
+				ZIndex = 15
+			}, inputFrame)
+
+			tb:GetPropertyChangedSignal("Text"):Connect(function()
+				if callback then callback(tb.Text) end
+			end)
+			tb.FocusLost:Connect(function()
+				if callback then callback(tb.Text) end
+			end)
+			return tb
+		end
+
+		function elements:AddDropdown(text, list, default, callback)
+			local open = false
+			local selected = default or (list and list[1]) or ""
+			local itemH = 32
+			local dropFrame = n("Frame", {
+				Size = UDim2.new(1, 0, 0, 42),
+				BackgroundColor3 = Color3.fromRGB(26, 20, 34),
+				BorderSizePixel = 0,
+				ClipsDescendants = true,
+				ZIndex = 20
+			}, page)
+			corner(8, dropFrame)
+
+			local header = n("TextButton", {
+				Size = UDim2.new(1, 0, 0, 42),
+				BackgroundTransparency = 1,
+				Text = "",
+				ZIndex = 21,
+				Active = true
+			}, dropFrame)
+
+			local titleLbl = n("TextLabel", {
+				Position = UDim2.new(0, 12, 0, 0),
+				Size = UDim2.new(0.5, 0, 1, 0),
+				BackgroundTransparency = 1,
+				Text = text,
+				TextColor3 = Color3.fromRGB(235, 225, 245),
+				TextSize = 12,
+				Font = Enum.Font.GothamMedium,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = 22
+			}, header)
+
+			local selLbl = n("TextLabel", {
+				Position = UDim2.new(0.5, 0, 0, 0),
+				Size = UDim2.new(0.5, -30, 1, 0),
+				BackgroundTransparency = 1,
+				Text = tostring(selected),
+				TextColor3 = Color3.fromRGB(190, 120, 255),
+				TextSize = 12,
+				Font = Enum.Font.GothamBold,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				ZIndex = 22
+			}, header)
+
+			local arrow = n("TextLabel", {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -10, 0.5, 0),
+				Size = UDim2.new(0, 16, 0, 16),
+				BackgroundTransparency = 1,
+				Text = "▼",
+				TextColor3 = Color3.fromRGB(160, 140, 175),
+				TextSize = 10,
+				Font = Enum.Font.GothamBold,
+				ZIndex = 22
+			}, header)
+
+			local listContainer = n("Frame", {
+				Position = UDim2.new(0, 0, 0, 42),
+				Size = UDim2.new(1, 0, 0, #(list or {}) * itemH),
+				BackgroundTransparency = 1,
+				ZIndex = 21
+			}, dropFrame)
+
+			local function toggleDrop()
+				open = not open
+				local targetH = open and (42 + (#(list or {}) * itemH)) or 42
+				TweenService:Create(dropFrame, TW_MED, {Size = UDim2.new(1, 0, 0, targetH)}):Play()
+				arrow.Text = open and "▲" or "▼"
+			end
+
+			header.Activated:Connect(toggleDrop)
+
+			for i, itemText in ipairs(list or {}) do
+				local itemBtn = n("TextButton", {
+					Position = UDim2.new(0, 0, 0, (i - 1) * itemH),
+					Size = UDim2.new(1, 0, 0, itemH),
+					BackgroundColor3 = Color3.fromRGB(32, 24, 42),
+					BackgroundTransparency = (itemText == selected) and 0.3 or 0.8,
+					Text = "   " .. tostring(itemText),
+					TextColor3 = (itemText == selected) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 165, 195),
+					TextSize = 11,
+					Font = Enum.Font.GothamMedium,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					ZIndex = 23,
+					Active = true
+				}, listContainer)
+
+				itemBtn.Activated:Connect(function()
+					selected = itemText
+					selLbl.Text = tostring(selected)
+					toggleDrop()
+					if callback then callback(selected) end
+				end)
+			end
+
+			return {
+				Set = function(self, val, fireCb)
+					selected = val
+					selLbl.Text = tostring(val)
+					if fireCb and callback then callback(val) end
+				end,
+				Get = function(self) return selected end
 			}
 		end
 

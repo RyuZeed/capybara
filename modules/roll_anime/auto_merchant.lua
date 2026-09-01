@@ -1,18 +1,19 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - AUTO BUY MERCHANT ENGINE (TRADER EVENT V2.0 ULTRA)
+	⚡ RITOD HUB - AUTO BUY MERCHANT ENGINE (TRADER EVENT V2.5 ULTRA)
 	Game: Roll Anime For Fight / Anime Auto Roll
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
 	🎯 FEATURES:
-	- 🛒 100% UNSTOPPABLE AUTO-BUY (EVENT EVERY 20 MINUTES):
+	- 🛒 100% UNSTOPPABLE SILENT AUTO-BUY (EVENT EVERY 20 MINUTES):
 	  • Memantau atribut 'TraderEventActive', 'TraderEventId', dan 'TraderEventEndsAt'.
-	  • Otomatis mendeteksi NPC 'TraderChar' / 'TraderPlatform' di Workspace.
-	  • Polling berkala via GetStock RemoteFunction & UI Frame Reader.
-	- ⚡ ZERO-MISS RAPID SNIPER:
+	  • Mendeteksi rotasi merchant baru dengan Session & Event ID Tracker.
 	  • Direct Remote Call: ReplicatedStorage.Remotes.Trader.Buy:FireServer(itemName).
-	  • Hardware / Event Click Dispatcher ke tombol UI.
-	  • Auto-Trigger ProximityPrompt NPC Trader jika berada di map.
+	  • Menggunakan RemoteFunction GetStock & UI Frame Reader tanpa memaksa ProximityPrompt.
+	- 🛑 ZERO SPAM & ANTI-FREEZE GUARDIAN:
+	  • Mencegah ProximityPrompt spam yang mengunci kamera/layar dan memaksakan UI terus terbuka.
+	  • Berhenti total saat stok habis (Sold Out) atau selesai dibeli per sesi event.
+	  • Menghilangkan efek blur & depth of field yang tertinggal di layar.
 	- 📦 KATEGORI & FILTER LENGKAP:
 	  • Potions, Essences, Capsules, Tickets, Rare Materials.
 	- 💰 SMART GOLD GUARD:
@@ -31,6 +32,7 @@ local warn = function(...) end
 local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local Workspace           = game:GetService("Workspace")
+local Lighting            = game:GetService("Lighting")
 local VirtualInputManager = nil
 pcall(function() VirtualInputManager = game:GetService("VirtualInputManager") end)
 
@@ -51,7 +53,7 @@ AutoMerchant.ItemsCatalog = {
 	-- ✨ Essences
 	["Supreme Essence"]     = { Category = "Essences",  Rarity = "Supreme",   Price = 10000000, MaxStock = 1, DisplayName = "Supreme Essence" },
 	["God Essence"]         = { Category = "Essences",  Rarity = "God",       Price = 5000000,  MaxStock = 2, DisplayName = "God Essence" },
-	["Secret Essence"]      = { Category = "Essences",  Rarity = "Secret",    Price = 2500000,  MaxStock = 3, DisplayName = "Secret Essence" },
+	["Secret Essence"]      = { Category = "Essences",  Rarity = "Secret",    Price = 250000,  MaxStock = 3, DisplayName = "Secret Essence" },
 	["Mythic Essence"]      = { Category = "Essences",  Rarity = "Mythic",    Price = 750000,   MaxStock = 5, DisplayName = "Mythic Essence" },
 	["Legendary Essence"]   = { Category = "Essences",  Rarity = "Legendary", Price = 250000,   MaxStock = 5, DisplayName = "Legendary Essence" },
 	["Epic Essence"]        = { Category = "Essences",  Rarity = "Epic",      Price = 100000,   MaxStock = 5, DisplayName = "Epic Essence" },
@@ -84,7 +86,7 @@ AutoMerchant.ItemsCatalog = {
 }
 
 -- =================================================================
--- ⚙️ CONFIGURATION STATE
+-- ⚙️ CONFIGURATION & SESSION STATE
 -- =================================================================
 AutoMerchant.Config = {
 	Enabled         = true,  -- Default ON
@@ -97,14 +99,18 @@ AutoMerchant.Config = {
 	SelectedItems   = {},    -- Whitelist nama item tertentu
 	MinGoldReserve  = 0,     -- Batas minimum sisa gold
 	CheckInterval   = 2,     -- Interval pengecekan saat idle (detik)
-	ActiveInterval  = 0.5,   -- Interval pengecekan saat event aktif (detik)
+	ActiveInterval  = 1,     -- Interval pengecekan saat event aktif (detik)
 }
 
 local isRunning = false
 local loopThread = nil
 local conns = {}
-local lastBoughtEventId = nil
-local lastBuyCooldown = {}
+
+-- 🛡️ Session State: Melacak sesi event merchant agar tidak terjadi spam buy berulang
+local currentSessionKey = nil
+local isSessionProcessed = false
+local isProcessing = false
+local lastProcessedTime = 0
 
 -- =================================================================
 -- 🛠️ UTILITY: GOLD & STATUS
@@ -123,39 +129,54 @@ function AutoMerchant.GetGold()
 end
 
 function AutoMerchant.IsMerchantActive()
-	-- Vector 1: Workspace Attribute
-	if Workspace:GetAttribute("TraderEventActive") == true then return true end
+	-- Vector 1: Workspace Attribute (Strict check)
+	local attrActive = Workspace:GetAttribute("TraderEventActive")
+	if attrActive == false then
+		return false
+	end
 	
 	-- Vector 2: Remaining EndsAt timestamp
 	local endsAt = Workspace:GetAttribute("TraderEventEndsAt")
 	if typeof(endsAt) == "number" and endsAt > 0 then
 		local now = Workspace:GetServerTimeNow()
-		if endsAt > now then return true end
+		if now >= endsAt then
+			return false
+		end
+		if attrActive == true or endsAt > now then
+			return true
+		end
 	end
 	
-	-- Vector 3: NPC di Workspace
-	if Workspace:FindFirstChild("TraderChar") or Workspace:FindFirstChild("TraderPlatform") then
+	if attrActive == true then
 		return true
 	end
 	
-	-- Vector 4: UI Frame memiliki item aktif
-	local hasActiveUI = false
-	pcall(function()
-		local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
-		if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
-			local tFrame = pGui.MainUI.Frames:FindFirstChild("Trader (Merchant)")
-			if tFrame and tFrame:FindFirstChild("Frame") and tFrame.Frame:FindFirstChild("Frames") and tFrame.Frame.Frames:FindFirstChild("Main") then
-				for _, c in ipairs(tFrame.Frame.Frames.Main:GetChildren()) do
-					if c:IsA("Frame") and c.Name ~= "Template" and c.Name ~= "Configuration" then
-						hasActiveUI = true
-						break
-					end
-				end
-			end
-		end
-	end)
+	-- Vector 3: NPC Character di Workspace (bukan platform statis)
+	local tc = Workspace:FindFirstChild("TraderChar")
+	if tc and tc:IsA("Model") and tc.Parent == Workspace then
+		return true
+	end
 	
-	return hasActiveUI
+	return false
+end
+
+function AutoMerchant.GetMerchantSessionKey()
+	local evId = Workspace:GetAttribute("TraderEventId")
+	if evId and tostring(evId) ~= "" then
+		return "event_" .. tostring(evId)
+	end
+	
+	local endsAt = Workspace:GetAttribute("TraderEventEndsAt")
+	if typeof(endsAt) == "number" and endsAt > 0 then
+		return "ends_" .. tostring(math.floor(endsAt))
+	end
+	
+	local traderChar = Workspace:FindFirstChild("TraderChar")
+	if traderChar then
+		return "npc_active"
+	end
+	
+	return nil
 end
 
 function AutoMerchant.GetMerchantRemainingTime()
@@ -192,7 +213,7 @@ function AutoMerchant.ShouldBuyItem(itemName)
 end
 
 -- =================================================================
--- 🖱️ MULTI-VECTOR BUTTON CLICK (FALLBACK)
+-- 🖱️ MULTI-VECTOR BUTTON CLICK (FALLBACK JIKA UI DIBUKA)
 -- =================================================================
 local function clickBuyButton(btn)
 	if not btn or not btn:IsA("GuiObject") then return end
@@ -218,11 +239,16 @@ local function clickBuyButton(btn)
 end
 
 -- =================================================================
--- 🛒 CORE EXECUTE PURCHASE
+-- 🛒 CORE EXECUTE PURCHASE (SILENT & NON-BLOCKING)
 -- =================================================================
 function AutoMerchant.PurchaseItem(itemName, count)
 	count = count or 1
 	if not itemName then return end
+	
+	-- 🛑 Guard: Jika trader sudah pergi / despawn, hentikan pembelian segera
+	if not AutoMerchant.IsMerchantActive() then
+		return
+	end
 	
 	local currentGold = AutoMerchant.GetGold()
 	local minGold = AutoMerchant.Config.MinGoldReserve or 0
@@ -231,22 +257,28 @@ function AutoMerchant.PurchaseItem(itemName, count)
 	
 	local buyRemote = nil
 	pcall(function()
-		buyRemote = ReplicatedStorage.Remotes.Trader.Buy
+		buyRemote = ReplicatedStorage:WaitForChild("Remotes", 2)
+			and ReplicatedStorage.Remotes:WaitForChild("Trader", 2)
+			and ReplicatedStorage.Remotes.Trader:WaitForChild("Buy", 2)
 	end)
 	
 	for i = 1, count do
+		if not AutoMerchant.IsMerchantActive() then
+			break
+		end
+		
 		if price > 0 and currentGold - price < minGold then
 			break
 		end
 		
-		-- 1. Direct Remote
+		-- 1. Direct Server Remote (Prioritas Utama - Tanpa Buka UI)
 		if buyRemote and typeof(buyRemote.FireServer) == "function" then
 			pcall(function()
 				buyRemote:FireServer(itemName)
 			end)
 		end
 		
-		-- 2. UI Button Trigger
+		-- 2. UI Click Fallback jika Frame UI kebetulan ada
 		pcall(function()
 			local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
 			if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
@@ -260,114 +292,21 @@ function AutoMerchant.PurchaseItem(itemName, count)
 			end
 		end)
 		
-		task.wait(0.05)
+		task.wait(0.12)
 		currentGold = AutoMerchant.GetGold()
 	end
 end
 
 -- =================================================================
--- ⚡ SCAN & BUY CURRENT MERCHANT STOCK
--- =================================================================
-function AutoMerchant.ScanAndBuyAllStock()
-	-- Auto trigger ProximityPrompt NPC jika ada di Workspace
-	pcall(function()
-		local traderChar = Workspace:FindFirstChild("TraderChar") or Workspace:FindFirstChild("TraderPlatform")
-		if traderChar then
-			local prompt = traderChar:FindFirstChildWhichIsA("ProximityPrompt", true)
-			if prompt and typeof(fireproximityprompt) == "function" then
-				fireproximityprompt(prompt)
-			end
-		end
-	end)
-
-	local boughtAny = false
-
-	-- 1. Scan dari PlayerGui Trader Frame
-	pcall(function()
-		local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
-		if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
-			local tFrame = pGui.MainUI.Frames:FindFirstChild("Trader (Merchant)")
-			if tFrame and tFrame:FindFirstChild("Frame") and tFrame.Frame:FindFirstChild("Frames") and tFrame.Frame.Frames:FindFirstChild("Main") then
-				local mainFrame = tFrame.Frame.Frames.Main
-				for _, itemFrame in ipairs(mainFrame:GetChildren()) do
-					if itemFrame:IsA("Frame") and itemFrame.Name ~= "Template" and itemFrame.Name ~= "Configuration" then
-						local itemName = itemFrame.Name
-						local stockCount = 1
-						local isSoldOut = false
-						
-						pcall(function()
-							if itemFrame:FindFirstChild("Inner3") then
-								local inner3 = itemFrame.Inner3
-								if inner3:FindFirstChild("ItemName") and inner3.ItemName.Text ~= "" then
-									itemName = inner3.ItemName.Text
-								end
-								if inner3:FindFirstChild("StockNumber") then
-									local cur, max = inner3.StockNumber.Text:match("(%d+)/(%d+)")
-									if cur then
-										stockCount = tonumber(cur) or 1
-										if stockCount <= 0 then isSoldOut = true end
-									end
-								end
-							end
-						end)
-						
-						if not isSoldOut and stockCount > 0 and AutoMerchant.ShouldBuyItem(itemName) then
-							AutoMerchant.PurchaseItem(itemName, stockCount)
-							boughtAny = true
-						end
-					end
-				end
-			end
-		end
-	end)
-
-	-- 2. Query GetStock RemoteFunction
-	pcall(function()
-		local getStockRemote = ReplicatedStorage.Remotes.Trader.GetStock
-		local stockData = getStockRemote:InvokeServer()
-		if stockData and typeof(stockData) == "table" and stockData.Items and #stockData.Items > 0 then
-			for _, itm in ipairs(stockData.Items) do
-				local iName = typeof(itm) == "table" and (itm.Name or itm.Item or itm.ItemName) or tostring(itm)
-				local count = (typeof(itm) == "table" and tonumber(itm.Amount or itm.Stock)) or 1
-				if AutoMerchant.ShouldBuyItem(iName) then
-					AutoMerchant.PurchaseItem(iName, count)
-					boughtAny = true
-				end
-			end
-		end
-	end)
-
-	-- 3. Fallback: Jika event terdeteksi aktif tapi data stock tertunda, tembak semua item terpilih
-	if not boughtAny and AutoMerchant.IsMerchantActive() then
-		for itemName, info in pairs(AutoMerchant.ItemsCatalog) do
-			if AutoMerchant.ShouldBuyItem(itemName) then
-				local now = tick()
-				if not lastBuyCooldown[itemName] or (now - lastBuyCooldown[itemName]) > 4 then
-					lastBuyCooldown[itemName] = now
-					AutoMerchant.PurchaseItem(itemName, info.MaxStock or 2)
-				end
-			end
-		end
-	end
-
-	-- 4. Auto Close Merchant UI setelah transaksi selesai
-	task.delay(0.5, function()
-		AutoMerchant.CloseMerchantUI()
-	end)
-end
-
--- =================================================================
--- 🚪 AUTO CLOSE MERCHANT UI HANDLER
+-- 🚪 AUTO CLOSE MERCHANT UI & RESTORE SCREEN
 -- =================================================================
 function AutoMerchant.CloseMerchantUI()
 	pcall(function()
 		local pGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
-		if not pGui then return end
-		local mainUI = pGui:FindFirstChild("MainUI")
-		if mainUI and mainUI:FindFirstChild("Frames") then
-			local tFrame = mainUI.Frames:FindFirstChild("Trader (Merchant)")
+		if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
+			local tFrame = pGui.MainUI.Frames:FindFirstChild("Trader (Merchant)")
 			if tFrame then
-				-- 1. Klik Close Button di header
+				-- 1. Simulasikan klik tombol close di UI header jika ada
 				local closeBtn = tFrame:FindFirstChild("Frame")
 					and tFrame.Frame:FindFirstChild("Header")
 					and tFrame.Frame.Header:FindFirstChild("CloseButton")
@@ -378,7 +317,7 @@ function AutoMerchant.CloseMerchantUI()
 						if closeBtn.MouseButton1Click then pcall(function() firesignal(closeBtn.MouseButton1Click) end) end
 					end
 				end
-				-- 2. Sembunyikan langsung frame
+				-- 2. Sembunyikan frame UI secara instan
 				tFrame.Visible = false
 				if tFrame:FindFirstChild("Frame") then
 					tFrame.Frame.Visible = false
@@ -386,22 +325,133 @@ function AutoMerchant.CloseMerchantUI()
 			end
 		end
 
-		-- 3. Hapus sisa efek Blur & DepthOfField di Lighting agar layar jernih kembali
-		local Lighting = game:GetService("Lighting")
+		-- 3. Hapus seluruh efek Blur yang menempel di Lighting agar visual jernih
 		if Lighting then
-			for _, effect in ipairs(Lighting:GetDescendants()) do
-				if effect:IsA("BlurEffect") then
-					effect.Size = 0
-					effect.Enabled = false
-				end
-			end
 			for _, effect in ipairs(Lighting:GetChildren()) do
 				if effect:IsA("BlurEffect") then
 					effect.Size = 0
 					effect.Enabled = false
 				end
 			end
+			for _, effect in ipairs(Lighting:GetDescendants()) do
+				if effect:IsA("BlurEffect") then
+					effect.Size = 0
+					effect.Enabled = false
+				end
+			end
 		end
+	end)
+end
+
+-- =================================================================
+-- ⚡ SCAN & BUY CURRENT MERCHANT STOCK (SMART SESSION CONTROLLER)
+-- =================================================================
+function AutoMerchant.ScanAndBuyAllStock(force)
+	if isProcessing then return end
+	if not AutoMerchant.IsMerchantActive() then
+		currentSessionKey = nil
+		isSessionProcessed = false
+		AutoMerchant.CloseMerchantUI()
+		return
+	end
+	
+	local sessionKey = AutoMerchant.GetMerchantSessionKey() or "active_session"
+	if not force and isSessionProcessed and currentSessionKey == sessionKey then
+		-- Sesi merchant ini sudah selesai diproses, tidak perlu spam lagi
+		return
+	end
+
+	isProcessing = true
+	lastProcessedTime = tick()
+
+	local itemsToBuy = {} -- [itemName] = stockCount
+	local foundData = false
+
+	-- 1. Query RemoteFunction GetStock (Metode Terbersih & Akurat)
+	pcall(function()
+		local getStockRemote = ReplicatedStorage:FindFirstChild("Remotes")
+			and ReplicatedStorage.Remotes:FindFirstChild("Trader")
+			and ReplicatedStorage.Remotes.Trader:FindFirstChild("GetStock")
+		if getStockRemote and typeof(getStockRemote.InvokeServer) == "function" then
+			local stockData = getStockRemote:InvokeServer()
+			if stockData and typeof(stockData) == "table" then
+				local list = stockData.Items or stockData.Stock or stockData
+				if typeof(list) == "table" then
+					for _, itm in pairs(list) do
+						local iName = typeof(itm) == "table" and (itm.Name or itm.Item or itm.ItemName or itm.id) or tostring(itm)
+						local count = typeof(itm) == "table" and tonumber(itm.Amount or itm.Stock or itm.Count) or 1
+						if iName and count and count > 0 then
+							foundData = true
+							if AutoMerchant.ShouldBuyItem(iName) then
+								itemsToBuy[iName] = count
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
+
+	-- 2. Baca dari UI Frame jika RemoteFunction belum mengembalikan data
+	if not foundData and AutoMerchant.IsMerchantActive() then
+		pcall(function()
+			local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
+			if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
+				local tFrame = pGui.MainUI.Frames:FindFirstChild("Trader (Merchant)")
+				if tFrame and tFrame:FindFirstChild("Frame") and tFrame.Frame:FindFirstChild("Frames") and tFrame.Frame.Frames:FindFirstChild("Main") then
+					local mainFrame = tFrame.Frame.Frames.Main
+					for _, itemFrame in ipairs(mainFrame:GetChildren()) do
+						if itemFrame:IsA("Frame") and itemFrame.Name ~= "Template" and itemFrame.Name ~= "Configuration" then
+							local itemName = itemFrame.Name
+							local stockCount = 1
+							local isSoldOut = false
+							
+							pcall(function()
+								if itemFrame:FindFirstChild("Inner3") then
+									local inner3 = itemFrame.Inner3
+									if inner3:FindFirstChild("ItemName") and inner3.ItemName.Text ~= "" then
+										itemName = inner3.ItemName.Text
+									end
+									if inner3:FindFirstChild("StockNumber") then
+										local cur, max = inner3.StockNumber.Text:match("(%d+)/(%d+)")
+										if cur then
+											stockCount = tonumber(cur) or 0
+											if stockCount <= 0 then isSoldOut = true end
+										end
+									end
+								end
+							end)
+							
+							if not isSoldOut and stockCount > 0 then
+								foundData = true
+								if AutoMerchant.ShouldBuyItem(itemName) then
+									itemsToBuy[itemName] = stockCount
+								end
+							end
+						end
+					end
+				end
+			end
+		end)
+	end
+
+	-- 3. Eksekusi Pembelian Item yang Tersedia (Hanya jika stok valid dan merchant aktif)
+	if AutoMerchant.IsMerchantActive() then
+		for itemName, stockCount in pairs(itemsToBuy) do
+			if stockCount > 0 and AutoMerchant.IsMerchantActive() then
+				AutoMerchant.PurchaseItem(itemName, stockCount)
+			end
+		end
+	end
+
+	-- 4. Kunci sesi agar tidak terjadi spam selama merchant masih di map
+	currentSessionKey = sessionKey
+	isSessionProcessed = true
+	isProcessing = false
+
+	-- 5. Bersihkan UI & Blur agar layar pemain tetap jernih dan tidak terkunci
+	task.delay(0.3, function()
+		AutoMerchant.CloseMerchantUI()
 	end)
 end
 
@@ -423,7 +473,7 @@ function AutoMerchant.Start(customConfig)
 		for k, v in pairs(customConfig) do AutoMerchant.Config[k] = v end
 	end
 
-	-- Disconnect koneksi lama
+	-- Reset state koneksi lama
 	for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
 	conns = {}
 
@@ -431,9 +481,18 @@ function AutoMerchant.Start(customConfig)
 	pcall(function()
 		local c1 = Workspace:GetAttributeChangedSignal("TraderEventActive"):Connect(function()
 			if not isRunning or not AutoMerchant.Config.Enabled then return end
-			if Workspace:GetAttribute("TraderEventActive") == true then
-				task.wait(0.2)
+			local isActive = Workspace:GetAttribute("TraderEventActive") == true
+			if isActive then
+				-- Merchant baru muncul: Reset session dan proses pembelian
+				currentSessionKey = AutoMerchant.GetMerchantSessionKey()
+				isSessionProcessed = false
+				task.wait(0.5)
 				AutoMerchant.ScanAndBuyAllStock()
+			else
+				-- Merchant pergi: Reset state dan bersihkan efek blur
+				currentSessionKey = nil
+				isSessionProcessed = false
+				AutoMerchant.CloseMerchantUI()
 			end
 		end)
 		table.insert(conns, c1)
@@ -443,8 +502,13 @@ function AutoMerchant.Start(customConfig)
 	pcall(function()
 		local c2 = Workspace:GetAttributeChangedSignal("TraderEventId"):Connect(function()
 			if not isRunning or not AutoMerchant.Config.Enabled then return end
-			task.wait(0.2)
-			AutoMerchant.ScanAndBuyAllStock()
+			local newId = Workspace:GetAttribute("TraderEventId")
+			if newId and tostring(newId) ~= "" then
+				currentSessionKey = "event_" .. tostring(newId)
+				isSessionProcessed = false
+				task.wait(0.5)
+				AutoMerchant.ScanAndBuyAllStock()
+			end
 		end)
 		table.insert(conns, c2)
 	end)
@@ -453,41 +517,45 @@ function AutoMerchant.Start(customConfig)
 	pcall(function()
 		local c3 = Workspace.ChildAdded:Connect(function(child)
 			if not isRunning or not AutoMerchant.Config.Enabled then return end
-			if child.Name == "TraderChar" or child.Name == "TraderPlatform" then
-				task.wait(0.2)
+			if child.Name == "TraderChar" then
+				task.wait(0.5)
 				AutoMerchant.ScanAndBuyAllStock()
 			end
 		end)
 		table.insert(conns, c3)
 	end)
 
-	-- Event 4: Deteksi frame item muncul di UI
+	-- Event 4: Deteksi TraderChar dihapus dari Workspace
 	pcall(function()
-		local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
-		if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
-			local tFrame = pGui.MainUI.Frames:FindFirstChild("Trader (Merchant)")
-			if tFrame and tFrame:FindFirstChild("Frame") and tFrame.Frame:FindFirstChild("Frames") and tFrame.Frame.Frames:FindFirstChild("Main") then
-				local c4 = tFrame.Frame.Frames.Main.ChildAdded:Connect(function(child)
-					if not isRunning or not AutoMerchant.Config.Enabled then return end
-					if child:IsA("Frame") and child.Name ~= "Template" and child.Name ~= "Configuration" then
-						task.wait(0.1)
-						AutoMerchant.ScanAndBuyAllStock()
-					end
-				end)
-				table.insert(conns, c4)
+		local c4 = Workspace.ChildRemoved:Connect(function(child)
+			if not isRunning or not AutoMerchant.Config.Enabled then return end
+			if child.Name == "TraderChar" then
+				currentSessionKey = nil
+				isSessionProcessed = false
+				AutoMerchant.CloseMerchantUI()
 			end
-		end
+		end)
+		table.insert(conns, c4)
 	end)
 
-	-- 5. Polling Loop Daemon
+	-- 5. Polling Loop Daemon (Non-Intrusive & Non-Spamming)
 	if loopThread then pcall(function() task.cancel(loopThread) end) end
 	loopThread = task.spawn(function()
 		while isRunning and AutoMerchant.Config.Enabled do
 			pcall(function()
-				if AutoMerchant.IsMerchantActive() then
-					AutoMerchant.ScanAndBuyAllStock()
-					task.wait(AutoMerchant.Config.ActiveInterval or 0.5)
+				local isActive = AutoMerchant.IsMerchantActive()
+				if isActive then
+					local sessionKey = AutoMerchant.GetMerchantSessionKey()
+					if sessionKey ~= currentSessionKey or not isSessionProcessed then
+						AutoMerchant.ScanAndBuyAllStock()
+					end
+					task.wait(AutoMerchant.Config.ActiveInterval or 1)
 				else
+					if currentSessionKey ~= nil then
+						currentSessionKey = nil
+						isSessionProcessed = false
+						AutoMerchant.CloseMerchantUI()
+					end
 					task.wait(AutoMerchant.Config.CheckInterval or 2)
 				end
 			end)
@@ -507,6 +575,12 @@ function AutoMerchant.Stop()
 		pcall(function() task.cancel(loopThread) end)
 		loopThread = nil
 	end
+
+	currentSessionKey = nil
+	isSessionProcessed = false
+	isProcessing = false
+	
+	AutoMerchant.CloseMerchantUI()
 end
 
 function AutoMerchant.IsRunning()
@@ -514,3 +588,4 @@ function AutoMerchant.IsRunning()
 end
 
 return AutoMerchant
+
