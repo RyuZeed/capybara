@@ -15,7 +15,7 @@ _G.RitodHubLauncherLock = tick()
 
 local PlaceId = game.PlaceId
 local GameId = game.GameId
-local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/"
+local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/HEAD/"
 
 -- Deteksi game
 local rs = game:GetService("ReplicatedStorage")
