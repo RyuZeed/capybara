@@ -37,30 +37,39 @@ end
 CharInfo = CharInfo or { Characters = {} }
 
 CatalogModule.ALLOWED_RARITIES = {
-    ["Supreme"] = true,
-    ["God"]     = true,
-    ["Secret"]  = true,
-    ["Mythic"]  = true,
-    ["Limited"] = true,
-    ["Divine"]  = true,
-    ["Special"] = true,
+    ["Supreme"]   = true,
+    ["God"]       = true,
+    ["Secret"]    = true,
+    ["Limited"]   = true,
+    ["Mythic"]    = true,
+    ["Legendary"] = true,
+    ["Epic"]      = true,
+    ["Rare"]      = true,
+    ["Common"]    = true,
+    ["Divine"]    = true,
+    ["Special"]   = true,
 }
 
-CatalogModule.DEFAULT_RARITY_ORDER = { "Supreme", "God", "Secret", "Mythic", "Limited", "Divine", "Special" }
+CatalogModule.DEFAULT_RARITY_ORDER = { "Supreme", "God", "Secret", "Limited", "Mythic", "Legendary", "Epic", "Rare", "Common", "Divine", "Special" }
 CatalogModule.RARITY_ORDER = {}
 
 CatalogModule.RARITY_COLORS = {
     ["Supreme"]   = Color3.fromRGB(255, 45, 140),
-    ["God"]       = Color3.fromRGB(255, 215, 0),
-    ["Secret"]    = Color3.fromRGB(0, 255, 230),
+    ["God"]       = Color3.fromRGB(0, 240, 255),
+    ["Secret"]    = Color3.fromRGB(255, 215, 0),
+    ["Limited"]   = Color3.fromRGB(255, 90, 200),
     ["Mythic"]    = Color3.fromRGB(255, 60, 80),
-    ["Limited"]   = Color3.fromRGB(255, 105, 180),
+    ["Legendary"] = Color3.fromRGB(255, 170, 40),
+    ["Epic"]      = Color3.fromRGB(180, 80, 255),
+    ["Rare"]      = Color3.fromRGB(60, 160, 255),
+    ["Common"]    = Color3.fromRGB(160, 160, 170),
     ["Divine"]    = Color3.fromRGB(255, 230, 100),
     ["Special"]   = Color3.fromRGB(140, 255, 170),
 }
 
 CatalogModule.UnitsByRarity = {}
 CatalogModule.AllUnitsMap = {}
+CatalogModule.AllUnits = {}
 
 local rawTable = CharInfo.Characters or CharInfo.Units or CharInfo.CharacterList or CharInfo
 
@@ -206,9 +215,16 @@ for r, _ in pairs(seenRarities) do
     end
 end
 
--- 3. Sort each rarity group by price descending
-for r, list in pairs(CatalogModule.UnitsByRarity) do
-    table.sort(list, function(a, b) return (a.price or 0) > (b.price or 0) end)
+-- 3. Sort each rarity group by price descending and populate AllUnits flat array
+CatalogModule.AllUnits = {}
+for _, r in ipairs(CatalogModule.RARITY_ORDER) do
+    local list = CatalogModule.UnitsByRarity[r]
+    if list then
+        table.sort(list, function(a, b) return (a.price or 0) > (b.price or 0) end)
+        for _, unit in ipairs(list) do
+            table.insert(CatalogModule.AllUnits, unit)
+        end
+    end
 end
 
 return CatalogModule
