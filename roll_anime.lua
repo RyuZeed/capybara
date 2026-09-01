@@ -186,11 +186,12 @@ end
 if AutoClaimModule then
     pcall(function()
         AutoClaimModule.Start({
-            DailyQuest  = savedConfig.AutoClaimQuests ~= false,
-            WeeklyQuest = savedConfig.AutoClaimQuests ~= false,
-            Battlepass  = savedConfig.AutoClaimRewards ~= false,
-            FreeRewards = savedConfig.AutoClaimRewards ~= false,
-            VIPAndGroup = savedConfig.AutoClaimRewards ~= false,
+            DailyQuest    = savedConfig.AutoClaimQuests ~= false,
+            WeeklyQuest   = savedConfig.AutoClaimQuests ~= false,
+            Battlepass    = savedConfig.AutoClaimRewards ~= false,
+            FreeRewards   = savedConfig.AutoClaimRewards ~= false,
+            VIPAndGroup   = savedConfig.AutoClaimRewards ~= false,
+            AutoSpinWheel = savedConfig.AutoSpinWheel ~= false,
         })
     end)
 end
@@ -816,10 +817,26 @@ rewardsToggleRef = QuestsTab:AddToggle("Auto Claim Free Rewards & Battlepass", s
 	Notify("Auto Rewards", state and "Auto Claim Rewards AKTIF!" or "Auto Claim Rewards NONAKTIF", 2)
 end)
 
-QuestsTab:AddButton("🎁 Klaim Semua Hadiah Sekarang (1x)", function()
+autoSpinWheelToggleRef = QuestsTab:AddToggle("Auto Spin Wheel (Free & Earned Spins)", savedConfig.AutoSpinWheel ~= false, function(state)
+	savedConfig.AutoSpinWheel = state
+	if ConfigManager then ConfigManager.Save({ AutoSpinWheel = state }) end
+	if AutoClaimModule then
+		AutoClaimModule.Config.AutoSpinWheel = state
+	end
+	Notify("Spin Wheel", state and "Auto Spin Wheel AKTIF!" or "Auto Spin Wheel NONAKTIF", 2)
+end)
+
+QuestsTab:AddButton("🎡 Putar Spin Wheel Sekarang (1x)", function()
+	if AutoClaimModule then
+		local didSpin = AutoClaimModule.PerformSpinWheel()
+		Notify("Spin Wheel", didSpin and "Berhasil memutar Spin Wheel!" or "Tidak ada tiket spin gratis/tersedia.", 2.5)
+	end
+end)
+
+QuestsTab:AddButton("🎁 Klaim Semua Hadiah & Spin Sekarang (1x)", function()
 	if AutoClaimModule then
 		local count = AutoClaimModule.ClaimAllNow()
-		Notify("Klaim Hadiah", string.format("Berhasil klaim %d hadiah!", count), 3)
+		Notify("Klaim Hadiah", "Seluruh hadiah quests, battlepass & spin wheel diproses!", 3)
 	end
 end)
 

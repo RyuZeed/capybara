@@ -39,6 +39,7 @@ AutoClaim.Config = {
     Battlepass    = true, -- Auto Claim Battlepass Tier Rewards
     FreeRewards   = true, -- Auto Claim Playtime Gifts & Free VIP/Group
     VIPAndGroup   = true,
+    AutoSpinWheel = true, -- Auto Spin Wheel (Free & Earned Spins)
     CheckInterval = 10,   -- Interval pengecekan berkala (detik)
 }
 
@@ -443,7 +444,61 @@ function AutoClaim.ScanAndClaimUI()
 end
 
 -- =================================================================
--- 5. 🔄 ENGINE CONTROLLER (START / STOP)
+-- 5. 🎡 AUTO SPIN WHEEL CONTROLLER
+-- =================================================================
+function AutoClaim.PerformSpinWheel()
+    local didSpin = false
+    pcall(function()
+        local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local mainUI = pGui and pGui:FindFirstChild("MainUI")
+        local frames = mainUI and mainUI:FindFirstChild("Frames")
+        local sFrame = frames and frames:FindFirstChild("SpinWheel")
+        
+        if sFrame then
+            local btn = sFrame:FindFirstChild("Spin", true)
+            local label = sFrame:FindFirstChild("Label", true)
+            
+            local availableSpins = 0
+            if label and label.Text then
+                local num = label.Text:match("%((%d+)%)")
+                if num then
+                    availableSpins = tonumber(num) or 0
+                elseif label.Text:lower():find("free") or label.Text:lower():find("spin") then
+                    availableSpins = 1
+                end
+            end
+            
+            if availableSpins > 0 and btn then
+                clickButton(btn)
+                didSpin = true
+            end
+        end
+
+        local RS = game:GetService("ReplicatedStorage")
+        local spinRemote = RS:FindFirstChild("Remotes") and RS.Remotes:FindFirstChild("SpinWheel") and RS.Remotes.SpinWheel:FindFirstChild("Spin")
+        if spinRemote and typeof(spinRemote.FireServer) == "function" then
+            pcall(function() spinRemote:FireServer() end)
+            didSpin = true
+        end
+    end)
+    return didSpin
+end
+
+function AutoClaim.ClaimAllNow()
+    local total = 0
+    pcall(function()
+        AutoClaim.ClaimQuests()
+        AutoClaim.ClaimBattlepass()
+        AutoClaim.ClaimFreeRewards()
+        AutoClaim.ScanAndClaimUI()
+        AutoClaim.PerformSpinWheel()
+        total = 1
+    end)
+    return total
+end
+
+-- =================================================================
+-- 6. 🔄 ENGINE CONTROLLER (START / STOP)
 -- =================================================================
 function AutoClaim.Start(customConfig)
     if isRunning then return end
@@ -473,6 +528,13 @@ function AutoClaim.Start(customConfig)
 
             if AutoClaim.Config.FreeRewards or AutoClaim.Config.VIPAndGroup then
                 AutoClaim.ClaimFreeRewards()
+            end
+            task.wait(1.5)
+
+            if not isRunning then break end
+
+            if AutoClaim.Config.AutoSpinWheel then
+                AutoClaim.PerformSpinWheel()
             end
             task.wait(1.5)
 
