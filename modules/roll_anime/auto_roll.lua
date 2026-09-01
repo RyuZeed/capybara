@@ -381,25 +381,32 @@ function AutoRollModule.GetQuestRollProgress()
         local bp = frames and frames:FindFirstChild("Battlepass")
         
         if bp then
-            for _, questReward in ipairs(bp:GetDescendants()) do
-                if questReward.Name == "QuestReward" and questReward:IsA("Frame") then
-                    for _, tier in ipairs({"Free", "Premium"}) do
-                        local card = questReward:FindFirstChild(tier)
-                        if card then
-                            local descLabel = card:FindFirstChild("QuestDesc", true)
-                            local progLabel = card:FindFirstChild("Progress", true)
-                            if descLabel and progLabel then
-                                local descText = descLabel.Text:upper()
-                                local progText = (progLabel:IsA("TextLabel") and progLabel.Text) or (progLabel:FindFirstChildWhichIsA("TextLabel", true) and progLabel:FindFirstChildWhichIsA("TextLabel", true).Text) or ""
-                                local c, m = progText:match("(%d+)/(%d+)")
-                                if descText:find("ROLL") and descText:find("250") and c and m then
-                                    dailyCurrent = tonumber(c) or dailyCurrent
-                                    dailyMax = tonumber(m) or 250
-                                elseif descText:find("ROLL") and descText:find("5000") and c and m then
-                                    weeklyCurrent = tonumber(c) or weeklyCurrent
-                                    weeklyMax = tonumber(m) or 5000
+            for _, desc in ipairs(bp:GetDescendants()) do
+                if desc:IsA("TextLabel") and desc.Text:upper():find("ROLL") then
+                    local descText = desc.Text:upper()
+                    local p = desc.Parent
+                    for step = 1, 5 do
+                        if p then
+                            local progLabel = p:FindFirstChild("Progress", true)
+                            if progLabel then
+                                local tl = progLabel:IsA("TextLabel") and progLabel or progLabel:FindFirstChildWhichIsA("TextLabel", true)
+                                if tl and tl.Text:find("/") then
+                                    local c, m = tl.Text:match("(%d+)/(%d+)")
+                                    if c and m then
+                                        local curNum = tonumber(c) or 0
+                                        local maxNum = tonumber(m) or 0
+                                        if descText:find("250") then
+                                            dailyCurrent = curNum
+                                            dailyMax = maxNum > 0 and maxNum or 250
+                                        elseif descText:find("5000") then
+                                            weeklyCurrent = curNum
+                                            weeklyMax = maxNum > 0 and maxNum or 5000
+                                        end
+                                        break
+                                    end
                                 end
                             end
+                            p = p.Parent
                         end
                     end
                 end
