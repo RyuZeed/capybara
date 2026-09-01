@@ -112,6 +112,7 @@ if AutoMerchants then
     if CurrentConfig.AutoBuyBoostsCurrency then AutoMerchants.AutoBuyBoostsCurrency = CurrentConfig.AutoBuyBoostsCurrency end
     if CurrentConfig.AutoBuySeleneSelected then AutoMerchants.AutoBuySeleneSelected = CurrentConfig.AutoBuySeleneSelected end
     if CurrentConfig.AutoBuyAngeliaSelected then AutoMerchants.AutoBuyAngeliaSelected = CurrentConfig.AutoBuyAngeliaSelected end
+    if CurrentConfig.AutoBuyYangSelected then AutoMerchants.AutoBuyYangSelected = CurrentConfig.AutoBuyYangSelected end
 end
 if BaseUnits then
     BaseUnits.FilterByRarity = CurrentConfig.FilterLevelUpByRarity or false
@@ -507,10 +508,15 @@ local seleneOffers = {
     { id = "Offer1", name = "Exclusive Character", price = "5,000 Gems" },
     { id = "Offer2", name = "Luck Potion Lvl. 3", price = "25,000 Gems" },
     { id = "Offer3", name = "Heaven's Collide Potion", price = "20,000 Gems" },
-    { id = "Offer4", name = "Luck Potion Lvl. 2", price = "$2.5Qa Cash" },
+    { id = "Offer4", name = "Luck Potion Lvl. 2", price = "$2.5Qd Cash" },
     { id = "Offer5", name = "Meteorite Potion", price = "$11M Cash" },
     { id = "Offer6", name = "Honey Potion", price = "$2M Cash" },
-    { id = "Offer7", name = "Sinister Potion", price = "$200M Cash" }
+    { id = "Offer7", name = "Sinister Potion", price = "$200M Cash" },
+    { id = "OfferFood", name = "Food Lvl. 1 Potion", price = "$50Qd Cash" },
+    { id = "OfferAbility1", name = "Ability: Astral Thoughts (Astral Rod)", price = "1,000,000 Gems" },
+    { id = "OfferAbility2", name = "Ability: Emptiness (Void Rod)", price = "7,500,000 Gems" },
+    { id = "OfferAbility3", name = "Ability: Hell Beast (Rod of Hell)", price = "15,000,000 Gems" },
+    { id = "OfferAbility4", name = "Ability: Complex Manipulation (Complexity Rod)", price = "20,000,000 Gems" }
 }
 
 for _, item in ipairs(seleneOffers) do
@@ -550,7 +556,8 @@ local angeliaOffers = {
     { id = "Offer6", name = "Fast Catch Potion Lvl. 2", price = "$100T Cash" },
     { id = "Offer7", name = "Luck Potion Lvl. 3", price = "25,000 Gems" },
     { id = "Offer8", name = "EXE Potion", price = "10,000 Gems" },
-    { id = "Offer9", name = "Cosmic Case (Crate)", price = "$100B Cash" }
+    { id = "Offer9", name = "Cosmic Case (Crate)", price = "$100B Cash" },
+    { id = "OfferAbility3", name = "Ability: Heaven's Collide (Rod of the Heavens)", price = "30,000,000 Gems" }
 }
 
 for _, item in ipairs(angeliaOffers) do
@@ -558,6 +565,38 @@ for _, item in ipairs(angeliaOffers) do
     ShopTab:AddToggle(string.format("[%s] %s (%s)", item.id, item.name, item.price), isChecked, function(state)
         CurrentConfig.AutoBuyAngeliaSelected[item.id] = state
         if AutoMerchants then AutoMerchants.AutoBuyAngeliaSelected[item.id] = state end
+        if ConfigManager then ConfigManager.Save() end
+    end)
+end
+
+ShopTab:AddSection("⚡ Secret Merchant: Yang (Forgotten Traveler)")
+
+ShopTab:AddToggle("Auto Buy Yang Items", CurrentConfig.AutoBuyYang or false, function(state)
+    CurrentConfig.AutoBuyYang = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if AutoMerchants then AutoMerchants.StartAutoBuyYang(5) end
+        Window.Notify("Yang Auto Buy", "Auto Buy Yang diaktifkan!", 2.0)
+    else
+        if AutoMerchants then AutoMerchants.StopAutoBuyYang() end
+        Window.Notify("Yang Auto Buy", "Auto Buy Yang dinonaktifkan!", 2.0)
+    end
+end)
+
+ShopTab:AddButton("⚡ Buy Selected Yang Items Now (1x)", function()
+    if AutoMerchants then AutoMerchants.BuySelectedYangOnce() end
+    Window.Notify("Yang", "Membeli item Yang yang dipilih!", 2.0)
+end)
+
+local yangOffers = {
+    { id = "OfferAbility1", name = "Ability: Forgotten Call (Forgotten Rod)", price = "75,000,000 Gems" }
+}
+
+for _, item in ipairs(yangOffers) do
+    local isChecked = (CurrentConfig.AutoBuyYangSelected and CurrentConfig.AutoBuyYangSelected[item.id]) or false
+    ShopTab:AddToggle(string.format("[%s] %s (%s)", item.id, item.name, item.price), isChecked, function(state)
+        CurrentConfig.AutoBuyYangSelected[item.id] = state
+        if AutoMerchants then AutoMerchants.AutoBuyYangSelected[item.id] = state end
         if ConfigManager then ConfigManager.Save() end
     end)
 end

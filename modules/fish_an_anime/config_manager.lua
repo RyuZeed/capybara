@@ -138,7 +138,12 @@ ConfigManager.DefaultConfig = {
         Offer4 = true,
         Offer5 = true,
         Offer6 = true,
-        Offer7 = true
+        Offer7 = true,
+        OfferFood = true,
+        OfferAbility1 = false,
+        OfferAbility2 = false,
+        OfferAbility3 = false,
+        OfferAbility4 = false
     },
 
     -- Secret Merchant: Angelia
@@ -152,7 +157,14 @@ ConfigManager.DefaultConfig = {
         Offer6 = true,
         Offer7 = true,
         Offer8 = true,
-        Offer9 = true
+        Offer9 = true,
+        OfferAbility3 = false
+    },
+
+    -- Secret Merchant: Yang
+    AutoBuyYang = false,
+    AutoBuyYangSelected = {
+        OfferAbility1 = false
     },
 
     -- Auto Buy Fishing Rods & Carry

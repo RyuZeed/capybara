@@ -1,14 +1,15 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - FISH AN ANIME RNG (MERCHANTS & STORES ENGINE V2.0)
+	⚡ RITOD HUB - FISH AN ANIME RNG (MERCHANTS & STORES ENGINE V3.0)
 	Module: modules/fish_an_anime/auto_merchants.lua
 	GitHub: https://github.com/RyuZeed/capybara
 	===============================================================
 	🌟 FEATURES:
-	- 🌙 Secret Merchant: Selene (Dark / Void Shop)
-	- 👼 Secret Merchant: Angelia (Heavenly Gate Store)
+	- 🌙 Secret Merchant: Selene (Dark / Void Shop & Rod Abilities)
+	- 👼 Secret Merchant: Angelia (Heavenly Gate Store & Rod Abilities)
+	- ⚡ Secret Merchant: Yang (Forgotten Traveler & Forgotten Call Ability)
 	- 🏪 Boosts Store: NPC Valora (Event-Driven Smart Sniping)
-	- 🎣 Fishing Rods & Carry Capacity Upgrades
+	- 🎣 Fishing Rods & Carry Capacity Upgrades (Updated Remotes)
 	- 🛡️ 100% Dedicated & Isolated Threading (Zero Interference)
 	===============================================================
 ]]
@@ -25,6 +26,7 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
 -- State Flags
 AutoMerchants.AutoBuySeleneEnabled = false
 AutoMerchants.AutoBuyAngeliaEnabled = false
+AutoMerchants.AutoBuyYangEnabled = false
 AutoMerchants.AutoBuyBoostsEnabled = false
 AutoMerchants.AutoBuyFishingRodsEnabled = false
 AutoMerchants.AutoBuyCarryEnabled = false
@@ -32,6 +34,7 @@ AutoMerchants.AutoBuyCarryEnabled = false
 -- Selections & Settings
 AutoMerchants.AutoBuySeleneSelected = {}
 AutoMerchants.AutoBuyAngeliaSelected = {}
+AutoMerchants.AutoBuyYangSelected = {}
 AutoMerchants.AutoBuyBoostsSelected = {}
 AutoMerchants.AutoBuyBoostsCurrency = "Cash" -- "Cash" or "Gems"
 
@@ -42,6 +45,9 @@ local seleneUpdatedConn = nil
 local angeliaThread = nil
 local angeliaUpdatedConn = nil
 
+local yangThread = nil
+local yangUpdatedConn = nil
+
 local boostsThread = nil
 local boostsUpdatedConn = nil
 
@@ -49,7 +55,7 @@ local rodsThread = nil
 local carryThread = nil
 
 -- =================================================================
--- 🌙 1. SECRET MERCHANT: SELENE
+-- 🌙 1. SECRET MERCHANT: SELENE (DARK / VOID)
 -- =================================================================
 function AutoMerchants.BuySelectedSeleneOnce(customState)
     if not Remotes or not Remotes:FindFirstChild("SecretStorePurchase") then return end
@@ -187,7 +193,76 @@ function AutoMerchants.StopAutoBuyAngelia()
 end
 
 -- =================================================================
--- 🏪 3. BOOSTS STORE (NPC VALORA)
+-- ⚡ 3. SECRET MERCHANT: YANG (FORGOTTEN TRAVELER)
+-- =================================================================
+function AutoMerchants.BuySelectedYangOnce(customState)
+    if not Remotes or not Remotes:FindFirstChild("SecretStore3Purchase") then return end
+    local state = customState
+    if not state and Remotes:FindFirstChild("SecretStore3GetState") then
+        local success, res = pcall(function() return Remotes.SecretStore3GetState:InvokeServer() end)
+        if success and typeof(res) == "table" then state = res end
+    end
+    if not state or typeof(state) ~= "table" or not state.offers then return end
+
+    for offerId, isSelected in pairs(AutoMerchants.AutoBuyYangSelected) do
+        if isSelected and state.offers[offerId] ~= nil then
+            local offerData = state.offers[offerId]
+            if typeof(offerData) == "table" and offerData.visible ~= false then
+                local currency = (offerData.cashCost ~= nil) and "Cash" or "Gems"
+                local stock = tonumber(offerData.stock) or 1
+                if stock > 0 then
+                    for _ = 1, stock do
+                        pcall(function()
+                            Remotes.SecretStore3Purchase:InvokeServer(offerId, currency)
+                        end)
+                        task.wait(0.06)
+                    end
+                end
+            end
+        end
+    end
+end
+
+function AutoMerchants.StartAutoBuyYang(interval)
+    if AutoMerchants.AutoBuyYangEnabled then return end
+    AutoMerchants.AutoBuyYangEnabled = true
+    interval = interval or 5
+
+    task.spawn(function()
+        AutoMerchants.BuySelectedYangOnce()
+    end)
+
+    if Remotes and Remotes:FindFirstChild("SecretStore3Updated") then
+        if yangUpdatedConn then yangUpdatedConn:Disconnect() end
+        yangUpdatedConn = Remotes.SecretStore3Updated.OnClientEvent:Connect(function(updatedState)
+            if not AutoMerchants.AutoBuyYangEnabled then return end
+            AutoMerchants.BuySelectedYangOnce(updatedState)
+        end)
+    end
+
+    if yangThread then task.cancel(yangThread) end
+    yangThread = task.spawn(function()
+        while AutoMerchants.AutoBuyYangEnabled do
+            AutoMerchants.BuySelectedYangOnce()
+            task.wait(interval)
+        end
+    end)
+end
+
+function AutoMerchants.StopAutoBuyYang()
+    AutoMerchants.AutoBuyYangEnabled = false
+    if yangUpdatedConn then
+        pcall(function() yangUpdatedConn:Disconnect() end)
+        yangUpdatedConn = nil
+    end
+    if yangThread then
+        pcall(function() task.cancel(yangThread) end)
+        yangThread = nil
+    end
+end
+
+-- =================================================================
+-- 🏪 4. BOOSTS STORE (NPC VALORA)
 -- =================================================================
 function AutoMerchants.BuySelectedBoostsOnce(customState)
     if not Remotes or not Remotes:FindFirstChild("BoostsStorePurchase") then return end
@@ -268,18 +343,18 @@ function AutoMerchants.StopAutoBuyBoosts()
 end
 
 -- =================================================================
--- 🎣 4. FISHING RODS & CARRY CAPACITY
+-- 🎣 5. FISHING RODS & CARRY CAPACITY (UPDATED REMOTES)
 -- =================================================================
+local ALL_ROD_OFFERS = {
+    "Offer1", "Offer2", "Offer3", "Offer4", "Offer5", "Offer6",
+    "Offer7", "Offer8", "Offer9", "Offer10", "Offer11", "Offer12"
+}
+
 function AutoMerchants.BuyAvailableFishingRodsOnce()
-    if not Remotes or not Remotes:FindFirstChild("PolesPurchase") then return end
-    local rods = {
-        "WoodRod", "FiberglassRod", "GoldenRod", "AmethystRod", 
-        "RubyRod", "EmeraldRod", "DiamondRod", "InfernalRod", "CelestialRod",
-        "VoidRod", "GodlyRod", "OmniscientRod"
-    }
-    for _, rod in ipairs(rods) do
+    if not Remotes or not Remotes:FindFirstChild("FishingStorePurchase") then return end
+    for _, offerId in ipairs(ALL_ROD_OFFERS) do
         pcall(function()
-            Remotes.PolesPurchase:InvokeServer(rod)
+            Remotes.FishingStorePurchase:InvokeServer(offerId, "Cash")
         end)
         task.wait(0.06)
     end
@@ -307,9 +382,9 @@ function AutoMerchants.StopAutoBuyFishingRods()
 end
 
 function AutoMerchants.BuyCarryOnce()
-    if not Remotes or not Remotes:FindFirstChild("CarryUpgrade") then return end
+    if not Remotes or not Remotes:FindFirstChild("PurchaseCarry") then return end
     pcall(function()
-        Remotes.CarryUpgrade:InvokeServer()
+        Remotes.PurchaseCarry:InvokeServer()
     end)
 end
 
@@ -340,6 +415,7 @@ end
 function AutoMerchants.StopAll()
     AutoMerchants.StopAutoBuySelene()
     AutoMerchants.StopAutoBuyAngelia()
+    AutoMerchants.StopAutoBuyYang()
     AutoMerchants.StopAutoBuyBoosts()
     AutoMerchants.StopAutoBuyFishingRods()
     AutoMerchants.StopAutoBuyCarry()
