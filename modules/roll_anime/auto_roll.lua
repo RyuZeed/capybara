@@ -501,6 +501,9 @@ function AutoRollModule.Start(options)
             end
             
             if rollPrompt and rollBtn then
+                -- Mendekat ke tombol roll hanya jika jarak > 10 studs selama proses roll aktif
+                AutoRollModule.MoveToRollButton(rollBtn, 10)
+
                 rollCount += 1
                 local modeText = questModeText
                 local isAutoSG = (type(getAutoSecretGod) == "function" and getAutoSecretGod()) or (getAutoSecretGod == true)
@@ -510,7 +513,7 @@ function AutoRollModule.Start(options)
                 
                 onStatus(string.format("Status: 🎰 Roll #%d%s | Plot: %s", rollCount, modeText, myPlot.Name), "rolling", rollCount)
                 
-                -- Trigger roll langsung tanpa teleportasi konstan
+                -- Trigger roll langsung
                 AutoRollModule.TriggerRoll(rollPrompt)
             end
             
