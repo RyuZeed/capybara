@@ -581,7 +581,18 @@ local function applyFpsCap(fps)
 	if not success and typeof(set_fps) == "function" then
 		pcall(function() set_fps(fps) success = true end)
 	end
-	-- Vector 6: MaxFPS Setting
+	-- Vector 6: settargetfps / SetTargetFPS
+	if not success and typeof(settargetfps) == "function" then
+		pcall(function() settargetfps(fps) success = true end)
+	end
+	if not success and typeof(SetTargetFPS) == "function" then
+		pcall(function() SetTargetFPS(fps) success = true end)
+	end
+	-- Vector 7: setfpslimit / SetFPSLimit
+	if not success and typeof(setfpslimit) == "function" then
+		pcall(function() setfpslimit(fps) success = true end)
+	end
+	-- Vector 8: MaxFPS Setting
 	if not success then
 		pcall(function()
 			if settings and settings().Rendering and settings().Rendering.MaxFPS ~= nil then
@@ -590,7 +601,7 @@ local function applyFpsCap(fps)
 			end
 		end)
 	end
-	-- Vector 7: TargetFrameRate
+	-- Vector 9: TargetFrameRate
 	if not success then
 		pcall(function()
 			if settings and settings().Rendering and settings().Rendering.TargetFrameRate ~= nil then
@@ -858,8 +869,20 @@ function Graphics.ApplyGameSettingsPreset(customPreset)
 			if scroll then
 				local f = scroll:FindFirstChild(key)
 				local btn = f and f:FindFirstChild("Button") and f.Button:FindFirstChild("Button")
-				if btn and typeof(firesignal) == "function" then
-					pcall(function() firesignal(btn.MouseButton1Click) end)
+				if btn then
+					if typeof(getconnections) == "function" then
+						for _, evName in ipairs({"MouseButton1Click", "Activated"}) do
+							if btn[evName] then
+								for _, conn in ipairs(getconnections(btn[evName])) do
+									if conn.Function then pcall(conn.Function) elseif conn.Fire then pcall(function() conn:Fire() end) end
+								end
+							end
+						end
+					end
+					if typeof(firesignal) == "function" then
+						if btn.MouseButton1Click then pcall(function() firesignal(btn.MouseButton1Click) end) end
+						if btn.Activated then pcall(function() firesignal(btn.Activated) end) end
+					end
 				end
 			end
 			task.wait(0.08)
