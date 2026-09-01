@@ -87,6 +87,7 @@ local RitodUI = loadModule("ritod_ui", true)
 local AutoFish = loadModule("auto_fish", false)
 local AutoFarm = loadModule("auto_farm", false)
 local AutoMerchants = loadModule("auto_merchants", false)
+local AutoDepolarizer = loadModule("auto_depolarizer", false)
 local BaseUnits = loadModule("base_units", false)
 local Graphics = loadModule("graphics", false)
 local AntiAFK = loadModule("anti_afk", false)
@@ -95,6 +96,7 @@ local ConfigManager = loadModule("config_manager", false)
 if not AutoFish and _G.FishAnAnimeAutoFish then AutoFish = _G.FishAnAnimeAutoFish end
 if not AutoFarm and _G.FishAnAnimeAutoFarm then AutoFarm = _G.FishAnAnimeAutoFarm end
 if not AutoMerchants and _G.FishAnAnimeAutoMerchants then AutoMerchants = _G.FishAnAnimeAutoMerchants end
+if not AutoDepolarizer and _G.FishAnAnimeAutoDepolarizer then AutoDepolarizer = _G.FishAnAnimeAutoDepolarizer end
 if not BaseUnits and _G.FishAnAnimeBaseUnits then BaseUnits = _G.FishAnAnimeBaseUnits end
 if not Graphics and _G.FishAnAnimeGraphics then Graphics = _G.FishAnAnimeGraphics end
 if not AntiAFK and _G.FishAnAnimeAntiAFK then AntiAFK = _G.FishAnAnimeAntiAFK end
@@ -102,7 +104,7 @@ if not ConfigManager and _G.FishAnAnimeConfigManager then ConfigManager = _G.Fis
 
 local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {}
 
--- Sinkronisasi konfigurasi ke module farm & merchants & base units
+-- Sinkronisasi konfigurasi ke module farm & merchants & base units & depolarizer
 if AutoFarm then
     if CurrentConfig.SelectedPotions then AutoFarm.SelectedPotions = CurrentConfig.SelectedPotions end
     if CurrentConfig.AutoUpgradesSelected then AutoFarm.AutoUpgradesSelected = CurrentConfig.AutoUpgradesSelected end
@@ -113,6 +115,14 @@ if AutoMerchants then
     if CurrentConfig.AutoBuySeleneSelected then AutoMerchants.AutoBuySeleneSelected = CurrentConfig.AutoBuySeleneSelected end
     if CurrentConfig.AutoBuyAngeliaSelected then AutoMerchants.AutoBuyAngeliaSelected = CurrentConfig.AutoBuyAngeliaSelected end
     if CurrentConfig.AutoBuyYangSelected then AutoMerchants.AutoBuyYangSelected = CurrentConfig.AutoBuyYangSelected end
+end
+if AutoDepolarizer then
+    if CurrentConfig.DepolarizerSelectedRarities then
+        AutoDepolarizer.SelectedRarities = CurrentConfig.DepolarizerSelectedRarities
+    end
+    if CurrentConfig.DepolarizerSelectedMutations then
+        AutoDepolarizer.SelectedMutations = CurrentConfig.DepolarizerSelectedMutations
+    end
 end
 if BaseUnits then
     BaseUnits.FilterByRarity = CurrentConfig.FilterLevelUpByRarity or false
@@ -142,6 +152,7 @@ local Window = RitodUI:CreateWindow({
         if AutoFish and AutoFish.StopAll then AutoFish.StopAll() end
         if AutoFarm and AutoFarm.StopAll then AutoFarm.StopAll() end
         if AutoMerchants and AutoMerchants.StopAll then AutoMerchants.StopAll() end
+        if AutoDepolarizer and AutoDepolarizer.StopAll then AutoDepolarizer.StopAll() end
         if BaseUnits and BaseUnits.StopAutoLevelUp then BaseUnits.StopAutoLevelUp() end
         if Graphics and Graphics.DisableScreenOff then Graphics.DisableScreenOff() end
         if AntiAFK and AntiAFK.Stop then AntiAFK.Stop() end
@@ -1047,7 +1058,126 @@ QuestTab:AddButton("⚡ Claim All Free Rewards & Medals (1x)", function()
 end)
 
 -- ═════════════════════════════════════════════════════════════════
--- ── 🔄 Tab 6: Rebirth (Separated) ──
+-- ── 🧬 Tab 6: Depolarizer (Remove Mutation) ──
+-- ═════════════════════════════════════════════════════════════════
+local DepolarizerTab = Window:CreateTab("Depolarizer", "🧬")
+
+DepolarizerTab:AddSection("🧬 Auto Depolarizer Controller")
+
+DepolarizerTab:AddToggle("Auto Depolarizer (Auto Strip Mutation)", CurrentConfig.AutoDepolarizer or false, function(state)
+    CurrentConfig.AutoDepolarizer = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if AutoDepolarizer then
+            AutoDepolarizer.StartAutoDepolarizer(CurrentConfig.DepolarizerInterval or 5)
+        end
+        Window.Notify("Depolarizer", "Auto Depolarizer diaktifkan!", 2.5)
+    else
+        if AutoDepolarizer then
+            AutoDepolarizer.StopAutoDepolarizer()
+        end
+        Window.Notify("Depolarizer", "Auto Depolarizer dinonaktifkan!", 2.0)
+    end
+end)
+
+DepolarizerTab:AddButton("⚡ Run Depolarizer Once Now", function()
+    if AutoDepolarizer then
+        local success, msg = AutoDepolarizer.StepOnce()
+        Window.Notify("Depolarizer", tostring(msg or "Selesai"), 3.0)
+    end
+end)
+
+DepolarizerTab:AddSection("💎 Target Unit Rarity (Filter Rarity)")
+
+DepolarizerTab:AddButton("✅ Select All Rarities (Pilih Semua Rarity)", function()
+    for _, r in ipairs(officialRarities) do
+        if not CurrentConfig.DepolarizerSelectedRarities then CurrentConfig.DepolarizerSelectedRarities = {} end
+        CurrentConfig.DepolarizerSelectedRarities[r.name] = true
+        if AutoDepolarizer then AutoDepolarizer.SelectedRarities[r.name] = true end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Depolarizer", "Semua Rarity dicentang untuk Depolarize!", 2.0)
+end)
+
+DepolarizerTab:AddButton("❌ Deselect All Rarities (Hapus Centang Rarity)", function()
+    for _, r in ipairs(officialRarities) do
+        if not CurrentConfig.DepolarizerSelectedRarities then CurrentConfig.DepolarizerSelectedRarities = {} end
+        CurrentConfig.DepolarizerSelectedRarities[r.name] = false
+        if AutoDepolarizer then AutoDepolarizer.SelectedRarities[r.name] = false end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Depolarizer", "Semua centang Rarity dinonaktifkan!", 2.0)
+end)
+
+for _, r in ipairs(officialRarities) do
+    local isChecked = (CurrentConfig.DepolarizerSelectedRarities and CurrentConfig.DepolarizerSelectedRarities[r.name]) or false
+    DepolarizerTab:AddToggle(string.format("%s Depolarize %s", r.icon, r.name), isChecked, function(state)
+        if not CurrentConfig.DepolarizerSelectedRarities then CurrentConfig.DepolarizerSelectedRarities = {} end
+        CurrentConfig.DepolarizerSelectedRarities[r.name] = state
+        if AutoDepolarizer then AutoDepolarizer.SelectedRarities[r.name] = state end
+        if ConfigManager then ConfigManager.Save() end
+    end)
+end
+
+DepolarizerTab:AddSection("🧬 Target Mutations / Types (Mutasi yang Ingin Dihilangkan)")
+
+local officialMutations = {
+    { name = "Slime", icon = "🟢", mult = "2x" },
+    { name = "Zombie", icon = "🧟", mult = "2x" },
+    { name = "Electric", icon = "⚡", mult = "2x" },
+    { name = "Lava", icon = "🌋", mult = "2x" },
+    { name = "Blood", icon = "🩸", mult = "2x" },
+    { name = "Frozen", icon = "❄️", mult = "1.5x" },
+    { name = "Party", icon = "🎉", mult = "1.5x" },
+    { name = "Diamond", icon = "💎", mult = "1.5x" },
+    { name = "Honey", icon = "🍯", mult = "1.25x" },
+    { name = "Gold", icon = "🟡", mult = "1.25x" },
+    { name = "Ghost", icon = "👻", mult = "2.5x" },
+    { name = "Complexity", icon = "🌀", mult = "2.5x" },
+    { name = "Lunar", icon = "🌙", mult = "4x" },
+    { name = "Solar", icon = "☀️", mult = "4x" },
+    { name = "Toxic", icon = "☣️", mult = "4x" },
+    { name = "Sinister", icon = "🟣", mult = "5x" },
+    { name = "Void", icon = "🌌", mult = "6x" },
+    { name = "Angelic", icon = "👼", mult = "6x" },
+    { name = "Mars", icon = "🔴", mult = "6x" },
+    { name = "Nightmare", icon = "🖤", mult = "7x" },
+    { name = "Dracula", icon = "🧛", mult = "8x" },
+    { name = "Demonic", icon = "😈", mult = "10x" }
+}
+
+DepolarizerTab:AddButton("✅ Select All Mutations (Pilih Semua Mutasi)", function()
+    for _, m in ipairs(officialMutations) do
+        if not CurrentConfig.DepolarizerSelectedMutations then CurrentConfig.DepolarizerSelectedMutations = {} end
+        CurrentConfig.DepolarizerSelectedMutations[m.name] = true
+        if AutoDepolarizer then AutoDepolarizer.SelectedMutations[m.name] = true end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Depolarizer", "Semua jenis Mutasi dicentang!", 2.0)
+end)
+
+DepolarizerTab:AddButton("❌ Deselect All Mutations (Hapus Centang Mutasi)", function()
+    for _, m in ipairs(officialMutations) do
+        if not CurrentConfig.DepolarizerSelectedMutations then CurrentConfig.DepolarizerSelectedMutations = {} end
+        CurrentConfig.DepolarizerSelectedMutations[m.name] = false
+        if AutoDepolarizer then AutoDepolarizer.SelectedMutations[m.name] = false end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Depolarizer", "Semua centang Mutasi dinonaktifkan!", 2.0)
+end)
+
+for _, m in ipairs(officialMutations) do
+    local isChecked = (CurrentConfig.DepolarizerSelectedMutations and CurrentConfig.DepolarizerSelectedMutations[m.name]) or false
+    DepolarizerTab:AddToggle(string.format("%s %s (%s)", m.icon, m.name, m.mult), isChecked, function(state)
+        if not CurrentConfig.DepolarizerSelectedMutations then CurrentConfig.DepolarizerSelectedMutations = {} end
+        CurrentConfig.DepolarizerSelectedMutations[m.name] = state
+        if AutoDepolarizer then AutoDepolarizer.SelectedMutations[m.name] = state end
+        if ConfigManager then ConfigManager.Save() end
+    end)
+end
+
+-- ═════════════════════════════════════════════════════════════════
+-- ── 🔄 Tab 7: Rebirth (Separated) ──
 -- ═════════════════════════════════════════════════════════════════
 local RebirthTab = Window:CreateTab("Rebirth", "🔄")
 
@@ -1238,6 +1368,7 @@ SettingsTab:AddButton("🔄 Reload Configuration", function()
             if CurrentConfig.AutoBuyFishingRods then AutoMerchants.StartAutoBuyFishingRods() else AutoMerchants.StopAutoBuyFishingRods() end
             if CurrentConfig.AutoBuyCarry then AutoMerchants.StartAutoBuyCarry() else AutoMerchants.StopAutoBuyCarry() end
         end
+        if CurrentConfig.AutoDepolarizer and AutoDepolarizer then AutoDepolarizer.StartAutoDepolarizer() else if AutoDepolarizer then AutoDepolarizer.StopAutoDepolarizer() end end
         if CurrentConfig.AutoLevelUpBaseUnits and BaseUnits then BaseUnits.StartAutoLevelUp() else if BaseUnits then BaseUnits.StopAutoLevelUp() end end
         if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() else AntiAFK.Stop() end
     end
@@ -1249,6 +1380,7 @@ SettingsTab:AddButton("🗑️ Reset to Default Settings", function()
     if AutoFish then AutoFish.StopAll() end
     if AutoFarm then AutoFarm.StopAll() end
     if AutoMerchants then AutoMerchants.StopAll() end
+    if AutoDepolarizer then AutoDepolarizer.StopAll() end
     if BaseUnits then BaseUnits.StopAutoLevelUp() end
     Window.Notify("Config Reset", "Pengaturan dikembalikan ke default!", 2.5)
 end)
@@ -1282,6 +1414,7 @@ if AutoMerchants then
     if CurrentConfig.AutoBuyFishingRods then AutoMerchants.StartAutoBuyFishingRods() end
     if CurrentConfig.AutoBuyCarry then AutoMerchants.StartAutoBuyCarry() end
 end
+if CurrentConfig.AutoDepolarizer and AutoDepolarizer then AutoDepolarizer.StartAutoDepolarizer() end
 if CurrentConfig.AutoLevelUpBaseUnits and BaseUnits then BaseUnits.StartAutoLevelUp() end
 if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() end
 
@@ -1306,6 +1439,7 @@ _G.RitodHubCleanup = function()
         if AutoFish and AutoFish.StopAll then AutoFish.StopAll() end
         if AutoFarm and AutoFarm.StopAll then AutoFarm.StopAll() end
         if AutoMerchants and AutoMerchants.StopAll then AutoMerchants.StopAll() end
+        if AutoDepolarizer and AutoDepolarizer.StopAll then AutoDepolarizer.StopAll() end
         if BaseUnits and BaseUnits.StopAutoLevelUp then BaseUnits.StopAutoLevelUp() end
         if Graphics and Graphics.Unload then Graphics.Unload() end
         if AntiAFK and AntiAFK.Stop then AntiAFK.Stop() end
