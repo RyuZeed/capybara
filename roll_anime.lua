@@ -100,20 +100,7 @@ local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/
 local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/refs/heads/main/modules/shared/"
 
 local function loadModule(name)
-    -- 0. Cek memory global _G
-    if name == "ritod_ui" and _G.RitodUI and typeof(_G.RitodUI.CreateWindow) == "function" then return _G.RitodUI end
-    if name == "auto_merchant" and _G.AutoMerchantModule then return _G.AutoMerchantModule end
-    if name == "graphics" and _G.GraphicsModule then return _G.GraphicsModule end
-    if name == "auto_roll" and _G.AutoRollModule then return _G.AutoRollModule end
-    if name == "auto_claim" and _G.AutoClaimModule then return _G.AutoClaimModule end
-    if name == "catalog" and _G.CatalogModule then return _G.CatalogModule end
-    if name == "anti_afk" and _G.AFKModule then return _G.AFKModule end
-    if name == "config_manager" and _G.ConfigManager then return _G.ConfigManager end
-    if name == "modern_settings" and _G.ModernSettings and typeof(_G.ModernSettings.CreateProfileManager) == "function" then
-        return _G.ModernSettings
-    end
-
-    -- 1. Prioritaskan GitHub Cloud langsung
+    -- 1. Prioritaskan GitHub Cloud langsung (Timestamped cache bypass)
     local targetUrl = (name == "modern_settings" or name == "ritod_ui") and (SHARED_URL .. name .. ".lua?t=" .. tostring(os.time())) or (BASE_URL .. name .. ".lua?t=" .. tostring(os.time()))
     local success, result = pcall(function()
         local src = game:HttpGet(targetUrl)
@@ -127,17 +114,17 @@ local function loadModule(name)
         return result
     end
 
-    -- 2. Fallback Shared URL
-    local s2, r2 = pcall(function()
-        local src = game:HttpGet(SHARED_URL .. name .. ".lua")
-        if src and #src > 10 and not src:find("404: Not Found") then
-            local fn = loadstring(src)
-            if fn then return fn() end
-        end
-        return nil
-    end)
-    if s2 and r2 then
-        return r2
+    -- 2. Fallback: Cek memory global _G
+    if name == "ritod_ui" and _G.RitodUI and typeof(_G.RitodUI.CreateWindow) == "function" then return _G.RitodUI end
+    if name == "auto_merchant" and _G.AutoMerchantModule then return _G.AutoMerchantModule end
+    if name == "graphics" and _G.GraphicsModule then return _G.GraphicsModule end
+    if name == "auto_roll" and _G.AutoRollModule then return _G.AutoRollModule end
+    if name == "auto_claim" and _G.AutoClaimModule then return _G.AutoClaimModule end
+    if name == "catalog" and _G.CatalogModule then return _G.CatalogModule end
+    if name == "anti_afk" and _G.AFKModule then return _G.AFKModule end
+    if name == "config_manager" and _G.ConfigManager then return _G.ConfigManager end
+    if name == "modern_settings" and _G.ModernSettings and typeof(_G.ModernSettings.CreateProfileManager) == "function" then
+        return _G.ModernSettings
     end
 
     -- 3. Fallback: File lokal di workspace jika koneksi gagal
