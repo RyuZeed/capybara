@@ -304,4 +304,41 @@ function PrivateServer.JoinPrivateServer(notify)
     return true
 end
 
+-- =================================================================
+-- 🔄 LIFECYCLE CONTROLLER (START / STOP DAEMON)
+-- =================================================================
+local isRunning = false
+local psThread = nil
+
+function PrivateServer.Start(notify)
+    if isRunning then return end
+    isRunning = true
+    if psThread then pcall(function() task.cancel(psThread) end) end
+    psThread = task.spawn(function()
+        task.wait(2)
+        while isRunning do
+            pcall(function()
+                if not PrivateServer.IsPrivateServer() then
+                    PrivateServer.JoinPrivateServer(notify)
+                    task.wait(15)
+                end
+            end)
+            task.wait(10)
+        end
+        isRunning = false
+    end)
+end
+
+function PrivateServer.Stop()
+    isRunning = false
+    if psThread then
+        pcall(function() task.cancel(psThread) end)
+        psThread = nil
+    end
+end
+
+function PrivateServer.IsRunning()
+    return isRunning
+end
+
 return PrivateServer

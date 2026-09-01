@@ -212,6 +212,13 @@ if AutoMerchantModule and savedConfig.AutoBuyMerchant ~= false then
     end)
 end
 
+-- Auto-start Private Server Engine
+if PrivateServerModule and savedConfig.AutoPrivateServer then
+    pcall(function()
+        PrivateServerModule.Start()
+    end)
+end
+
 -- Auto-apply In-Game Settings Preset (Screenshot Setup)
 if GraphicsModule and savedConfig.AutoApplyGameSettings ~= false then
     pcall(function()
@@ -765,7 +772,7 @@ UserInputService.JumpRequest:Connect(function()
 	end
 end)
 
-PlayerTab:AddSection("Anti-AFK & Status Koneksi")
+PlayerTab:AddSection("Anti-AFK & Server Koneksi")
 PlayerTab:AddToggle("Anti-AFK 24/7 (Bypass Idle Disconnect)", true, function(state)
 	if state then
 		if AFKModule and typeof(AFKModule.Enable) == "function" then AFKModule.Enable() end
@@ -775,13 +782,18 @@ PlayerTab:AddToggle("Anti-AFK 24/7 (Bypass Idle Disconnect)", true, function(sta
 		Notify("Anti-AFK", "Anti-AFK dinonaktifkan.", 2)
 	end
 end)
+PlayerTab:AddButton("🏝️ Teleport ke Private Server (Solo Island)", function()
+	if PrivateServerModule then
+		PrivateServerModule.JoinPrivateServer(Notify)
+	end
+end)
 
 -- =================================================================
 -- 4. TAB 🎁 QUESTS & HADIAH
 -- =================================================================
 local QuestsTab = Window:CreateTab("Quests & Hadiah", "🎁")
 
-QuestsTab:AddSection("Klaim Otomatis 24/7")
+QuestsTab:AddSection("Klaim Hadiah Otomatis 24/7")
 
 questToggleRef = QuestsTab:AddToggle("Auto Claim Quests (Daily & Weekly)", savedConfig.AutoClaimQuests ~= false, function(state)
 	savedConfig.AutoClaimQuests = state
@@ -804,19 +816,27 @@ rewardsToggleRef = QuestsTab:AddToggle("Auto Claim Free Rewards & Battlepass", s
 	Notify("Auto Rewards", state and "Auto Claim Rewards AKTIF!" or "Auto Claim Rewards NONAKTIF", 2)
 end)
 
-autoPrivateServerToggleRef = QuestsTab:AddToggle("Auto Private Server (Solo Island)", savedConfig.AutoPrivateServer ~= false, function(state)
-	savedConfig.AutoPrivateServer = state
-	if ConfigManager then ConfigManager.Save({ AutoPrivateServer = state }) end
-	if PrivateServerModule then
-		if state then PrivateServerModule.Start() else PrivateServerModule.Stop() end
-	end
-	Notify("Solo Island", state and "Auto Private Server AKTIF!" or "Auto Private Server NONAKTIF", 2)
-end)
-
 QuestsTab:AddButton("🎁 Klaim Semua Hadiah Sekarang (1x)", function()
 	if AutoClaimModule then
 		local count = AutoClaimModule.ClaimAllNow()
 		Notify("Klaim Hadiah", string.format("Berhasil klaim %d hadiah!", count), 3)
+	end
+end)
+
+QuestsTab:AddSection("🏝️ Private Server & Solo Island")
+
+autoPrivateServerToggleRef = QuestsTab:AddToggle("Auto Private Server (Solo Island 24/7)", savedConfig.AutoPrivateServer or false, function(state)
+	savedConfig.AutoPrivateServer = state
+	if ConfigManager then ConfigManager.Save({ AutoPrivateServer = state }) end
+	if PrivateServerModule then
+		if state then PrivateServerModule.Start(Notify) else PrivateServerModule.Stop() end
+	end
+	Notify("Solo Island", state and "Auto Private Server AKTIF!" or "Auto Private Server NONAKTIF", 2)
+end)
+
+QuestsTab:AddButton("🏝️ Teleport ke Private Server (Solo Island) Sekarang", function()
+	if PrivateServerModule then
+		PrivateServerModule.JoinPrivateServer(Notify)
 	end
 end)
 
