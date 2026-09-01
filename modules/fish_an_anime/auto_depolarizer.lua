@@ -218,6 +218,26 @@ function AutoDepolarizer.GetEligibleUnits()
     return eligible
 end
 
+-- ── 🧹 Helper: Unequip Hand ──
+function AutoDepolarizer.UnequipHand()
+    pcall(function()
+        if Remotes:FindFirstChild("BackpackHoldCharacter") then
+            Remotes.BackpackHoldCharacter:FireServer("")
+        end
+        if LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum:UnequipTools()
+            end
+            for _, t in ipairs(LocalPlayer.Character:GetChildren()) do
+                if t:IsA("Tool") and t:GetAttribute("IsCharacterTool") == true then
+                    t.Parent = LocalPlayer:FindFirstChildOfClass("Backpack") or t.Parent
+                end
+            end
+        end
+    end)
+end
+
 -- ── ⚡ 4. Action: Depolarize Single Unit (Safe Execution) ──
 function AutoDepolarizer.DepolarizeUnit(unit)
     if not unit or not unit.key then
@@ -231,14 +251,17 @@ function AutoDepolarizer.DepolarizeUnit(unit)
 
     local info, err = AutoDepolarizer.GetDepolarizerInfo()
     if not info then
+        AutoDepolarizer.UnequipHand()
         return false, err
     end
 
     if info.isBusy then
+        AutoDepolarizer.UnequipHand()
         return false, "Mesin sedang berjalan (" .. tostring(info.remainingText) .. ")"
     end
 
     if not info.isReady or not info.prompt then
+        AutoDepolarizer.UnequipHand()
         return false, "Mesin Depolarizer belum siap (Prompt belum muncul)"
     end
 
@@ -271,9 +294,7 @@ function AutoDepolarizer.DepolarizeUnit(unit)
     task.wait(0.3)
 
     -- 4. Reset hand
-    if Remotes:FindFirstChild("BackpackHoldCharacter") then
-        Remotes.BackpackHoldCharacter:FireServer("")
-    end
+    AutoDepolarizer.UnequipHand()
 
     AutoDepolarizer.ProcessingUnit = false
     return true, string.format("Unit %s (%s [%s]) berhasil dimasukkan ke Depolarizer!", unit.name, unit.rarity, unit.mutation)
@@ -283,18 +304,21 @@ end
 function AutoDepolarizer.StepOnce()
     local info, err = AutoDepolarizer.GetDepolarizerInfo()
     if not info then
+        AutoDepolarizer.UnequipHand()
         AutoDepolarizer.LastStatus = "Status: " .. tostring(err)
         return false, err
     end
 
-    -- JIKA MESIN SEDANG SIBUK: JANGAN LAKUKAN APA-APA, TUNGGU SAMPAI SELESAI
+    -- JIKA MESIN SEDANG SIBUK: JANGAN LAKUKAN APA-APA, PASTIKAN TANGAN KOSONG & TUNGGU SAMPAI SELESAI
     if info.isBusy then
+        AutoDepolarizer.UnequipHand()
         AutoDepolarizer.LastStatus = string.format("Sedang Berjalan: %s tersisa (Menunggu mesin kosong)", tostring(info.remainingText))
         return false, AutoDepolarizer.LastStatus
     end
 
     -- JIKA MESIN BELUM READY
     if not info.isReady then
+        AutoDepolarizer.UnequipHand()
         AutoDepolarizer.LastStatus = "Menunggu mesin Depolarizer siap..."
         return false, AutoDepolarizer.LastStatus
     end
@@ -302,6 +326,7 @@ function AutoDepolarizer.StepOnce()
     -- CARI UNIT DI TAS DENGAN MUTASI SESUAI FILTER
     local eligibleUnits = AutoDepolarizer.GetEligibleUnits()
     if #eligibleUnits == 0 then
+        AutoDepolarizer.UnequipHand()
         AutoDepolarizer.LastStatus = "Mesin Kosong (Tidak ada unit di tas dengan mutasi & rarity terpilih)"
         return false, AutoDepolarizer.LastStatus
     end
@@ -313,6 +338,7 @@ function AutoDepolarizer.StepOnce()
     if success then
         AutoDepolarizer.LastStatus = msg
     else
+        AutoDepolarizer.UnequipHand()
         AutoDepolarizer.LastStatus = "Gagal: " .. tostring(msg)
     end
     return success, msg
@@ -323,13 +349,17 @@ function AutoDepolarizer.StartAutoDepolarizer(interval)
     AutoDepolarizer.Enabled = true
     interval = interval or AutoDepolarizer.Interval or 5
 
+    -- Make sure hand is clear
+    AutoDepolarizer.UnequipHand()
+
     if depolarizerThread then task.cancel(depolarizerThread) end
     depolarizerThread = task.spawn(function()
         while AutoDepolarizer.Enabled do
             local info = AutoDepolarizer.GetDepolarizerInfo()
             
             if info and info.isBusy then
-                -- Jika mesin sedang berjalan, tidur lebih lama (15 detik) untuk menghemat network / tidak spam
+                -- Pastikan tangan selalu kosong saat menunggu
+                AutoDepolarizer.UnequipHand()
                 AutoDepolarizer.LastStatus = string.format("Sedang Berjalan: %s tersisa (Menunggu mesin kosong)", tostring(info.remainingText))
                 task.wait(15)
             elseif info and info.isReady then
@@ -340,9 +370,11 @@ function AutoDepolarizer.StartAutoDepolarizer(interval)
                     task.wait(5)
                 else
                     -- Tidak ada unit yang cocok, tunggu sebelum scan ulang
+                    AutoDepolarizer.UnequipHand()
                     task.wait(interval)
                 end
             else
+                AutoDepolarizer.UnequipHand()
                 task.wait(interval)
             end
         end
@@ -356,6 +388,7 @@ function AutoDepolarizer.StopAutoDepolarizer()
         depolarizerThread = nil
     end
     AutoDepolarizer.ProcessingUnit = false
+    AutoDepolarizer.UnequipHand()
     AutoDepolarizer.LastStatus = "Nonaktif"
 end
 
