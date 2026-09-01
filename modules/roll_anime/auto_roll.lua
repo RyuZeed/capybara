@@ -375,7 +375,8 @@ function AutoRollModule.GetQuestRollProgress()
     local weeklyCompleted = false
     
     pcall(function()
-        local pGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local lp = Players.LocalPlayer or LocalPlayer
+        local pGui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui"))
         local mainUI = pGui and pGui:FindFirstChild("MainUI")
         local frames = mainUI and mainUI:FindFirstChild("Frames")
         local bp = frames and frames:FindFirstChild("Battlepass")
