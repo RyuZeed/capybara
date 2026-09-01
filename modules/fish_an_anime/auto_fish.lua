@@ -173,12 +173,13 @@ function AutoFish.GoToNearestPond(force)
     if not root then return end
 
     local pond = AutoFish.GetBestPond()
-    local pondPos = pond and pond.Position or Vector3.new(5617, 54, 1290)
-    local dist = (pondPos - root.Position).Magnitude
+    if not pond then return end
 
-    -- If forced or player is further than 20 studs from valid fishing dock, position player at dock edge
-    if force or dist > 20 then
-        root.CFrame = CFrame.new(5617, 56.5, 1250)
+    local dist = (pond.Position - root.Position).Magnitude
+    -- Only teleport if specifically forced AND player is completely far from water (> 35 studs)
+    if force and dist > 35 then
+        local edgePos = AutoFish.ClosestPointOnPond(pond, root.Position) or pond.Position
+        root.CFrame = CFrame.new(edgePos + Vector3.new(0, 4, 0))
         task.wait(0.25)
     end
 end
@@ -206,11 +207,6 @@ function AutoFish.CastRod()
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return false end
-
-    -- 2. If player wandered off (> 25 studs from dock edge), reposition
-    if (Vector3.new(5617, 56.5, 1250) - root.Position).Magnitude > 25 then
-        AutoFish.GoToNearestPond(true)
-    end
 
     local playerPos = root.Position
     local targetPos = AutoFish.ClosestPointOnPond(pond, playerPos) or (playerPos + Vector3.new(0, -2, 10))
