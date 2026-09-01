@@ -279,7 +279,8 @@ function AutoFish.StartFishing()
                     end
                 elseif kind == "Completed" then
                     isCastPending = false
-                    task.wait(0.08)
+                    -- Instant seamless recast
+                    task.wait(0.02)
                     if AutoFish.IsFishing and not AutoFish.IsPaused then
                         AutoFish.CastRod()
                     end
@@ -293,8 +294,8 @@ function AutoFish.StartFishing()
                     isCastPending = false
                 elseif kind == "Stopped" or kind == "Denied" then
                     isCastPending = false
-                    -- Recast cleanly if stopped or denied
-                    task.delay(0.4, function()
+                    -- Fast recovery recast
+                    task.delay(0.2, function()
                         if AutoFish.IsFishing and not AutoFish.IsPaused and not isCastPending then
                             AutoFish.CastRod()
                         end
