@@ -167,23 +167,19 @@ function AutoFish.EquipBestRod()
     return bestRod
 end
 
-function AutoFish.GoToNearestPond()
+function AutoFish.GoToNearestPond(force)
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
     local pond = AutoFish.GetBestPond()
-    if not pond then
-        root.CFrame = CFrame.new(5600, 58, 1290)
-        task.wait(0.3)
-        return
-    end
+    local pondPos = pond and pond.Position or Vector3.new(5617, 54, 1290)
+    local dist = (pondPos - root.Position).Magnitude
 
-    local dist = (pond.Position - root.Position).Magnitude
-    -- If further than 25 studs from nearest water/pond, bring player to main dock spot
-    if dist > 25 then
-        root.CFrame = CFrame.new(5600, 58, 1290)
-        task.wait(0.3)
+    -- If forced or player is further than 20 studs from valid fishing dock, position player at dock edge
+    if force or dist > 20 then
+        root.CFrame = CFrame.new(5617, 56.5, 1250)
+        task.wait(0.25)
     end
 end
 
@@ -201,7 +197,7 @@ function AutoFish.CastRod()
     if AutoFish.IsPaused or not AutoFish.IsFishing then return false end
     if not Remotes or not Remotes:FindFirstChild("FishingRequestStart") then return false end
 
-    -- Ensure fishing rod is held
+    -- 1. Ensure fishing rod is held
     AutoFish.EquipBestRod()
 
     local pond = AutoFish.GetBestPond()
@@ -209,9 +205,20 @@ function AutoFish.CastRod()
 
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    local playerPos = root and root.Position or pond.Position
+    if not root then return false end
 
-    local targetPos = AutoFish.ClosestPointOnPond(pond, playerPos) or pond.Position
+    -- 2. If player wandered off (> 25 studs from dock edge), reposition
+    if (Vector3.new(5617, 56.5, 1250) - root.Position).Magnitude > 25 then
+        AutoFish.GoToNearestPond(true)
+    end
+
+    local playerPos = root.Position
+    local targetPos = AutoFish.ClosestPointOnPond(pond, playerPos) or (playerPos + Vector3.new(0, -2, 10))
+
+    -- Ensure targetPos is within close proximity (<= 15 studs from player)
+    if (targetPos - playerPos).Magnitude > 20 then
+        targetPos = playerPos + (targetPos - playerPos).Unit * 12
+    end
 
     isCastPending = true
     lastStateTime = tick()
@@ -255,7 +262,7 @@ function AutoFish.StartFishing()
 
     -- 1. Ensure best rod equipped & in valid fishing spot ONCE at start
     AutoFish.EquipBestRod()
-    AutoFish.GoToNearestPond()
+    AutoFish.GoToNearestPond(true)
     task.wait(0.3)
 
     -- 2. Event listener
@@ -294,7 +301,12 @@ function AutoFish.StartFishing()
                     isCastPending = false
                 elseif kind == "Stopped" or kind == "Denied" then
                     isCastPending = false
-                    -- Fast recovery recast
+                    -- Auto recovery if out of range or rod unequipped
+                    if typeof(data) == "table" and data.reason == "TOO_FAR" then
+                        AutoFish.GoToNearestPond(true)
+                    elseif typeof(data) == "table" and data.reason == "NO_ROD" then
+                        AutoFish.EquipBestRod()
+                    end
                     task.delay(0.2, function()
                         if AutoFish.IsFishing and not AutoFish.IsPaused and not isCastPending then
                             AutoFish.CastRod()
@@ -310,13 +322,13 @@ function AutoFish.StartFishing()
     fishingLoopThread = task.spawn(function()
         AutoFish.CastRod()
         while AutoFish.IsFishing do
-            task.wait(2.0)
+            task.wait(1.5)
             if not AutoFish.IsFishing then break end
 
-            -- Watchdog: jika tidak ada event > 4 detik saat memancing
-            if tick() - lastStateTime > 4.0 then
+            -- Watchdog: jika tidak ada event > 3 detik saat memancing
+            if tick() - lastStateTime > 3.0 then
                 AutoFish.CancelFishing()
-                task.wait(0.3)
+                task.wait(0.2)
                 if AutoFish.IsFishing then
                     AutoFish.CastRod()
                 end
