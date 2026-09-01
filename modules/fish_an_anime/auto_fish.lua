@@ -163,6 +163,7 @@ function AutoFish.EquipBestRod()
     pcall(function()
         hum:EquipTool(bestRod)
     end)
+    task.wait(0.25)
     return bestRod
 end
 
