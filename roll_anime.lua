@@ -823,23 +823,6 @@ QuestsTab:AddButton("🎁 Klaim Semua Hadiah Sekarang (1x)", function()
 	end
 end)
 
-QuestsTab:AddSection("🏝️ Private Server & Solo Island")
-
-autoPrivateServerToggleRef = QuestsTab:AddToggle("Auto Private Server (Solo Island 24/7)", savedConfig.AutoPrivateServer or false, function(state)
-	savedConfig.AutoPrivateServer = state
-	if ConfigManager then ConfigManager.Save({ AutoPrivateServer = state }) end
-	if PrivateServerModule then
-		if state then PrivateServerModule.Start(Notify) else PrivateServerModule.Stop() end
-	end
-	Notify("Solo Island", state and "Auto Private Server AKTIF!" or "Auto Private Server NONAKTIF", 2)
-end)
-
-QuestsTab:AddButton("🏝️ Teleport ke Private Server (Solo Island) Sekarang", function()
-	if PrivateServerModule then
-		PrivateServerModule.JoinPrivateServer(Notify)
-	end
-end)
-
 -- =================================================================
 -- 5. TAB 🛒 MERCHANT
 -- =================================================================
@@ -1017,6 +1000,23 @@ MiscTab:AddButton("⚡ Terapkan Settingan Game Sekarang (Screenshot Preset)", fu
 	if GraphicsModule then
 		GraphicsModule.ApplyGameSettingsPreset()
 		Notify("🎮 Game Settings", "Settingan in-game (FPS Boost ON, Effects OFF, Hide Animes ON, SFX OFF) diterapkan!", 3)
+	end
+end)
+
+MiscTab:AddSection("🏝️ Private Server & Solo Island")
+
+autoPrivateServerToggleRef = MiscTab:AddToggle("Auto Private Server (Solo Island 24/7)", savedConfig.AutoPrivateServer or false, function(state)
+	savedConfig.AutoPrivateServer = state
+	if ConfigManager then ConfigManager.Save({ AutoPrivateServer = state }) end
+	if PrivateServerModule then
+		if state then PrivateServerModule.Start(Notify) else PrivateServerModule.Stop() end
+	end
+	Notify("Solo Island", state and "Auto Private Server AKTIF!" or "Auto Private Server NONAKTIF", 2)
+end)
+
+MiscTab:AddButton("🏝️ Teleport ke Private Server (Solo Island) Sekarang", function()
+	if PrivateServerModule then
+		PrivateServerModule.JoinPrivateServer(Notify)
 	end
 end)
 
