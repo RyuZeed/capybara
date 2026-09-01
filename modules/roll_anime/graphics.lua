@@ -836,16 +836,22 @@ function Graphics.ApplyGameSettingsPreset(customPreset)
 
 	local client = nil
 	pcall(function()
-		client = require(RS.Data.DataService).client
+		if RS:FindFirstChild("Data") and RS.Data:FindFirstChild("DataService") then
+			local ds = require(RS.Data.DataService)
+			if ds and ds.client then client = ds.client end
+		end
 	end)
 
 	local pGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
-	local scroll = pGui and pGui:FindFirstChild("MainUI")
-		and pGui.MainUI:FindFirstChild("Frames")
-		and pGui.MainUI.Frames:FindFirstChild("Settings")
-		and pGui.MainUI.Frames.Settings:FindFirstChild("Frame")
-		and pGui.MainUI.Frames.Settings.Frame:FindFirstChild("Main")
-		and pGui.MainUI.Frames.Settings.Frame.Main:FindFirstChild("ScrollingFrame")
+	local scroll = nil
+	pcall(function()
+		scroll = pGui and pGui:FindFirstChild("MainUI")
+			and pGui.MainUI:FindFirstChild("Frames")
+			and pGui.MainUI.Frames:FindFirstChild("Settings")
+			and pGui.MainUI.Frames.Settings:FindFirstChild("Frame")
+			and pGui.MainUI.Frames.Settings.Frame:FindFirstChild("Main")
+			and pGui.MainUI.Frames.Settings.Frame.Main:FindFirstChild("ScrollingFrame")
+	end)
 
 	local anyChanged = false
 	for key, desired in pairs(target) do
@@ -855,10 +861,12 @@ function Graphics.ApplyGameSettingsPreset(customPreset)
 		end
 
 		if curVal == nil and scroll then
-			local f = scroll:FindFirstChild(key)
-			if f and f:FindFirstChild("Button") and f.Button:FindFirstChild("Frame") and f.Button.Frame:FindFirstChild("TextLabel") then
-				curVal = (f.Button.Frame.TextLabel.Text == "ON")
-			end
+			pcall(function()
+				local f = scroll:FindFirstChild(key)
+				if f and f:FindFirstChild("Button") and f.Button:FindFirstChild("Frame") and f.Button.Frame:FindFirstChild("TextLabel") then
+					curVal = (f.Button.Frame.TextLabel.Text == "ON")
+				end
+			end)
 		end
 
 		if curVal ~= desired then
@@ -867,23 +875,27 @@ function Graphics.ApplyGameSettingsPreset(customPreset)
 				pcall(function() settingsRemote:FireServer(key) end)
 			end
 			if scroll then
-				local f = scroll:FindFirstChild(key)
-				local btn = f and f:FindFirstChild("Button") and f.Button:FindFirstChild("Button")
-				if btn then
-					if typeof(getconnections) == "function" then
-						for _, evName in ipairs({"MouseButton1Click", "Activated"}) do
-							if btn[evName] then
-								for _, conn in ipairs(getconnections(btn[evName])) do
-									if conn.Function then pcall(conn.Function) elseif conn.Fire then pcall(function() conn:Fire() end) end
-								end
+				pcall(function()
+					local f = scroll:FindFirstChild(key)
+					local btn = f and f:FindFirstChild("Button") and f.Button:FindFirstChild("Button")
+					if btn then
+						if typeof(getconnections) == "function" then
+							for _, evName in ipairs({"MouseButton1Click", "Activated"}) do
+								pcall(function()
+									if btn[evName] then
+										for _, conn in ipairs(getconnections(btn[evName])) do
+											if conn.Function then conn.Function() elseif conn.Fire then conn:Fire() end
+										end
+									end
+								end)
 							end
 						end
+						if typeof(firesignal) == "function" then
+							pcall(function() if btn.MouseButton1Click then firesignal(btn.MouseButton1Click) end end)
+							pcall(function() if btn.Activated then firesignal(btn.Activated) end end)
+						end
 					end
-					if typeof(firesignal) == "function" then
-						if btn.MouseButton1Click then pcall(function() firesignal(btn.MouseButton1Click) end) end
-						if btn.Activated then pcall(function() firesignal(btn.Activated) end) end
-					end
-				end
+				end)
 			end
 			task.wait(0.08)
 		end
