@@ -669,12 +669,14 @@ ShopTab:AddButton("⚡ Use Selected Potions Now (1x)", function()
 end)
 
 local commonPotions = {
+    "Food Potion Lvl. 1",
     "Luck Potion Lvl. 1", "Luck Potion Lvl. 2", "Luck Potion Lvl. 3",
     "Fast Catch Potion Lvl. 1", "Fast Catch Potion Lvl. 2", "Mutation Potion Lvl. 1",
     "Gems Potion Lvl. 1", "Gems Potion Lvl. 2", "Gems Potion Lvl. 3",
     "Cash Potion Lvl. 1", "Cash Potion Lvl. 2", "Cash Potion Lvl. 3",
     "Heaven's Collide Potion", "Sinister Potion", "Meteorite Potion",
-    "Honey Potion", "Party Potion", "Dreamer Potion", "Cybernetic Glitch Potion"
+    "Honey Potion", "Party Potion", "Dreamer Potion", "Cybernetic Glitch Potion",
+    "Forgotten Potion", "EXE Potion"
 }
 
 ShopTab:AddButton("✅ Enable All Potions (Centang Semua)", function()

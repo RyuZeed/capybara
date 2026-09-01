@@ -100,6 +100,7 @@ ConfigManager.DefaultConfig = {
     AutoPotions = false,
     PotionInterval = 10,
     SelectedPotions = {
+        ["Food Potion Lvl. 1"] = true,
         ["Luck Potion Lvl. 1"] = true,
         ["Luck Potion Lvl. 2"] = true,
         ["Luck Potion Lvl. 3"] = true,
@@ -111,7 +112,16 @@ ConfigManager.DefaultConfig = {
         ["Gems Potion Lvl. 3"] = true,
         ["Cash Potion Lvl. 1"] = true,
         ["Cash Potion Lvl. 2"] = true,
-        ["Cash Potion Lvl. 3"] = true
+        ["Cash Potion Lvl. 3"] = true,
+        ["Heaven's Collide Potion"] = true,
+        ["Sinister Potion"] = true,
+        ["Meteorite Potion"] = true,
+        ["Honey Potion"] = true,
+        ["Party Potion"] = true,
+        ["Dreamer Potion"] = true,
+        ["Cybernetic Glitch Potion"] = true,
+        ["Forgotten Potion"] = true,
+        ["EXE Potion"] = true
     },
 
     -- Boosts Store (NPC Valora)
