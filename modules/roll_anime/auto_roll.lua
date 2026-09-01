@@ -492,6 +492,13 @@ function AutoRollModule.Start(options)
                     questModeText = string.format(" [🏆 Weekly Quest: %d/%d (Daily Selesai)]", qProg.WeeklyCurrent, qProg.WeeklyMax)
                 -- Kasus 3: Daily dan Weekly keduanya sudah selesai -> Tunggu Reset (Free Roam)
                 else
+                    if rollPrompt and rollPrompt.Parent then
+                        pcall(function()
+                            rollPrompt.HoldDuration = 0.5
+                            rollPrompt.MaxActivationDistance = 10
+                        end)
+                    end
+                    
                     onStatus(string.format("Status: ✅ [Selesai] Daily (%d/%d) & Weekly (%d/%d) Tercapai! Menunggu Reset...", qProg.DailyCurrent, qProg.DailyMax, qProg.WeeklyCurrent, qProg.WeeklyMax), "quest_done")
                     task.wait(5)
                     continue
