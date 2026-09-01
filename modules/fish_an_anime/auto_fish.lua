@@ -132,12 +132,12 @@ function AutoFish.EquipBestRod()
 
     -- Check if a fishing rod is already held in character
     for _, t in ipairs(char:GetChildren()) do
-        if t:IsA("Tool") and t:GetAttribute("IsFishingRod") == true then
+        if t:IsA("Tool") and (t:GetAttribute("IsFishingRod") == true or string.find(t.Name:lower(), "rod")) then
             return t
         end
     end
 
-    -- Collect rods from backpack & character
+    -- Collect rods from backpack
     local rods = {}
     local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
     if bp then
@@ -172,33 +172,17 @@ function AutoFish.GoToNearestPond()
     if not root then return end
 
     local pond = AutoFish.GetBestPond()
-    if not pond then return end
+    if not pond then
+        root.CFrame = CFrame.new(5600, 58, 1290)
+        task.wait(0.3)
+        return
+    end
 
     local dist = (pond.Position - root.Position).Magnitude
-    -- If further than 30 studs from nearest water/pond, bring player to fishing spot
-    if dist > 30 then
-        local teleports = Workspace:FindFirstChild("Scripted") and Workspace.Scripted:FindFirstChild("PondAreasTeleports")
-        local bestTP = nil
-        local bestTPDist = math.huge
-        if teleports then
-            for _, tp in ipairs(teleports:GetChildren()) do
-                if tp:IsA("BasePart") then
-                    local d = (tp.Position - pond.Position).Magnitude
-                    if d < bestTPDist then
-                        bestTPDist = d
-                        bestTP = tp
-                    end
-                end
-            end
-        end
-
-        if bestTP then
-            root.CFrame = CFrame.new(bestTP.Position + Vector3.new(0, 3, 0))
-        else
-            local edgePos = AutoFish.ClosestPointOnPond(pond, root.Position) or pond.Position
-            root.CFrame = CFrame.new(edgePos + Vector3.new(0, 4, 0))
-        end
-        task.wait(0.25)
+    -- If further than 25 studs from nearest water/pond, bring player to main dock spot
+    if dist > 25 then
+        root.CFrame = CFrame.new(5600, 58, 1290)
+        task.wait(0.3)
     end
 end
 
@@ -213,14 +197,11 @@ function AutoFish.ClosestPointOnPond(pond, playerPos)
 end
 
 function AutoFish.CastRod()
-    if AutoFish.IsPaused then return false end
+    if AutoFish.IsPaused or not AutoFish.IsFishing then return false end
     if not Remotes or not Remotes:FindFirstChild("FishingRequestStart") then return false end
 
-    -- 1. Ensure best fishing rod is equipped
+    -- Ensure fishing rod is held
     AutoFish.EquipBestRod()
-
-    -- 2. Ensure player is in range of nearest pond
-    AutoFish.GoToNearestPond()
 
     local pond = AutoFish.GetBestPond()
     if not pond then return false end
@@ -259,25 +240,6 @@ end
 function AutoFish.ResumeFishing()
     AutoFish.IsPaused = false
 
-    -- 1. Restore In-Game Native AutoFish (if owned and currently off)
-    task.spawn(function()
-        task.wait(0.1)
-        if LocalPlayer:GetAttribute("AutoFishOwned") == true and LocalPlayer:GetAttribute("AutoFishActive") ~= true then
-            local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-            local fishAction = pg and pg:FindFirstChild("MainGui") and pg.MainGui:FindFirstChild("FishAction")
-            local autoFishBtn = fishAction and fishAction:FindFirstChild("AutoFish")
-            if autoFishBtn and typeof(getconnections) == "function" then
-                for _, c in ipairs(getconnections(autoFishBtn.MouseButton1Click)) do
-                    pcall(function() c:Fire() end)
-                end
-            end
-            if Remotes and Remotes:FindFirstChild("FishingAutoFishEnabledSync") then
-                pcall(function() Remotes.FishingAutoFishEnabledSync:FireServer(true) end)
-            end
-        end
-    end)
-
-    -- 2. Resume Script Fishing Controller
     if AutoFish.IsFishing then
         task.wait(0.2)
         AutoFish.CastRod()
@@ -290,7 +252,12 @@ function AutoFish.StartFishing()
     AutoFish.IsFishing = true
     lastStateTime = tick()
 
-    -- 1. Event listener
+    -- 1. Ensure best rod equipped & in valid fishing spot ONCE at start
+    AutoFish.EquipBestRod()
+    AutoFish.GoToNearestPond()
+    task.wait(0.3)
+
+    -- 2. Event listener
     if Remotes and Remotes:FindFirstChild("FishingState") then
         if fishingStateConn then fishingStateConn:Disconnect() end
         fishingStateConn = Remotes.FishingState.OnClientEvent:Connect(function(data)
@@ -302,7 +269,7 @@ function AutoFish.StartFishing()
                 if kind == "Hooked" then
                     isCastPending = false
                     if AutoFish.IsPaused then return end
-                    -- Ikan menyambar! Klik otomatis
+                    -- Instant Hook Catch: Click immediately
                     if AutoFish.FastClick then
                         AutoFish.DoClick()
                     else
@@ -311,7 +278,7 @@ function AutoFish.StartFishing()
                     end
                 elseif kind == "Completed" then
                     isCastPending = false
-                    task.wait(0.1)
+                    task.wait(0.08)
                     if AutoFish.IsFishing and not AutoFish.IsPaused then
                         AutoFish.CastRod()
                     end
@@ -323,21 +290,29 @@ function AutoFish.StartFishing()
                     end
                 elseif kind == "Started" then
                     isCastPending = false
+                elseif kind == "Stopped" or kind == "Denied" then
+                    isCastPending = false
+                    -- Recast cleanly if stopped or denied
+                    task.delay(0.4, function()
+                        if AutoFish.IsFishing and not AutoFish.IsPaused and not isCastPending then
+                            AutoFish.CastRod()
+                        end
+                    end)
                 end
             end
         end)
     end
 
-    -- 2. Initial Cast & Watchdog Loop
+    -- 3. Initial Cast & Watchdog Loop
     if fishingLoopThread then task.cancel(fishingLoopThread) end
     fishingLoopThread = task.spawn(function()
         AutoFish.CastRod()
         while AutoFish.IsFishing do
-            task.wait(1.5)
+            task.wait(2.0)
             if not AutoFish.IsFishing then break end
 
-            -- Watchdog: jika tidak ada event > 5 detik saat memancing atau cast macet
-            if tick() - lastStateTime > 5.0 then
+            -- Watchdog: jika tidak ada event > 4 detik saat memancing
+            if tick() - lastStateTime > 4.0 then
                 AutoFish.CancelFishing()
                 task.wait(0.3)
                 if AutoFish.IsFishing then
