@@ -375,12 +375,15 @@ local function startHunt()
 	AutoRollModule.Start({
 		AutoSecretGod = savedConfig.AutoSecretGod or false,
 		GetAutoSecretGod = function() return savedConfig.AutoSecretGod or false end,
+		GetQuestRollMode = function() return savedConfig.AutoQuestRollMode or false end,
 		SelectedUnits = selectedUnits,
 		AllUnitsMap = CatalogModule and CatalogModule.AllUnitsMap or {},
 		GetInterval = function() return rollInterval end,
 		OnStatus = function(msg, state, extra)
 			if state == "rolling" then
 				statusCard:SetStatus(msg, Color3.fromRGB(190, 120, 255))
+			elseif state == "quest_done" then
+				statusCard:SetStatus(msg, Color3.fromRGB(70, 255, 140))
 			elseif state == "found" then
 				statusCard:SetStatus(msg, Color3.fromRGB(255, 215, 0))
 				Notify("Target Ditemukan!", string.format("Membeli %d target unit di pedestal...", extra), 2.5)
@@ -418,6 +421,7 @@ local function stopHunt()
 end
 
 local autoSniperToggleRef = nil
+local autoQuestRollToggleRef = nil
 
 local function startAutoSniper()
 	if not AutoRollModule then return end
@@ -471,6 +475,12 @@ local autoGameSettingsToggleRef = nil
 
 huntToggleRef = RollTab:AddToggle("Auto Hunt (Continuous Roll & Sniper)", savedConfig.AutoHuntEnabled or false, function(state)
 	if state then startHunt() else stopHunt() end
+end)
+
+autoQuestRollToggleRef = RollTab:AddToggle("🎯 Auto Roll Daily (250x) & Weekly (5000x) Quests", savedConfig.AutoQuestRollMode or false, function(state)
+	savedConfig.AutoQuestRollMode = state
+	if ConfigManager then ConfigManager.Save({ AutoQuestRollMode = state }) end
+	Notify("Quest Roll Mode", state and "Mode Quest Roll (250x & 5000x Auto Switch & Reset) AKTIF!" or "Mode Quest Roll NONAKTIF", 2.5)
 end)
 
 autoSniperToggleRef = RollTab:AddToggle("🎯 Auto Buy / Sniper (Hanya Beli Tanpa Roll)", savedConfig.AutoSniperOnly or false, function(state)
@@ -1057,6 +1067,11 @@ local function applyRollAnimeConfig(loaded)
 	if autoSecretGodToggleRef and loaded.AutoSecretGod ~= nil then
 		autoSecretGodToggleRef:Set(loaded.AutoSecretGod, false)
 		savedConfig.AutoSecretGod = loaded.AutoSecretGod
+	end
+
+	if autoQuestRollToggleRef and loaded.AutoQuestRollMode ~= nil then
+		autoQuestRollToggleRef:Set(loaded.AutoQuestRollMode, false)
+		savedConfig.AutoQuestRollMode = loaded.AutoQuestRollMode
 	end
 
 	if rollDelaySliderRef and loaded.RollInterval then

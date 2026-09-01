@@ -368,6 +368,65 @@ function AutoRollModule.BuySpecificTarget(target, returnCFrame)
     return isGone
 end
 
+function AutoRollModule.GetQuestRollProgress()
+    local dailyCurrent, dailyMax = 0, 250
+    local weeklyCurrent, weeklyMax = 0, 5000
+    local dailyCompleted = false
+    local weeklyCompleted = false
+    
+    pcall(function()
+        local pGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local mainUI = pGui and pGui:FindFirstChild("MainUI")
+        local frames = mainUI and mainUI:FindFirstChild("Frames")
+        local bp = frames and frames:FindFirstChild("Battlepass")
+        
+        if bp then
+            for _, desc in ipairs(bp:GetDescendants()) do
+                if desc:IsA("TextLabel") then
+                    local text = desc.Text:upper()
+                    if text:find("ROLL 250") or (text:find("ROLL") and text:find("250")) then
+                        local parent = desc.Parent
+                        if parent then
+                            local progLabel = parent:FindFirstChild("Progress", true)
+                            if progLabel and progLabel:IsA("TextLabel") then
+                                local c, m = progLabel.Text:match("(%d+)/(%d+)")
+                                if c and m then
+                                    dailyCurrent = tonumber(c) or 0
+                                    dailyMax = tonumber(m) or 250
+                                end
+                            end
+                        end
+                    elseif text:find("ROLL 5000") or (text:find("ROLL") and text:find("5000")) then
+                        local parent = desc.Parent
+                        if parent then
+                            local progLabel = parent:FindFirstChild("Progress", true)
+                            if progLabel and progLabel:IsA("TextLabel") then
+                                local c, m = progLabel.Text:match("(%d+)/(%d+)")
+                                if c and m then
+                                    weeklyCurrent = tonumber(c) or 0
+                                    weeklyMax = tonumber(m) or 5000
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    
+    if dailyCurrent >= dailyMax and dailyMax > 0 then dailyCompleted = true end
+    if weeklyCurrent >= weeklyMax and weeklyMax > 0 then weeklyCompleted = true end
+    
+    return {
+        DailyCurrent = dailyCurrent,
+        DailyMax = dailyMax,
+        DailyCompleted = dailyCompleted,
+        WeeklyCurrent = weeklyCurrent,
+        WeeklyMax = weeklyMax,
+        WeeklyCompleted = weeklyCompleted,
+    }
+end
+
 function AutoRollModule.Start(options)
     if isRunning then return end
     isRunning = true
@@ -375,6 +434,7 @@ function AutoRollModule.Start(options)
     local selectedUnits = options.SelectedUnits or {}
     local allUnitsMap = options.AllUnitsMap or {}
     local getAutoSecretGod = options.GetAutoSecretGod or function() return options.AutoSecretGod or false end
+    local getQuestRollMode = options.GetQuestRollMode or function() return options.QuestRollMode or false end
     local getInterval = options.GetInterval or function() return 2.5 end
     local onStatus = options.OnStatus or function() end
     local onBought = options.OnBought or function() end
@@ -409,6 +469,27 @@ function AutoRollModule.Start(options)
         local rollCount = 0
         
         while isRunning do
+            -- Cek Mode Auto Roll Daily & Weekly Quest
+            local isQuestMode = (type(getQuestRollMode) == "function" and getQuestRollMode()) or (getQuestRollMode == true)
+            local questModeText = ""
+            
+            if isQuestMode then
+                local qProg = AutoRollModule.GetQuestRollProgress()
+                
+                -- Kasus 1: Daily Quest belum selesai -> Roll Daily (250x)
+                if not qProg.DailyCompleted then
+                    questModeText = string.format(" [🎯 Daily Quest: %d/%d]", qProg.DailyCurrent, qProg.DailyMax)
+                -- Kasus 2: Daily selesai, Weekly belum selesai -> Pindah ke Weekly (5000x)
+                elseif not qProg.WeeklyCompleted then
+                    questModeText = string.format(" [🏆 Weekly Quest: %d/%d (Daily Selesai)]", qProg.WeeklyCurrent, qProg.WeeklyMax)
+                -- Kasus 3: Daily dan Weekly keduanya sudah selesai -> Tunggu Reset
+                else
+                    onStatus(string.format("Status: ✅ [Selesai] Daily (%d/%d) & Weekly (%d/%d) Tercapai! Menunggu Reset...", qProg.DailyCurrent, qProg.DailyMax, qProg.WeeklyCurrent, qProg.WeeklyMax), "quest_done")
+                    task.wait(5)
+                    continue
+                end
+            end
+
             -- Jika prompt atau button hilang karena respawn/streaming, re-acquire dengan sabar
             if not rollPrompt or not rollPrompt.Parent or not rollBtn or not rollBtn.Parent then
                 onStatus("Status: 🔄 Memperbarui koneksi RollPrompt...", "reacquiring")
@@ -421,10 +502,10 @@ function AutoRollModule.Start(options)
             
             if rollPrompt and rollBtn then
                 rollCount += 1
-                local modeText = ""
+                local modeText = questModeText
                 local isAutoSG = (type(getAutoSecretGod) == "function" and getAutoSecretGod()) or (getAutoSecretGod == true)
                 if isAutoSG then
-                    modeText = " [👑 Auto Secret/God]"
+                    modeText = modeText .. " [👑 Auto Secret/God]"
                 end
                 
                 onStatus(string.format("Status: 🎰 Roll #%d%s | Plot: %s", rollCount, modeText, myPlot.Name), "rolling", rollCount)
