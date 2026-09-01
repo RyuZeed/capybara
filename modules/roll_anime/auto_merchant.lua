@@ -302,11 +302,23 @@ end
 -- =================================================================
 function AutoMerchant.CloseMerchantUI()
 	pcall(function()
+		-- 1. Matikan seluruh ProximityPrompt pada TraderChar agar game tidak memaksa membuka UI
+		local tc = Workspace:FindFirstChild("TraderChar")
+		if tc then
+			for _, d in ipairs(tc:GetDescendants()) do
+				if d:IsA("ProximityPrompt") then
+					d.Enabled = false
+					d.MaxActivationDistance = 0
+				end
+			end
+		end
+
+		-- 2. Tutup & Sembunyikan Frame UI Merchant di PlayerGui
 		local pGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
 		if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
 			local tFrame = pGui.MainUI.Frames:FindFirstChild("Trader (Merchant)")
 			if tFrame then
-				-- 1. Simulasikan klik tombol close di UI header jika ada
+				-- Simulasikan klik tombol close di UI header jika ada
 				local closeBtn = tFrame:FindFirstChild("Frame")
 					and tFrame.Frame:FindFirstChild("Header")
 					and tFrame.Frame.Header:FindFirstChild("CloseButton")
@@ -317,10 +329,13 @@ function AutoMerchant.CloseMerchantUI()
 						if closeBtn.MouseButton1Click then pcall(function() firesignal(closeBtn.MouseButton1Click) end) end
 					end
 				end
-				-- 2. Sembunyikan frame UI secara instan
+				-- Sembunyikan seluruh komponen frame & shadow
 				tFrame.Visible = false
 				if tFrame:FindFirstChild("Frame") then
 					tFrame.Frame.Visible = false
+				end
+				if tFrame:FindFirstChild("Shadow") then
+					tFrame.Shadow.Visible = false
 				end
 			end
 		end
@@ -538,7 +553,23 @@ function AutoMerchant.Start(customConfig)
 		table.insert(conns, c4)
 	end)
 
-	-- 5. Polling Loop Daemon (Non-Intrusive & Non-Spamming)
+	-- Event 5: Watchdog Frame UI (Jika game mencoba membuka paksa saat stock sudah habis)
+	pcall(function()
+		local pGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+		if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
+			local tFrame = pGui.MainUI.Frames:FindFirstChild("Trader (Merchant)")
+			if tFrame then
+				local c5 = tFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+					if isRunning and AutoMerchant.Config.Enabled and isSessionProcessed and tFrame.Visible then
+						AutoMerchant.CloseMerchantUI()
+					end
+				end)
+				table.insert(conns, c5)
+			end
+		end
+	end)
+
+	-- 6. Polling Loop Daemon (Non-Intrusive & Continuous Prompt Suppressor)
 	if loopThread then pcall(function() task.cancel(loopThread) end) end
 	loopThread = task.spawn(function()
 		while isRunning and AutoMerchant.Config.Enabled do
@@ -548,6 +579,9 @@ function AutoMerchant.Start(customConfig)
 					local sessionKey = AutoMerchant.GetMerchantSessionKey()
 					if sessionKey ~= currentSessionKey or not isSessionProcessed then
 						AutoMerchant.ScanAndBuyAllStock()
+					else
+						-- Stock sudah dibeli: pastikan prompt dan UI tetap tertutup
+						AutoMerchant.CloseMerchantUI()
 					end
 					task.wait(AutoMerchant.Config.ActiveInterval or 1)
 				else
