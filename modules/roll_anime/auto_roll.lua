@@ -494,6 +494,7 @@ function AutoRollModule.Start(options)
                 else
                     if rollPrompt and rollPrompt.Parent then
                         pcall(function()
+                            rollPrompt.Enabled = false
                             rollPrompt.HoldDuration = 0.5
                             rollPrompt.MaxActivationDistance = 10
                         end)
@@ -516,6 +517,7 @@ function AutoRollModule.Start(options)
             end
             
             if rollPrompt and rollBtn then
+                rollPrompt.Enabled = true
                 -- Mendekat ke tombol roll jika jarak > 5 studs selama proses roll aktif
                 AutoRollModule.MoveToRollButton(rollBtn, 5)
 
