@@ -386,24 +386,28 @@ function AutoRollModule.GetQuestRollProgress()
                 if desc:IsA("TextLabel") and desc.Text:upper():find("ROLL") then
                     local descText = desc.Text:upper()
                     local p = desc.Parent
+                    local foundProg = false
                     for step = 1, 5 do
-                        if p then
+                        if p and not foundProg then
                             local progLabel = p:FindFirstChild("Progress", true)
                             if progLabel then
                                 local tl = progLabel:IsA("TextLabel") and progLabel or progLabel:FindFirstChildWhichIsA("TextLabel", true)
-                                if tl and tl.Text:find("/") then
+                                if tl and tl.Text:find("/") and not tl.Text:upper():find("XP") then
                                     local c, m = tl.Text:match("(%d+)/(%d+)")
                                     if c and m then
                                         local curNum = tonumber(c) or 0
                                         local maxNum = tonumber(m) or 0
-                                        if descText:find("250") then
+                                        if descText:find("250") and maxNum == 250 then
                                             dailyCurrent = curNum
-                                            dailyMax = maxNum > 0 and maxNum or 250
-                                        elseif descText:find("5000") then
+                                            dailyMax = 250
+                                            foundProg = true
+                                            break
+                                        elseif descText:find("5000") and maxNum == 5000 then
                                             weeklyCurrent = curNum
-                                            weeklyMax = maxNum > 0 and maxNum or 5000
+                                            weeklyMax = 5000
+                                            foundProg = true
+                                            break
                                         end
-                                        break
                                     end
                                 end
                             end
