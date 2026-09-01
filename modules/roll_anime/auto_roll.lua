@@ -466,6 +466,9 @@ function AutoRollModule.Start(options)
         rollPrompt.Enabled = true
         task.wait(0.2)
         
+        -- Teleport langsung ke stasiun roll saat mulai jika quest aktif
+        AutoRollModule.MoveToRollButton(rollBtn, 5)
+
         local rollCount = 0
         
         while isRunning do
@@ -482,7 +485,7 @@ function AutoRollModule.Start(options)
                 -- Kasus 2: Daily selesai, Weekly belum selesai -> Pindah ke Weekly (5000x)
                 elseif not qProg.WeeklyCompleted then
                     questModeText = string.format(" [🏆 Weekly Quest: %d/%d (Daily Selesai)]", qProg.WeeklyCurrent, qProg.WeeklyMax)
-                -- Kasus 3: Daily dan Weekly keduanya sudah selesai -> Tunggu Reset
+                -- Kasus 3: Daily dan Weekly keduanya sudah selesai -> Tunggu Reset (Free Roam)
                 else
                     onStatus(string.format("Status: ✅ [Selesai] Daily (%d/%d) & Weekly (%d/%d) Tercapai! Menunggu Reset...", qProg.DailyCurrent, qProg.DailyMax, qProg.WeeklyCurrent, qProg.WeeklyMax), "quest_done")
                     task.wait(5)
@@ -501,8 +504,8 @@ function AutoRollModule.Start(options)
             end
             
             if rollPrompt and rollBtn then
-                -- Mendekat ke tombol roll hanya jika jarak > 10 studs selama proses roll aktif
-                AutoRollModule.MoveToRollButton(rollBtn, 10)
+                -- Mendekat ke tombol roll jika jarak > 5 studs selama proses roll aktif
+                AutoRollModule.MoveToRollButton(rollBtn, 5)
 
                 rollCount += 1
                 local modeText = questModeText
