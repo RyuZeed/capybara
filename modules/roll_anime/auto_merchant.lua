@@ -569,16 +569,23 @@ function AutoMerchant.Start(customConfig)
 		end
 	end)
 
-	-- 6. Polling Loop Daemon (Non-Intrusive & Continuous Prompt Suppressor)
+	-- 6. Polling Loop Daemon (Non-Intrusive, Dynamic Restock Watchdog & Continuous Prompt Suppressor)
 	if loopThread then pcall(function() task.cancel(loopThread) end) end
 	loopThread = task.spawn(function()
+		local lastRestockCheck = 0
 		while isRunning and AutoMerchant.Config.Enabled do
 			pcall(function()
 				local isActive = AutoMerchant.IsMerchantActive()
 				if isActive then
 					local sessionKey = AutoMerchant.GetMerchantSessionKey()
+					local now = tick()
 					if sessionKey ~= currentSessionKey or not isSessionProcessed then
 						AutoMerchant.ScanAndBuyAllStock()
+						lastRestockCheck = now
+					elseif now - lastRestockCheck >= 15 then
+						-- 🔄 Restock Watchdog: Cek silent remote setiap 15 detik jika ada stok baru yang masuk
+						lastRestockCheck = now
+						AutoMerchant.ScanAndBuyAllStock(true)
 					else
 						-- Stock sudah dibeli: pastikan prompt dan UI tetap tertutup
 						AutoMerchant.CloseMerchantUI()
