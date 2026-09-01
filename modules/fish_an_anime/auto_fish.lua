@@ -123,6 +123,85 @@ function AutoFish.GetBestPond()
     return bestPond
 end
 
+-- ── 🎣 Fishing Rod & Positioning Helpers ──
+function AutoFish.EquipBestRod()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return nil end
+
+    -- Check if a fishing rod is already held in character
+    for _, t in ipairs(char:GetChildren()) do
+        if t:IsA("Tool") and t:GetAttribute("IsFishingRod") == true then
+            return t
+        end
+    end
+
+    -- Collect rods from backpack & character
+    local rods = {}
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if bp then
+        for _, t in ipairs(bp:GetChildren()) do
+            if t:IsA("Tool") and (t:GetAttribute("IsFishingRod") == true or string.find(t.Name:lower(), "rod")) then
+                local speed = tonumber(t:GetAttribute("RodSpeed")) or 1
+                local luck = tonumber(t:GetAttribute("RodLuck")) or 1
+                local strength = tonumber(t:GetAttribute("RodStrength")) or 0
+                table.insert(rods, { tool = t, speed = speed, luck = luck, strength = strength })
+            end
+        end
+    end
+
+    if #rods == 0 then return nil end
+
+    table.sort(rods, function(a, b)
+        if a.speed ~= b.speed then return a.speed > b.speed end
+        if a.luck ~= b.luck then return a.luck > b.luck end
+        return a.strength > b.strength
+    end)
+
+    local bestRod = rods[1].tool
+    pcall(function()
+        hum:EquipTool(bestRod)
+    end)
+    return bestRod
+end
+
+function AutoFish.GoToNearestPond()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local pond = AutoFish.GetBestPond()
+    if not pond then return end
+
+    local dist = (pond.Position - root.Position).Magnitude
+    -- If further than 30 studs from nearest water/pond, bring player to fishing spot
+    if dist > 30 then
+        local teleports = Workspace:FindFirstChild("Scripted") and Workspace.Scripted:FindFirstChild("PondAreasTeleports")
+        local bestTP = nil
+        local bestTPDist = math.huge
+        if teleports then
+            for _, tp in ipairs(teleports:GetChildren()) do
+                if tp:IsA("BasePart") then
+                    local d = (tp.Position - pond.Position).Magnitude
+                    if d < bestTPDist then
+                        bestTPDist = d
+                        bestTP = tp
+                    end
+                end
+            end
+        end
+
+        if bestTP then
+            root.CFrame = CFrame.new(bestTP.Position + Vector3.new(0, 3, 0))
+        else
+            local edgePos = AutoFish.ClosestPointOnPond(pond, root.Position) or pond.Position
+            root.CFrame = CFrame.new(edgePos + Vector3.new(0, 4, 0))
+        end
+        task.wait(0.25)
+    end
+end
+
 -- ── 🎣 Core Fishing Action ──
 function AutoFish.ClosestPointOnPond(pond, playerPos)
     if not pond or not pond:IsA("BasePart") then return nil end
@@ -136,6 +215,13 @@ end
 function AutoFish.CastRod()
     if AutoFish.IsPaused then return false end
     if not Remotes or not Remotes:FindFirstChild("FishingRequestStart") then return false end
+
+    -- 1. Ensure best fishing rod is equipped
+    AutoFish.EquipBestRod()
+
+    -- 2. Ensure player is in range of nearest pond
+    AutoFish.GoToNearestPond()
+
     local pond = AutoFish.GetBestPond()
     if not pond then return false end
 
