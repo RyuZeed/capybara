@@ -454,26 +454,35 @@ function AutoClaim.PerformSpinWheel()
         local frames = mainUI and mainUI:FindFirstChild("Frames")
         local sFrame = frames and frames:FindFirstChild("SpinWheel")
         
+        local availableSpins = 0
+        local spinButton = nil
+
         if sFrame then
-            local btn = sFrame:FindFirstChild("Spin", true)
+            spinButton = sFrame:FindFirstChild("Spin", true)
             local label = sFrame:FindFirstChild("Label", true)
             
-            local availableSpins = 0
             if label and label.Text then
                 local num = label.Text:match("%((%d+)%)")
                 if num then
                     availableSpins = tonumber(num) or 0
-                elseif label.Text:lower():find("free") or label.Text:lower():find("spin") then
+                elseif label.Text:lower():find("free") then
                     availableSpins = 1
                 end
             end
-            
-            if availableSpins > 0 and btn then
-                clickButton(btn)
-                didSpin = true
-            end
+        end
+        
+        -- 🛑 Guard: Jika tiket spin 0 / habis, jangan lakukan apa pun (Aman dari Robux prompt)
+        if availableSpins <= 0 then
+            return
         end
 
+        -- 1. Klik Tombol UI jika ada
+        if spinButton then
+            clickButton(spinButton)
+            didSpin = true
+        end
+
+        -- 2. Direct Remote Fallback
         local RS = game:GetService("ReplicatedStorage")
         local spinRemote = RS:FindFirstChild("Remotes") and RS.Remotes:FindFirstChild("SpinWheel") and RS.Remotes.SpinWheel:FindFirstChild("Spin")
         if spinRemote and typeof(spinRemote.FireServer) == "function" then
