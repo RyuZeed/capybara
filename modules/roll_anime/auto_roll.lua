@@ -468,11 +468,24 @@ function AutoRollModule.Start(options)
             return
         end
         
-        rollPrompt.Enabled = true
-        task.wait(0.2)
-        
-        -- Teleport langsung ke stasiun roll saat mulai jika quest aktif
-        AutoRollModule.MoveToRollButton(rollBtn, 5)
+        -- Cek status quest terlebih dahulu sebelum mengaktifkan prompt atau mendekatkan karakter
+        local initQuestMode = (type(getQuestRollMode) == "function" and getQuestRollMode()) or (getQuestRollMode == true)
+        if initQuestMode then
+            local initProg = AutoRollModule.GetQuestRollProgress()
+            if not initProg.DailyCompleted or not initProg.WeeklyCompleted then
+                rollPrompt.Enabled = true
+                AutoRollModule.MoveToRollButton(rollBtn, 5)
+            else
+                rollPrompt.Enabled = false
+                pcall(function()
+                    rollPrompt.HoldDuration = 0.5
+                    rollPrompt.MaxActivationDistance = 10
+                end)
+            end
+        else
+            rollPrompt.Enabled = true
+            AutoRollModule.MoveToRollButton(rollBtn, 5)
+        end
 
         local rollCount = 0
         
