@@ -239,62 +239,56 @@ local function clickBuyButton(btn)
 end
 
 -- =================================================================
--- 🛒 CORE EXECUTE PURCHASE (SILENT & NON-BLOCKING)
+-- 🛒 CORE EXECUTE PURCHASE (INSTANT PARALLEL BURST - 5 FPS OPTIMIZED)
 -- =================================================================
 function AutoMerchant.PurchaseItem(itemName, count)
 	count = count or 1
-	if not itemName then return end
-	
-	-- 🛑 Guard: Jika trader sudah pergi / despawn, hentikan pembelian segera
-	if not AutoMerchant.IsMerchantActive() then
-		return
-	end
-	
+	if not itemName or count <= 0 then return end
+	if not AutoMerchant.IsMerchantActive() then return end
+
 	local currentGold = AutoMerchant.GetGold()
 	local minGold = AutoMerchant.Config.MinGoldReserve or 0
 	local itemInfo = AutoMerchant.ItemsCatalog[itemName]
 	local price = itemInfo and itemInfo.Price or 0
-	
+
 	local buyRemote = nil
 	pcall(function()
-		buyRemote = ReplicatedStorage:WaitForChild("Remotes", 2)
-			and ReplicatedStorage.Remotes:WaitForChild("Trader", 2)
-			and ReplicatedStorage.Remotes.Trader:WaitForChild("Buy", 2)
+		buyRemote = ReplicatedStorage:FindFirstChild("Remotes")
+			and ReplicatedStorage.Remotes:FindFirstChild("Trader")
+			and ReplicatedStorage.Remotes.Trader:FindFirstChild("Buy")
 	end)
-	
+
+	-- ⚡ Rapid Burst: Kirim seluruh kuota beli seketika tanpa jeda frame (Instant at 5 FPS)
+	local purchases = 0
 	for i = 1, count do
-		if not AutoMerchant.IsMerchantActive() then
+		if not AutoMerchant.IsMerchantActive() then break end
+		if price > 0 and currentGold - (price * (purchases + 1)) < minGold then
 			break
 		end
-		
-		if price > 0 and currentGold - price < minGold then
-			break
-		end
-		
-		-- 1. Direct Server Remote (Prioritas Utama - Tanpa Buka UI)
+		purchases = purchases + 1
 		if buyRemote and typeof(buyRemote.FireServer) == "function" then
 			pcall(function()
 				buyRemote:FireServer(itemName)
 			end)
 		end
-		
-		-- 2. UI Click Fallback jika Frame UI kebetulan ada
-		pcall(function()
-			local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
-			if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
-				local tFrame = pGui.MainUI.Frames:FindFirstChild("Trader (Merchant)")
-				if tFrame and tFrame:FindFirstChild("Frame") and tFrame.Frame:FindFirstChild("Frames") and tFrame.Frame.Frames:FindFirstChild("Main") then
-					local itemFrame = tFrame.Frame.Frames.Main:FindFirstChild(itemName)
-					if itemFrame and itemFrame:FindFirstChild("Inner3") and itemFrame.Inner3:FindFirstChild("Start") and itemFrame.Inner3.Start:FindFirstChild("Start") then
-						clickBuyButton(itemFrame.Inner3.Start.Start)
+	end
+
+	-- UI Click Fallback jika frame sedang ada di layar
+	pcall(function()
+		local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
+		if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
+			local tFrame = pGui.MainUI.Frames:FindFirstChild("Trader (Merchant)")
+			if tFrame and tFrame:FindFirstChild("Frame") and tFrame.Frame:FindFirstChild("Frames") and tFrame.Frame.Frames:FindFirstChild("Main") then
+				local itemFrame = tFrame.Frame.Frames.Main:FindFirstChild(itemName)
+				if itemFrame and itemFrame:FindFirstChild("Inner3") and itemFrame.Inner3:FindFirstChild("Start") and itemFrame.Inner3.Start:FindFirstChild("Start") then
+					local btn = itemFrame.Inner3.Start.Start
+					for i = 1, math.min(purchases, count) do
+						clickBuyButton(btn)
 					end
 				end
 			end
-		end)
-		
-		task.wait(0.12)
-		currentGold = AutoMerchant.GetGold()
-	end
+		end
+	end)
 end
 
 -- =================================================================
@@ -450,11 +444,13 @@ function AutoMerchant.ScanAndBuyAllStock(force)
 		end)
 	end
 
-	-- 3. Eksekusi Pembelian Item yang Tersedia (Hanya jika stok valid dan merchant aktif)
+	-- 3. Eksekusi Pembelian Item yang Tersedia (Instant Parallel Dispatch di 5 FPS)
 	if AutoMerchant.IsMerchantActive() then
 		for itemName, stockCount in pairs(itemsToBuy) do
 			if stockCount > 0 and AutoMerchant.IsMerchantActive() then
-				AutoMerchant.PurchaseItem(itemName, stockCount)
+				task.spawn(function()
+					AutoMerchant.PurchaseItem(itemName, stockCount)
+				end)
 			end
 		end
 	end
@@ -465,9 +461,36 @@ function AutoMerchant.ScanAndBuyAllStock(force)
 	isProcessing = false
 
 	-- 5. Bersihkan UI & Blur agar layar pemain tetap jernih dan tidak terkunci
-	task.delay(0.3, function()
+	task.delay(0.2, function()
 		AutoMerchant.CloseMerchantUI()
 	end)
+end
+
+function AutoMerchant.BuyAllNow()
+	if not AutoMerchant.IsMerchantActive() then return 0 end
+	local totalBought = 0
+	pcall(function()
+		local getStockRemote = ReplicatedStorage:FindFirstChild("Remotes")
+			and ReplicatedStorage.Remotes:FindFirstChild("Trader")
+			and ReplicatedStorage.Remotes.Trader:FindFirstChild("GetStock")
+		if getStockRemote and typeof(getStockRemote.InvokeServer) == "function" then
+			local stockData = getStockRemote:InvokeServer()
+			local list = stockData and (stockData.Items or stockData.Stock or stockData)
+			if typeof(list) == "table" then
+				for _, itm in pairs(list) do
+					local iName = typeof(itm) == "table" and (itm.Name or itm.Item or itm.ItemName or itm.id) or tostring(itm)
+					local count = typeof(itm) == "table" and tonumber(itm.Amount or itm.Stock or itm.Count) or 1
+					if iName and count and count > 0 then
+						totalBought = totalBought + count
+						task.spawn(function()
+							AutoMerchant.PurchaseItem(iName, count)
+						end)
+					end
+				end
+			end
+		end
+	end)
+	return totalBought
 end
 
 -- =================================================================
