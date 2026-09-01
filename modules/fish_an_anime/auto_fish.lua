@@ -168,20 +168,7 @@ function AutoFish.EquipBestRod()
 end
 
 function AutoFish.GoToNearestPond(force)
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    local pond = AutoFish.GetBestPond()
-    if not pond then return end
-
-    local dist = (pond.Position - root.Position).Magnitude
-    -- Only teleport if specifically forced AND player is completely far from water (> 35 studs)
-    if force and dist > 35 then
-        local edgePos = AutoFish.ClosestPointOnPond(pond, root.Position) or pond.Position
-        root.CFrame = CFrame.new(edgePos + Vector3.new(0, 4, 0))
-        task.wait(0.25)
-    end
+    -- Disabled automatic teleport so player can stand freely anywhere without being moved!
 end
 
 -- ── 🎣 Core Fishing Action ──
@@ -282,11 +269,10 @@ function AutoFish.StartFishing()
     AutoFish.IsFishing = true
     lastStateTime = tick()
 
-    -- 1. Ensure best rod equipped & in valid fishing spot ONCE at start
+    -- 1. Ensure best rod equipped & sync in-game AutoFish
     AutoFish.EquipBestRod()
-    AutoFish.GoToNearestPond(true)
     AutoFish.EnableInGameAutoFish()
-    task.wait(0.3)
+    task.wait(0.2)
 
     -- 2. Event listener
     if Remotes and Remotes:FindFirstChild("FishingState") then
@@ -324,10 +310,7 @@ function AutoFish.StartFishing()
                     isCastPending = false
                 elseif kind == "Stopped" or kind == "Denied" then
                     isCastPending = false
-                    -- Auto recovery if out of range or rod unequipped
-                    if typeof(data) == "table" and data.reason == "TOO_FAR" then
-                        AutoFish.GoToNearestPond(true)
-                    elseif typeof(data) == "table" and data.reason == "NO_ROD" then
+                    if typeof(data) == "table" and data.reason == "NO_ROD" then
                         AutoFish.EquipBestRod()
                     end
                     task.delay(0.2, function()
