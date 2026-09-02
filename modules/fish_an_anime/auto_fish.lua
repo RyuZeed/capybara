@@ -105,7 +105,8 @@ function AutoFish.GetBestPond()
 
     for _, pond in ipairs(ponds) do
         if pond:IsA("BasePart") then
-            local dist = (pond.Position - pos).Magnitude
+            local pt = AutoFish.ClosestPointOnPond(pond, pos) or pond.Position
+            local dist = (pt - pos).Magnitude
             if dist < bestDist then
                 bestDist = dist
                 bestPond = pond
@@ -168,19 +169,23 @@ function AutoFish.EquipBestRod()
 end
 
 function AutoFish.GoToNearestPond(force)
+    if not force then return end
     local pond = AutoFish.GetBestPond()
     if not pond or not pond:IsA("BasePart") then return end
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
-    local dist = (pond.Position - root.Position).Magnitude
-    if force or dist > 25 then
-        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        root.CFrame = CFrame.new(pond.Position + Vector3.new(0, 4, 18), pond.Position)
-        task.wait(0.2)
-    end
+    local pt = AutoFish.ClosestPointOnPond(pond, root.Position) or pond.Position
+    local dir = (root.Position - pt)
+    dir = Vector3.new(dir.X, 0, dir.Z)
+    if dir.Magnitude < 1 then dir = Vector3.new(0, 0, 1) end
+    local shorePos = pt + dir.Unit * 6 + Vector3.new(0, 3, 0)
+
+    root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    root.CFrame = CFrame.new(shorePos, pt)
+    task.wait(0.2)
 end
 
 -- ── 🎣 Core Fishing Action ──
@@ -208,16 +213,7 @@ function AutoFish.CastRod()
     if not root then return false end
 
     local playerPos = root.Position
-    local distToPond = (pond.Position - playerPos).Magnitude
-
-    -- If player is too far from pond (> 25 studs), reposition to pond edge
-    if distToPond > 25 then
-        AutoFish.GoToNearestPond(true)
-        task.wait(0.2)
-        playerPos = root.Position
-    end
-
-    local targetPos = pond.Position
+    local targetPos = AutoFish.ClosestPointOnPond(pond, playerPos) or pond.Position
 
     isCastPending = true
     lastStateTime = tick()
@@ -299,8 +295,7 @@ function AutoFish.StartFishing()
     AutoFish.IsFishing = true
     lastStateTime = tick()
 
-    -- 1. Move to nearest pond if far away & ensure best rod equipped
-    AutoFish.GoToNearestPond()
+    -- 1. Ensure best rod equipped, click in-game fish button & sync in-game AutoFish
     AutoFish.EquipBestRod()
     AutoFish.EnableInGameAutoFish()
     AutoFish.TriggerFishButton()
@@ -339,8 +334,6 @@ function AutoFish.StartFishing()
                     isCastPending = false
                     if typeof(data) == "table" and data.reason == "NO_ROD" then
                         AutoFish.EquipBestRod()
-                    elseif typeof(data) == "table" and data.reason == "TOO_FAR" then
-                        AutoFish.GoToNearestPond(true)
                     end
                     task.delay(0.2, function()
                         if AutoFish.IsFishing and not AutoFish.IsPaused and not isCastPending then
