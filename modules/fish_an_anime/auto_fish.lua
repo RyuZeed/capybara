@@ -168,7 +168,19 @@ function AutoFish.EquipBestRod()
 end
 
 function AutoFish.GoToNearestPond(force)
-    -- Disabled automatic teleport so player can stand freely anywhere without being moved!
+    local pond = AutoFish.GetBestPond()
+    if not pond or not pond:IsA("BasePart") then return end
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local dist = (pond.Position - root.Position).Magnitude
+    if force or dist > 25 then
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        root.CFrame = CFrame.new(pond.Position + Vector3.new(0, 4, 18), pond.Position)
+        task.wait(0.2)
+    end
 end
 
 -- ── 🎣 Core Fishing Action ──
@@ -196,12 +208,16 @@ function AutoFish.CastRod()
     if not root then return false end
 
     local playerPos = root.Position
-    local targetPos = AutoFish.ClosestPointOnPond(pond, playerPos) or (playerPos + Vector3.new(0, -2, 10))
+    local distToPond = (pond.Position - playerPos).Magnitude
 
-    -- Ensure targetPos is within close proximity (<= 15 studs from player)
-    if (targetPos - playerPos).Magnitude > 20 then
-        targetPos = playerPos + (targetPos - playerPos).Unit * 12
+    -- If player is too far from pond (> 25 studs), reposition to pond edge
+    if distToPond > 25 then
+        AutoFish.GoToNearestPond(true)
+        task.wait(0.2)
+        playerPos = root.Position
     end
+
+    local targetPos = pond.Position
 
     isCastPending = true
     lastStateTime = tick()
@@ -283,7 +299,8 @@ function AutoFish.StartFishing()
     AutoFish.IsFishing = true
     lastStateTime = tick()
 
-    -- 1. Ensure best rod equipped, click in-game fish button & sync in-game AutoFish
+    -- 1. Move to nearest pond if far away & ensure best rod equipped
+    AutoFish.GoToNearestPond()
     AutoFish.EquipBestRod()
     AutoFish.EnableInGameAutoFish()
     AutoFish.TriggerFishButton()
@@ -298,20 +315,15 @@ function AutoFish.StartFishing()
 
             if typeof(data) == "table" then
                 local kind = data.kind
-                if kind == "Hooked" then
+                if kind == "Hooked" or kind == "Progress" then
                     isCastPending = false
                     if AutoFish.IsPaused then return end
                     -- Instant Hook Catch: Click immediately
-                    if AutoFish.FastClick then
-                        AutoFish.DoClick()
-                    else
-                        task.wait(0.05)
-                        AutoFish.DoClick()
-                    end
+                    AutoFish.DoClick()
                 elseif kind == "Completed" then
                     isCastPending = false
                     -- Instant seamless recast
-                    task.wait(0.02)
+                    task.wait(0.05)
                     if AutoFish.IsFishing and not AutoFish.IsPaused then
                         AutoFish.CastRod()
                     end
@@ -327,6 +339,8 @@ function AutoFish.StartFishing()
                     isCastPending = false
                     if typeof(data) == "table" and data.reason == "NO_ROD" then
                         AutoFish.EquipBestRod()
+                    elseif typeof(data) == "table" and data.reason == "TOO_FAR" then
+                        AutoFish.GoToNearestPond(true)
                     end
                     task.delay(0.2, function()
                         if AutoFish.IsFishing and not AutoFish.IsPaused and not isCastPending then
