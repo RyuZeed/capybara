@@ -766,16 +766,98 @@ for _, u in ipairs(allUnits) do
 end
 
 -- =================================================================
--- 3. TAB 🏃 PLAYER (SPEED & JUMP)
+-- 3. TAB 🏃 PLAYER (SPEED & JUMP & TELEPORTS)
 -- =================================================================
 local PlayerTab = Window:CreateTab("Player", "🏃")
 
-PlayerTab:AddSection("Pergerakan Karakter")
+local function teleportPlayerTo(cframeOrPos, name)
+	pcall(function()
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+			hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+			if typeof(cframeOrPos) == "CFrame" then
+				hrp.CFrame = cframeOrPos
+			elseif typeof(cframeOrPos) == "Vector3" then
+				hrp.CFrame = CFrame.new(cframeOrPos)
+			end
+			if name then
+				Notify("Teleportasi", "Berhasil teleport ke " .. name .. "!", 2)
+			end
+		end
+	end)
+end
+
+local function teleportToMachine(machineKey, displayName)
+	pcall(function()
+		local machines = workspace:FindFirstChild("Machines")
+		local m = machines and machines:FindFirstChild(machineKey)
+		if m then
+			local pp = m:FindFirstChild("PP", true) or m:FindFirstChild("Prox", true) or m:FindFirstChildWhichIsA("BasePart", true)
+			local targetPos = nil
+			if pp and pp:IsA("BasePart") then
+				targetPos = pp.Position + Vector3.new(0, 1.5, 3)
+			else
+				targetPos = m:GetPivot().Position + Vector3.new(0, 1.5, 3)
+			end
+			if targetPos then
+				teleportPlayerTo(CFrame.new(targetPos), displayName)
+			end
+		else
+			Notify("Teleportasi", "Mesin " .. displayName .. " tidak ditemukan di map!", 2.5)
+		end
+	end)
+end
+
+PlayerTab:AddSection("⚡ Teleportasi Fasilitas & Mesin")
+
+PlayerTab:AddButton("🧬 Teleport ke Clone Machine", function()
+	teleportToMachine("Clone", "Clone Machine")
+end)
+
+PlayerTab:AddButton("✨ Teleport ke Trait Machine", function()
+	teleportToMachine("Trait", "Trait Machine")
+end)
+
+PlayerTab:AddButton("🔮 Teleport ke Evolution Machine", function()
+	teleportToMachine("Evolution Machine", "Evolution Machine")
+end)
+
+PlayerTab:AddButton("🗼 Teleport ke Infinity Tower", function()
+	teleportToMachine("infinity", "Infinity Tower")
+end)
+
+PlayerTab:AddButton("🏠 Teleport ke Plot Saya", function()
+	if AutoRollModule then
+		local myPlot = AutoRollModule.FindMyPlot()
+		if myPlot then
+			local _, btn = AutoRollModule.GetRollPrompt(myPlot)
+			if btn and btn:IsA("BasePart") then
+				teleportPlayerTo(CFrame.new(btn.Position + Vector3.new(0, 1.5, 4), btn.Position), "Plot (" .. myPlot.Name .. ")")
+			else
+				teleportPlayerTo(myPlot:GetPivot().Position + Vector3.new(0, 3, 0), "Plot (" .. myPlot.Name .. ")")
+			end
+		else
+			Notify("Plot", "Plot kamu tidak ditemukan!", 2)
+		end
+	end
+end)
+
+PlayerTab:AddSection("Pergerakan Karakter (Default Roblox: 16)")
 
 walkSpeedSliderRef = PlayerTab:AddSlider("WalkSpeed (Kecepatan Jalan)", 16, 250, savedConfig.WalkSpeed or 16, function(val)
 	savedConfig.WalkSpeed = val
 	applyPlayerWalkSpeed(val)
 	if ConfigManager then ConfigManager.Save({ WalkSpeed = val }) end
+end)
+
+PlayerTab:AddButton("🔄 Reset WalkSpeed ke Default Roblox (16)", function()
+	savedConfig.WalkSpeed = 16
+	if walkSpeedSliderRef then walkSpeedSliderRef:Set(16, false) end
+	applyPlayerWalkSpeed(16)
+	if ConfigManager then ConfigManager.Save({ WalkSpeed = 16 }) end
+	Notify("WalkSpeed", "WalkSpeed di-reset ke default Roblox (16).", 2)
 end)
 
 jumpPowerSliderRef = PlayerTab:AddSlider("JumpPower (Kekuatan Lompat)", 50, 300, savedConfig.JumpPower or 50, function(val)
