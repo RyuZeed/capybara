@@ -185,12 +185,21 @@ MainTab:AddToggle("Instant Hook Catch (Fast Reel)", CurrentConfig.FastClick ~= f
     if ConfigManager then ConfigManager.Save() end
 end)
 
+MainTab:AddButton("🌊 Teleport ke Tepi Kolam (Go to Pond)", function()
+    if AutoFish then
+        AutoFish.GoToNearestPond(true)
+        Window.Notify("Pond", "Karakter diposisikan ke tepi kolam pemancingan!", 2.0)
+    end
+end)
+
 MainTab:AddButton("🎣 Cast Rod Now (Instant 1x)", function()
-    local success = AutoFish and AutoFish.CastRod()
-    if success then
-        Window.Notify("Cast Rod", "Umpan berhasil dilempar!", 2.0)
-    else
-        Window.Notify("Cast Rod", "Gagal melempar rod / Pond tidak ditemukan", 2.0)
+    if AutoFish then
+        local success = AutoFish.CastRod()
+        if success then
+            Window.Notify("Cast Rod", "Umpan berhasil dilempar!", 2.0)
+        else
+            Window.Notify("Cast Rod", "Gagal melempar rod / Pond tidak ditemukan", 2.0)
+        end
     end
 end)
 
