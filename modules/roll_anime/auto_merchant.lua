@@ -258,37 +258,14 @@ function AutoMerchant.PurchaseItem(itemName, count)
 			and ReplicatedStorage.Remotes.Trader:FindFirstChild("Buy")
 	end)
 
-	-- ⚡ Rapid Burst: Kirim seluruh kuota beli seketika tanpa jeda frame (Instant at 5 FPS)
-	local purchases = 0
-	for i = 1, count do
-		if not AutoMerchant.IsMerchantActive() then break end
-		if price > 0 and currentGold - (price * (purchases + 1)) < minGold then
-			break
-		end
-		purchases = purchases + 1
-		if buyRemote and typeof(buyRemote.FireServer) == "function" then
+	if buyRemote and typeof(buyRemote.FireServer) == "function" then
+		for i = 1, count do
+			if price > 0 and currentGold - (price * i) < minGold then break end
 			pcall(function()
 				buyRemote:FireServer(itemName)
 			end)
 		end
 	end
-
-	-- UI Click Fallback jika frame sedang ada di layar
-	pcall(function()
-		local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
-		if pGui and pGui:FindFirstChild("MainUI") and pGui.MainUI:FindFirstChild("Frames") then
-			local tFrame = pGui.MainUI.Frames:FindFirstChild("Trader (Merchant)")
-			if tFrame and tFrame:FindFirstChild("Frame") and tFrame.Frame:FindFirstChild("Frames") and tFrame.Frame.Frames:FindFirstChild("Main") then
-				local itemFrame = tFrame.Frame.Frames.Main:FindFirstChild(itemName)
-				if itemFrame and itemFrame:FindFirstChild("Inner3") and itemFrame.Inner3:FindFirstChild("Start") and itemFrame.Inner3.Start:FindFirstChild("Start") then
-					local btn = itemFrame.Inner3.Start.Start
-					for i = 1, math.min(purchases, count) do
-						clickBuyButton(btn)
-					end
-				end
-			end
-		end
-	end)
 end
 
 -- =================================================================
@@ -444,13 +421,23 @@ function AutoMerchant.ScanAndBuyAllStock(force)
 		end)
 	end
 
-	-- 3. Eksekusi Pembelian Item yang Tersedia (Instant Parallel Dispatch di 5 FPS)
+	-- 3. Eksekusi Pembelian Item yang Tersedia (Direct Instant Network Burst)
 	if AutoMerchant.IsMerchantActive() then
-		for itemName, stockCount in pairs(itemsToBuy) do
-			if stockCount > 0 and AutoMerchant.IsMerchantActive() then
-				task.spawn(function()
-					AutoMerchant.PurchaseItem(itemName, stockCount)
-				end)
+		local buyRemote = nil
+		pcall(function()
+			buyRemote = ReplicatedStorage:FindFirstChild("Remotes")
+				and ReplicatedStorage.Remotes:FindFirstChild("Trader")
+				and ReplicatedStorage.Remotes.Trader:FindFirstChild("Buy")
+		end)
+		if buyRemote and typeof(buyRemote.FireServer) == "function" then
+			for itemName, stockCount in pairs(itemsToBuy) do
+				if stockCount > 0 then
+					for i = 1, stockCount do
+						pcall(function()
+							buyRemote:FireServer(itemName)
+						end)
+					end
+				end
 			end
 		end
 	end
@@ -473,7 +460,11 @@ function AutoMerchant.BuyAllNow()
 		local getStockRemote = ReplicatedStorage:FindFirstChild("Remotes")
 			and ReplicatedStorage.Remotes:FindFirstChild("Trader")
 			and ReplicatedStorage.Remotes.Trader:FindFirstChild("GetStock")
-		if getStockRemote and typeof(getStockRemote.InvokeServer) == "function" then
+		local buyRemote = ReplicatedStorage:FindFirstChild("Remotes")
+			and ReplicatedStorage.Remotes:FindFirstChild("Trader")
+			and ReplicatedStorage.Remotes.Trader:FindFirstChild("Buy")
+
+		if getStockRemote and buyRemote and typeof(getStockRemote.InvokeServer) == "function" and typeof(buyRemote.FireServer) == "function" then
 			local stockData = getStockRemote:InvokeServer()
 			local list = stockData and (stockData.Items or stockData.Stock or stockData)
 			if typeof(list) == "table" then
@@ -481,10 +472,12 @@ function AutoMerchant.BuyAllNow()
 					local iName = typeof(itm) == "table" and (itm.Name or itm.Item or itm.ItemName or itm.id) or tostring(itm)
 					local count = typeof(itm) == "table" and tonumber(itm.Amount or itm.Stock or itm.Count) or 1
 					if iName and count and count > 0 then
-						totalBought = totalBought + count
-						task.spawn(function()
-							AutoMerchant.PurchaseItem(iName, count)
-						end)
+						for i = 1, count do
+							pcall(function()
+								buyRemote:FireServer(iName)
+							end)
+							totalBought = totalBought + 1
+						end
 					end
 				end
 			end
