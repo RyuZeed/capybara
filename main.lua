@@ -24,8 +24,9 @@ local remotes = rs:FindFirstChild("Remotes")
 local isChickenFighter = (remotes and remotes:FindFirstChild("IncubatorClaim") and remotes:FindFirstChild("HatchEgg")) or workspace:FindFirstChild("NestEggs") ~= nil
 local isRollAnime = (PlaceId == 107653945083776 or GameId == 107653945083776)
 local isFishAnAnime = (PlaceId == 74729868188364 or GameId == 9582986239) or (remotes and remotes:FindFirstChild("FishingRequestStart") and remotes:FindFirstChild("FishingClick") ~= nil)
+local isAnimeDice = (PlaceId == 113290951185459 or GameId == 10708913337) or (rs:FindFirstChild("Network") and rs.Network:FindFirstChild("RollService") ~= nil)
 
-if not isRollAnime and not isChickenFighter and not isFishAnAnime then
+if not isRollAnime and not isChickenFighter and not isFishAnAnime and not isAnimeDice then
     if rs:FindFirstChild("Modules") and rs.Modules:FindFirstChild("Characters") then
         isRollAnime = true
     end
@@ -38,6 +39,8 @@ elseif isRollAnime then
     targetScript = "roll_anime.lua"
 elseif isFishAnAnime then
     targetScript = "fish_an_anime.lua"
+elseif isAnimeDice then
+    targetScript = "anime_dice.lua"
 end
 
 local url = BASE_URL .. targetScript .. "?t=" .. tostring(os.time()) .. "&nocache=" .. tostring(math.random(100000, 999999))

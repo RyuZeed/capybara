@@ -835,13 +835,21 @@ function RitodUI:CreateWindow(options)
 			corner(1, barFill)
 
 			local sliding = false
+			local isDecimalRange = (max - min) < 2
 			local function setSlider(input)
 				local absPos = barBack.AbsolutePosition.X
 				local absSize = barBack.AbsoluteSize.X
 				if absSize <= 0 then return end
 				local relX = math.clamp((input.Position.X - absPos) / absSize, 0, 1)
 				barFill.Size = UDim2.new(relX, 0, 1, 0)
-				local current = math.floor(min + ((max - min) * relX))
+				local raw = min + ((max - min) * relX)
+				local current
+				if isDecimalRange then
+					current = math.floor(raw * 100 + 0.5) / 100
+				else
+					current = math.floor(raw)
+				end
+				current = math.clamp(current, min, max)
 				val = current
 				valLabel.Text = tostring(current)
 				if callback then callback(current) end
