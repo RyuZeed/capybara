@@ -848,6 +848,53 @@ PotionsTab:AddButton("📊 Cek Potion yang Dimiliki (Console)", function()
     end
 end)
 
+PotionsTab:AddButton("⏳ Cek Potion yang Sedang Aktif (Realtime)", function()
+    local rs = game:GetService("ReplicatedStorage")
+    local DataController = require(rs.Framework.Features.Data.DataController)
+    local activeObj = DataController.ActiveEntries
+    local allActive = activeObj and activeObj() or {}
+
+    local function fmtTime(sec)
+        if not sec or sec <= 0 then return "Habis" end
+        local s = math.floor(sec)
+        local h = math.floor(s / 3600)
+        local m = math.floor((s % 3600) / 60)
+        local remS = s % 60
+        if h > 0 then return string.format("%dj %dm %ds", h, m, remS)
+        elseif m > 0 then return string.format("%dm %ds", m, remS)
+        else return string.format("%ds", remS) end
+    end
+
+    local lines = {}
+    local totalIncome = 0
+    local totalDamage = 0
+    local totalLuck = 0
+
+    for id, data in pairs(allActive) do
+        local name = (typeof(data) == "table" and data.name) or tostring(id)
+        local rem = (typeof(data) == "table" and tonumber(data.remaining)) or 0
+        if rem > 0 then
+            table.insert(lines, string.format("• %s -> Sisa: %s", name, fmtTime(rem)))
+            local low = string.lower(name)
+            if low:find("income") then totalIncome = totalIncome + 1
+            elseif low:find("damage") then totalDamage = totalDamage + 1
+            elseif low:find("luck") then totalLuck = totalLuck + 1 end
+        end
+    end
+
+    print("===============================================================")
+    print("🧪 DAFTAR LENGKAP POTION AKTIF SAAT INI:")
+    if #lines > 0 then
+        for _, l in ipairs(lines) do print(l) end
+    else
+        print("Tidak ada potion yang sedang aktif.")
+    end
+    print("===============================================================")
+
+    local summaryMsg = string.format("Aktif: %d Income | %d Damage | %d Luck (Total %d buff). Cek F9 Console!", totalIncome, totalDamage, totalLuck, #lines)
+    Window.Notify("Potion Aktif", summaryMsg, 4.0)
+end)
+
 -- ─── TAB 4: 🏰 AUTO TOWERS ──────────────────────────────────────
 local TowersTab = Window:CreateTab("Towers", "🏰")
 
