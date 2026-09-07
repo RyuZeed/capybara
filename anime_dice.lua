@@ -60,6 +60,9 @@ pcall(function()
     if _G.AnimeDiceAutoRewards and typeof(_G.AnimeDiceAutoRewards.StopAll) == "function" then
         _G.AnimeDiceAutoRewards.StopAll()
     end
+    if _G.AnimeDiceAutoPotion and typeof(_G.AnimeDiceAutoPotion.StopAll) == "function" then
+        _G.AnimeDiceAutoPotion.StopAll()
+    end
     if _G.AnimeDiceAntiAFK and typeof(_G.AnimeDiceAntiAFK.Stop) == "function" then
         _G.AnimeDiceAntiAFK.Stop()
     end
@@ -131,6 +134,7 @@ local ConfigManager = loadModule("config_manager", false) or _G.AnimeDiceConfigM
 local AutoRoll = loadModule("auto_roll", false) or _G.AnimeDiceAutoRoll
 local AutoPlot = loadModule("auto_plot", false) or _G.AnimeDiceAutoPlot
 local AutoRewards = loadModule("auto_rewards", false) or _G.AnimeDiceAutoRewards
+local AutoPotion = loadModule("auto_potion", false) or _G.AnimeDiceAutoPotion
 local Teleports = loadModule("teleports", false) or _G.AnimeDiceTeleports
 local AntiAFK = loadModule("anti_afk", false) or _G.AnimeDiceAntiAFK
 
@@ -145,7 +149,18 @@ local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {
     AutoClaimGroup = true,
     AutoClaimOffline = true,
     AutoRebirth = false,
-    AntiAFK = true
+    AntiAFK = true,
+    AutoPotion = false,
+    AutoPotionLuck = true,
+    AutoPotionIncome = false,
+    AutoPotionDamage = false,
+    AutoPotionNormal = true,
+    AutoPotionPirate = true,
+    AutoPotionCursed = true,
+    AutoPotionDragon = true,
+    AutoPotionTier1 = true,
+    AutoPotionTier2 = true,
+    AutoPotionTier3 = true
 }
 
 -- =================================================================
@@ -159,6 +174,7 @@ local Window = RitodUI:CreateWindow({
         if AutoRoll then AutoRoll.StopAll() end
         if AutoPlot then AutoPlot.StopAll() end
         if AutoRewards then AutoRewards.StopAll() end
+        if AutoPotion then AutoPotion.StopAll() end
         if AntiAFK then AntiAFK.Stop() end
         print("[RITOD HUB] All Anime Dice routines terminated.")
     end
@@ -302,7 +318,122 @@ RewardsTab:AddButton("🔄 Lakukan Rebirth Sekarang", function()
     end
 end)
 
--- ─── TAB 3: 📍 PLOT & TELEPORT ───────────────────────────────────
+-- ─── TAB 3: 🧪 AUTO POTIONS ─────────────────────────────────────
+local PotionsTab = Window:CreateTab("Potions", "🧪")
+
+PotionsTab:AddSection("⚡ Master Control")
+
+PotionsTab:AddToggle("Auto Use Potion (Active Buff Keepalive)", CurrentConfig.AutoPotion or false, function(state)
+    CurrentConfig.AutoPotion = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if AutoPotion then AutoPotion.Start() end
+        Window.Notify("Auto Potion", "Auto Use Potion diaktifkan!", 2.0)
+    else
+        if AutoPotion then AutoPotion.Stop() end
+        Window.Notify("Auto Potion", "Auto Use Potion dinonaktifkan.", 2.0)
+    end
+end)
+
+PotionsTab:AddSection("🍀 Filter Berdasarkan Efek (Stat)")
+
+PotionsTab:AddToggle("Auto Use Luck Potions (🍀)", CurrentConfig.AutoPotionLuck ~= false, function(state)
+    CurrentConfig.AutoPotionLuck = state
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Filter Potion", state and "Auto Luck: Aktif" or "Auto Luck: Mati", 1.5)
+end)
+
+PotionsTab:AddToggle("Auto Use Income Potions (💰)", CurrentConfig.AutoPotionIncome or false, function(state)
+    CurrentConfig.AutoPotionIncome = state
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Filter Potion", state and "Auto Income: Aktif" or "Auto Income: Mati", 1.5)
+end)
+
+PotionsTab:AddToggle("Auto Use Damage Potions (⚔️)", CurrentConfig.AutoPotionDamage or false, function(state)
+    CurrentConfig.AutoPotionDamage = state
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Filter Potion", state and "Auto Damage: Aktif" or "Auto Damage: Mati", 1.5)
+end)
+
+PotionsTab:AddSection("🌍 Filter Berdasarkan Dunia / Seri")
+
+PotionsTab:AddToggle("🌟 Normal Potions", CurrentConfig.AutoPotionNormal ~= false, function(state)
+    CurrentConfig.AutoPotionNormal = state
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+PotionsTab:AddToggle("🏴‍☠️ Pirate Potions", CurrentConfig.AutoPotionPirate ~= false, function(state)
+    CurrentConfig.AutoPotionPirate = state
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+PotionsTab:AddToggle("🔮 Cursed Potions", CurrentConfig.AutoPotionCursed ~= false, function(state)
+    CurrentConfig.AutoPotionCursed = state
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+PotionsTab:AddToggle("🐉 Dragon Potions", CurrentConfig.AutoPotionDragon ~= false, function(state)
+    CurrentConfig.AutoPotionDragon = state
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+PotionsTab:AddSection("⭐ Filter Tier")
+
+PotionsTab:AddToggle("Tier I Potions", CurrentConfig.AutoPotionTier1 ~= false, function(state)
+    CurrentConfig.AutoPotionTier1 = state
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+PotionsTab:AddToggle("Tier II Potions", CurrentConfig.AutoPotionTier2 ~= false, function(state)
+    CurrentConfig.AutoPotionTier2 = state
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+PotionsTab:AddToggle("Tier III Potions", CurrentConfig.AutoPotionTier3 ~= false, function(state)
+    CurrentConfig.AutoPotionTier3 = state
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+PotionsTab:AddSection("🚀 Tindakan Instan (Manual)")
+
+PotionsTab:AddButton("🍀 Gunakan Semua Potion Luck (Sekali)", function()
+    if AutoPotion then
+        local count = AutoPotion.UseAllCategoryOnce("Luck")
+        Window.Notify("Potion Luck", string.format("%d Potion Luck berhasil digunakan!", count), 2.0)
+    end
+end)
+
+PotionsTab:AddButton("💰 Gunakan Semua Potion Income (Sekali)", function()
+    if AutoPotion then
+        local count = AutoPotion.UseAllCategoryOnce("Income")
+        Window.Notify("Potion Income", string.format("%d Potion Income berhasil digunakan!", count), 2.0)
+    end
+end)
+
+PotionsTab:AddButton("⚔️ Gunakan Semua Potion Damage (Sekali)", function()
+    if AutoPotion then
+        local count = AutoPotion.UseAllCategoryOnce("Damage")
+        Window.Notify("Potion Damage", string.format("%d Potion Damage berhasil digunakan!", count), 2.0)
+    end
+end)
+
+PotionsTab:AddButton("📊 Cek Potion yang Dimiliki (Console)", function()
+    if AutoPotion then
+        local owned = AutoPotion.GetOwnedPotions()
+        local lines = {}
+        for _, p in ipairs(owned) do
+            table.insert(lines, string.format("[%s] %s (Tier %d): %d buah", p.stat, p.fullName, p.tier, p.amount))
+        end
+        local summary = #lines > 0 and table.concat(lines, "\n") or "Tidak ada potion di inventory."
+        print("===============================================================")
+        print("🎒 DAFTAR POTION DI INVENTORY:")
+        print(summary)
+        print("===============================================================")
+        Window.Notify("Daftar Potion", string.format("Memiliki %d jenis potion. Rincian ada di F9 Console!", #owned), 3.0)
+    end
+end)
+
+-- ─── TAB 4: 📍 PLOT & TELEPORT ───────────────────────────────────
 local TeleportTab = Window:CreateTab("Teleport", "📍")
 
 TeleportTab:AddSection("🏰 Player Plot")
@@ -365,6 +496,9 @@ SettingsTab:AddButton("🔄 Reload Configuration", function()
             if CurrentConfig.FastRoll then AutoRoll.Start(CurrentConfig.RollDelay or 0.1) else AutoRoll.Stop() end
             if CurrentConfig.NativeAutoRoll ~= nil then AutoRoll.SetNativeAutoRoll(CurrentConfig.NativeAutoRoll) end
         end
+        if AutoPotion then
+            if CurrentConfig.AutoPotion then AutoPotion.Start() else AutoPotion.Stop() end
+        end
         if AntiAFK then
             if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() else AntiAFK.Stop() end
         end
@@ -377,6 +511,7 @@ SettingsTab:AddButton("🗑️ Reset to Default Settings", function()
     if AutoRoll then AutoRoll.StopAll() end
     if AutoPlot then AutoPlot.StopAll() end
     if AutoRewards then AutoRewards.StopAll() end
+    if AutoPotion then AutoPotion.StopAll() end
     Window.Notify("Config Reset", "Pengaturan dikembalikan ke default!", 2.5)
 end)
 
@@ -398,6 +533,7 @@ if AutoPlot then
     AutoPlot.Start()
 end
 if AutoRewards then AutoRewards.Start() end
+if AutoPotion and CurrentConfig.AutoPotion then AutoPotion.Start() end
 if AntiAFK and (CurrentConfig.AntiAFK ~= false) then AntiAFK.Start() end
 if CurrentConfig.FastRoll and AutoRoll then
     AutoRoll.Start(CurrentConfig.RollDelay or 0.1)

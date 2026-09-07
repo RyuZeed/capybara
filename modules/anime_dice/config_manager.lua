@@ -24,7 +24,19 @@ ConfigManager.DefaultConfig = {
     AutoClaimGroup = true,
     AutoClaimOffline = true,
     AutoRebirth = false,
-    AntiAFK = true
+    AntiAFK = true,
+    -- Potion Automation
+    AutoPotion = false,
+    AutoPotionLuck = true,
+    AutoPotionIncome = false,
+    AutoPotionDamage = false,
+    AutoPotionNormal = true,
+    AutoPotionPirate = true,
+    AutoPotionCursed = true,
+    AutoPotionDragon = true,
+    AutoPotionTier1 = true,
+    AutoPotionTier2 = true,
+    AutoPotionTier3 = true
 }
 
 ConfigManager.CurrentConfig = {}
