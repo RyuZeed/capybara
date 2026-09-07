@@ -40,7 +40,10 @@ ConfigManager.DefaultConfig = {
     -- Upgrades & Dice Shop
     AutoUpgrades = false,
     AutoBuyDice = false,
-    AutoEquipBestDice = true
+    AutoEquipBestDice = true,
+    -- Slot Unit Upgrades
+    SlotUpgradeTargetSlot = 0, -- 0 = Semua Slot, 1..8 = Slot 1-8
+    SlotUpgradeTargetTimes = 5
 }
 
 ConfigManager.CurrentConfig = {}

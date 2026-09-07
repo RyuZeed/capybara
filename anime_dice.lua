@@ -171,7 +171,9 @@ local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {
     AutoPotionTier3 = true,
     AutoUpgrades = false,
     AutoBuyDice = false,
-    AutoEquipBestDice = true
+    AutoEquipBestDice = true,
+    SlotUpgradeTargetSlot = 0,
+    SlotUpgradeTargetTimes = 5
 }
 
 -- =================================================================
@@ -261,13 +263,6 @@ FarmTab:AddToggle("Auto Equip Best Units", CurrentConfig.AutoEquipBest ~= false,
     Window.Notify("Equip Best", state and "Auto Equip Best aktif" or "Auto Equip Best mati", 1.8)
 end)
 
-FarmTab:AddToggle("Auto Upgrade Slots (1-8)", CurrentConfig.AutoUpgradeSlots or false, function(state)
-    CurrentConfig.AutoUpgradeSlots = state
-    if AutoPlot then AutoPlot.UpgradeSlots = state end
-    if ConfigManager then ConfigManager.Save() end
-    Window.Notify("Upgrade Slots", state and "Auto Upgrade Slots aktif" or "Auto Upgrade Slots mati", 1.8)
-end)
-
 FarmTab:AddButton("💰 Ambil Cash Sekarang", function()
     if AutoPlot then
         AutoPlot.CollectBalanceOnce()
@@ -282,10 +277,118 @@ FarmTab:AddButton("⚔️ Pasang Unit Terbaik Sekarang", function()
     end
 end)
 
-FarmTab:AddButton("⬆️ Upgrade Semua Slot Sekali", function()
+-- ─── SLOT UNITS & REALTIME UPGRADE ENGINE ─────────────────────
+FarmTab:AddSection("⚡ Slot Units & Upgrade Engine (Realtime)")
+
+local function formatCash(n)
+    if not n or type(n) ~= "number" then return "0" end
+    if n >= 1e12 then return string.format("%.2fT", n / 1e12)
+    elseif n >= 1e9 then return string.format("%.2fB", n / 1e9)
+    elseif n >= 1e6 then return string.format("%.2fM", n / 1e6)
+    elseif n >= 1e3 then return string.format("%.2fK", n / 1e3)
+    else return tostring(math.floor(n)) end
+end
+
+local selectedSlotIdx = tonumber(CurrentConfig.SlotUpgradeTargetSlot) or 0
+local selectedUpgradeTimes = tonumber(CurrentConfig.SlotUpgradeTargetTimes) or 5
+
+if AutoPlot then
+    AutoPlot.TargetSlot = selectedSlotIdx
+    AutoPlot.UpgradeTimes = selectedUpgradeTimes
+end
+
+local slotInfoCard = FarmTab:AddParagraph(
+    "📊 Memuat Data Slot Unit...",
+    "Mengambil informasi unit, level, dan harga upgrade dari server..."
+)
+
+local function updateSlotDisplay()
+    if not AutoPlot or not AutoPlot.GetSlotUnitInfo then return end
+    if selectedSlotIdx == 0 then
+        local allSlots = AutoPlot.GetAllSlotsInfo()
+        local activeCount = 0
+        local lines = {}
+        for _, s in ipairs(allSlots) do
+            if s.hasUnit then
+                activeCount = activeCount + 1
+                table.insert(lines, string.format("S%d: %s (Lv.%d)", s.slot, s.unitName, s.level))
+            end
+        end
+        local summaryStr = (#lines > 0) and table.concat(lines, " | ") or "Semua slot kosong."
+        slotInfoCard:Set(
+            string.format("🌟 Semua Slot Unit (%d/8 Terpasang)", activeCount),
+            string.format("Target: Semua Slot (1-8)\n%s", summaryStr)
+        )
+    else
+        local s = AutoPlot.GetSlotUnitInfo(selectedSlotIdx)
+        if s.hasUnit then
+            local statusStr = s.canAfford and "✅ Koin Cukup" or "❌ Koin Kurang"
+            slotInfoCard:Set(
+                string.format("⭐ [Slot %d] %s (%s)", s.slot, s.unitName, s.rarity),
+                string.format("Level: %d | Grade: %s | Trait: %s | Mutasi: %s\nBiaya Upgrade: $%s (%s)",
+                    s.level, s.grade, s.trait, s.mutation, formatCash(s.price), statusStr)
+            )
+        else
+            slotInfoCard:Set(
+                string.format("⚪ [Slot %d] Slot Kosong", selectedSlotIdx),
+                "Tidak ada unit yang ditempatkan pada slot ini.\nGunakan 'Pasang Unit Terbaik Sekarang' untuk mengisi slot."
+            )
+        end
+    end
+end
+
+local slotOptions = {
+    "Semua Slot (1-8)",
+    "Slot 1", "Slot 2", "Slot 3", "Slot 4",
+    "Slot 5", "Slot 6", "Slot 7", "Slot 8"
+}
+local currentSlotName = (selectedSlotIdx == 0) and "Semua Slot (1-8)" or ("Slot " .. selectedSlotIdx)
+
+FarmTab:AddDropdown("Pilih Slot Unit", slotOptions, currentSlotName, function(choice)
+    if choice == "Semua Slot (1-8)" then
+        selectedSlotIdx = 0
+    else
+        local num = choice:match("%d+")
+        selectedSlotIdx = tonumber(num) or 0
+    end
+    CurrentConfig.SlotUpgradeTargetSlot = selectedSlotIdx
+    if AutoPlot then AutoPlot.TargetSlot = selectedSlotIdx end
+    if ConfigManager then ConfigManager.Save() end
+    updateSlotDisplay()
+end)
+
+FarmTab:AddSlider("Berapa Kali Upgrade (1 - 50x)", 1, 50, selectedUpgradeTimes, function(val)
+    selectedUpgradeTimes = val
+    CurrentConfig.SlotUpgradeTargetTimes = val
+    if AutoPlot then AutoPlot.UpgradeTimes = val end
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+FarmTab:AddToggle("Auto Upgrade Unit di Slot", CurrentConfig.AutoUpgradeSlots or false, function(state)
+    CurrentConfig.AutoUpgradeSlots = state
+    if AutoPlot then AutoPlot.UpgradeSlots = state end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Auto Upgrade", state and ("Auto Upgrade aktif (" .. selectedUpgradeTimes .. "x per loop)") or "Auto Upgrade dimatikan.", 2.0)
+end)
+
+FarmTab:AddButton("⬆️ Upgrade Unit Sekarang (Sesuai Pilihan X Kali)", function()
     if AutoPlot then
-        local count = AutoPlot.UpgradeAllSlotsOnce()
-        Window.Notify("Upgrade Slots", string.format("Upgrade dicoba untuk %d slot!", count), 2.0)
+        local count = 0
+        if selectedSlotIdx > 0 then
+            count = AutoPlot.UpgradeSlotTimes(selectedSlotIdx, selectedUpgradeTimes)
+            Window.Notify("Upgrade Slot", string.format("Slot %d di-upgrade sebanyak %d kali!", selectedSlotIdx, count), 2.5)
+        else
+            count = AutoPlot.UpgradeAllSlotsTimes(selectedUpgradeTimes)
+            Window.Notify("Upgrade Slot", string.format("Semua slot di-upgrade total %d kali!", count), 2.5)
+        end
+        updateSlotDisplay()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1.2)
+        pcall(updateSlotDisplay)
     end
 end)
 

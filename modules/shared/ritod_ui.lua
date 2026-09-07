@@ -1033,6 +1033,83 @@ function RitodUI:CreateWindow(options)
 			}
 		end
 
+		function elements:AddLabel(text)
+			local lblFrame = n("Frame", {
+				Size = UDim2.new(1, 0, 0, 34),
+				BackgroundColor3 = Color3.fromRGB(26, 20, 34),
+				BorderSizePixel = 0,
+				ZIndex = 14
+			}, page)
+			corner(8, lblFrame)
+			local txt = n("TextLabel", {
+				Position = UDim2.new(0, 12, 0, 0),
+				Size = UDim2.new(1, -24, 1, 0),
+				BackgroundTransparency = 1,
+				Text = text or "",
+				TextColor3 = Color3.fromRGB(215, 200, 235),
+				TextSize = 11,
+				Font = Enum.Font.GothamMedium,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextWrapped = true,
+				ZIndex = 15
+			}, lblFrame)
+
+			return {
+				Frame = lblFrame,
+				Label = txt,
+				Set = function(self, newText)
+					txt.Text = tostring(newText or "")
+				end
+			}
+		end
+
+		function elements:AddParagraph(title, desc)
+			local card = n("Frame", {
+				Size = UDim2.new(1, 0, 0, 68),
+				BackgroundColor3 = Color3.fromRGB(24, 18, 32),
+				BorderSizePixel = 0,
+				ZIndex = 14
+			}, page)
+			corner(8, card)
+			local cStroke = stroke(1, Color3.fromRGB(65, 45, 80), card)
+
+			local titleLbl = n("TextLabel", {
+				Position = UDim2.new(0, 12, 0, 8),
+				Size = UDim2.new(1, -24, 0, 18),
+				BackgroundTransparency = 1,
+				Text = title or "",
+				TextColor3 = Color3.fromRGB(255, 215, 120),
+				TextSize = 12,
+				Font = Enum.Font.GothamBold,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = 15
+			}, card)
+
+			local descLbl = n("TextLabel", {
+				Position = UDim2.new(0, 12, 0, 28),
+				Size = UDim2.new(1, -24, 0, 34),
+				BackgroundTransparency = 1,
+				Text = desc or "",
+				TextColor3 = Color3.fromRGB(195, 180, 215),
+				TextSize = 11,
+				Font = Enum.Font.GothamMedium,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextWrapped = true,
+				ZIndex = 15
+			}, card)
+
+			return {
+				Frame = card,
+				Title = titleLbl,
+				Desc = descLbl,
+				Stroke = cStroke,
+				Set = function(self, newTitle, newDesc)
+					if newTitle then titleLbl.Text = tostring(newTitle) end
+					if newDesc then descLbl.Text = tostring(newDesc) end
+				end
+			}
+		end
+
 		return elements
 	end
 

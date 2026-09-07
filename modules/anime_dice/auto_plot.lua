@@ -98,6 +98,66 @@ function AutoPlot.EquipBestOnce()
     return false
 end
 
+AutoPlot.UpgradeTimes = 5 -- Berapa kali upgrade default
+AutoPlot.TargetSlot = 0 -- 0 = Semua Slot, 1..8 = Slot tertentu
+
+function AutoPlot.GetSlotUnitInfo(slotIdx)
+    local info = {
+        slot = slotIdx,
+        hasUnit = false,
+        unitId = nil,
+        unitName = "Kosong",
+        level = 0,
+        rarity = "None",
+        grade = "-",
+        mutation = "None",
+        trait = "None",
+        price = 0,
+        canAfford = false,
+        balance = 0
+    }
+    pcall(function()
+        local DataController = require(ReplicatedStorage.Framework.Features.Data.DataController)
+        local EntryRegistry = require(ReplicatedStorage.Framework.Features.Inventory.EntryRegistry)
+        local UnitUtil = require(ReplicatedStorage.Framework.Features.Inventory.Kinds.Unit.UnitUtil)
+
+        local slots = DataController.Slots and DataController.Slots()
+        local slotData = slots and slots[tostring(slotIdx)]
+        if slotData then
+            info.balance = slotData.balance or 0
+            if slotData.unitId then
+                local unitItem = DataController.Inventory[slotData.unitId] and DataController.Inventory[slotData.unitId]()
+                if unitItem then
+                    local attrs = unitItem.attributes or {}
+                    local cfg = EntryRegistry.getEntryConfig(unitItem.name)
+                    local price = UnitUtil.GetLevelPrice(unitItem.name, attrs)
+                    local myMoney = DataController.Money and DataController.Money() or 0
+
+                    info.hasUnit = true
+                    info.unitId = slotData.unitId
+                    info.unitName = unitItem.name
+                    info.level = attrs.level or 1
+                    info.rarity = cfg and cfg.rarity or "Common"
+                    info.grade = attrs.grade or "F"
+                    info.mutation = attrs.mutation or "None"
+                    info.trait = attrs.trait or "None"
+                    info.price = price
+                    info.canAfford = (myMoney >= price)
+                end
+            end
+        end
+    end)
+    return info
+end
+
+function AutoPlot.GetAllSlotsInfo()
+    local all = {}
+    for i = 1, 8 do
+        table.insert(all, AutoPlot.GetSlotUnitInfo(i))
+    end
+    return all
+end
+
 function AutoPlot.UpgradeSlot(slotIndex)
     getRemotes()
     if levelUpSlotRE then
@@ -106,14 +166,39 @@ function AutoPlot.UpgradeSlot(slotIndex)
     return false
 end
 
-function AutoPlot.UpgradeAllSlotsOnce()
-    local successCount = 0
-    for i = 1, 8 do
-        local ok = AutoPlot.UpgradeSlot(i)
-        if ok then successCount = successCount + 1 end
+function AutoPlot.UpgradeSlotTimes(slotIndex, times)
+    getRemotes()
+    times = math.max(1, tonumber(times) or 1)
+    local upgraded = 0
+    for i = 1, times do
+        local info = AutoPlot.GetSlotUnitInfo(slotIndex)
+        if not info.hasUnit or not info.canAfford then
+            break
+        end
+        local ok = AutoPlot.UpgradeSlot(slotIndex)
+        if ok then
+            upgraded = upgraded + 1
+            task.wait(0.2)
+        else
+            break
+        end
+    end
+    return upgraded
+end
+
+function AutoPlot.UpgradeAllSlotsTimes(times)
+    times = math.max(1, tonumber(times) or 1)
+    local total = 0
+    for slot = 1, 8 do
+        local count = AutoPlot.UpgradeSlotTimes(slot, times)
+        total = total + count
         task.wait(0.05)
     end
-    return successCount
+    return total
+end
+
+function AutoPlot.UpgradeAllSlotsOnce()
+    return AutoPlot.UpgradeAllSlotsTimes(1)
 end
 
 function AutoPlot.Start()
@@ -155,17 +240,26 @@ function AutoPlot.Start()
                 AutoPlot.EquipBestOnce()
             end
 
-            -- Auto Upgrade Slots (setiap 2.5 detik)
+            -- Auto Upgrade Slots dengan target unit & jumlah kali (setiap 2.5 detik)
             local shouldUpgrade = AutoPlot.UpgradeSlots
             if cfg and cfg.AutoUpgradeSlots ~= nil then
                 shouldUpgrade = cfg.AutoUpgradeSlots
             end
+            local targetSlot = AutoPlot.TargetSlot or 0
+            if cfg and cfg.SlotUpgradeTargetSlot ~= nil then
+                targetSlot = tonumber(cfg.SlotUpgradeTargetSlot) or 0
+            end
+            local targetTimes = AutoPlot.UpgradeTimes or 5
+            if cfg and cfg.SlotUpgradeTargetTimes ~= nil then
+                targetTimes = tonumber(cfg.SlotUpgradeTargetTimes) or 5
+            end
+
             if shouldUpgrade and (now - tickUpgrade) >= 2.5 then
                 tickUpgrade = now
-                for i = 1, 8 do
-                    if not AutoPlot.IsRunning then break end
-                    AutoPlot.UpgradeSlot(i)
-                    task.wait(0.05)
+                if targetSlot > 0 then
+                    AutoPlot.UpgradeSlotTimes(targetSlot, targetTimes)
+                else
+                    AutoPlot.UpgradeAllSlotsTimes(targetTimes)
                 end
             end
 
