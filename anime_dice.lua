@@ -63,6 +63,12 @@ pcall(function()
     if _G.AnimeDiceAutoPotion and typeof(_G.AnimeDiceAutoPotion.StopAll) == "function" then
         _G.AnimeDiceAutoPotion.StopAll()
     end
+    if _G.AnimeDiceAutoUpgrades and typeof(_G.AnimeDiceAutoUpgrades.StopAll) == "function" then
+        _G.AnimeDiceAutoUpgrades.StopAll()
+    end
+    if _G.AnimeDiceAutoDice and typeof(_G.AnimeDiceAutoDice.StopAll) == "function" then
+        _G.AnimeDiceAutoDice.StopAll()
+    end
     if _G.AnimeDiceAntiAFK and typeof(_G.AnimeDiceAntiAFK.Stop) == "function" then
         _G.AnimeDiceAntiAFK.Stop()
     end
@@ -135,6 +141,8 @@ local AutoRoll = loadModule("auto_roll", false) or _G.AnimeDiceAutoRoll
 local AutoPlot = loadModule("auto_plot", false) or _G.AnimeDiceAutoPlot
 local AutoRewards = loadModule("auto_rewards", false) or _G.AnimeDiceAutoRewards
 local AutoPotion = loadModule("auto_potion", false) or _G.AnimeDiceAutoPotion
+local AutoUpgrades = loadModule("auto_upgrades", false) or _G.AnimeDiceAutoUpgrades
+local AutoDice = loadModule("auto_dice", false) or _G.AnimeDiceAutoDice
 local Teleports = loadModule("teleports", false) or _G.AnimeDiceTeleports
 local AntiAFK = loadModule("anti_afk", false) or _G.AnimeDiceAntiAFK
 
@@ -160,7 +168,10 @@ local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {
     AutoPotionDragon = true,
     AutoPotionTier1 = true,
     AutoPotionTier2 = true,
-    AutoPotionTier3 = true
+    AutoPotionTier3 = true,
+    AutoUpgrades = false,
+    AutoBuyDice = false,
+    AutoEquipBestDice = true
 }
 
 -- =================================================================
@@ -175,6 +186,8 @@ local Window = RitodUI:CreateWindow({
         if AutoPlot then AutoPlot.StopAll() end
         if AutoRewards then AutoRewards.StopAll() end
         if AutoPotion then AutoPotion.StopAll() end
+        if AutoUpgrades then AutoUpgrades.StopAll() end
+        if AutoDice then AutoDice.StopAll() end
         if AntiAFK then AntiAFK.Stop() end
         print("[RITOD HUB] All Anime Dice routines terminated.")
     end
@@ -433,7 +446,105 @@ PotionsTab:AddButton("📊 Cek Potion yang Dimiliki (Console)", function()
     end
 end)
 
--- ─── TAB 4: 📍 PLOT & TELEPORT ───────────────────────────────────
+-- ─── TAB 4: 🛒 SHOP & UPGRADES ─────────────────────────────────
+local ShopTab = Window:CreateTab("Shop & Upgrades", "🛒")
+
+ShopTab:AddSection("🌳 Tree Upgrades (Urutan Sesuai)")
+
+ShopTab:AddToggle("Auto Buy Upgrades (Tree Order)", CurrentConfig.AutoUpgrades or false, function(state)
+    CurrentConfig.AutoUpgrades = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if AutoUpgrades then AutoUpgrades.Start() end
+        Window.Notify("Auto Upgrades", "Auto Buy Upgrades diaktifkan!", 2.0)
+    else
+        if AutoUpgrades then AutoUpgrades.Stop() end
+        Window.Notify("Auto Upgrades", "Auto Buy Upgrades dimatikan.", 2.0)
+    end
+end)
+
+ShopTab:AddButton("⬆️ Beli Semua Upgrade yang Mampu (Sekali)", function()
+    if AutoUpgrades then
+        local count = AutoUpgrades.BuyAvailableOnce()
+        Window.Notify("Upgrades", string.format("%d Upgrade berhasil dibeli!", count), 2.0)
+    end
+end)
+
+ShopTab:AddButton("📊 Cek Upgrade Tersedia Berikutnya", function()
+    if AutoUpgrades then
+        local list = AutoUpgrades.GetAvailableUpgrades()
+        print("===============================================================")
+        print("🌳 DAFTAR UPGRADE TERSEDIA BERIKUTNYA:")
+        for _, u in ipairs(list) do
+            print(string.format("-> %s | Harga: $%s | Mampu: %s", u.name, tostring(u.price), tostring(u.canAfford)))
+        end
+        print("===============================================================")
+        local top = list[1]
+        if top then
+            Window.Notify("Next Upgrade", string.format("%s ($%s) - Mampu: %s", top.name, tostring(top.price), tostring(top.canAfford)), 3.0)
+        else
+            Window.Notify("Upgrades", "Semua upgrade saat ini sudah dimiliki!", 2.0)
+        end
+    end
+end)
+
+ShopTab:AddSection("🎲 Dice Shop (Urutan Progresi)")
+
+ShopTab:AddToggle("Auto Buy Next Dice (Progression Order)", CurrentConfig.AutoBuyDice or false, function(state)
+    CurrentConfig.AutoBuyDice = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if AutoDice then AutoDice.Start() end
+        Window.Notify("Auto Buy Dice", "Auto Buy Dice diaktifkan!", 2.0)
+    else
+        if AutoDice then AutoDice.Stop() end
+        Window.Notify("Auto Buy Dice", "Auto Buy Dice dimatikan.", 2.0)
+    end
+end)
+
+ShopTab:AddToggle("Auto Equip Best Dice (Highest Luck)", CurrentConfig.AutoEquipBestDice ~= false, function(state)
+    CurrentConfig.AutoEquipBestDice = state
+    if ConfigManager then ConfigManager.Save() end
+    if state and AutoDice then
+        AutoDice.EquipBestDiceOnce()
+    end
+end)
+
+ShopTab:AddButton("🎲 Beli Dadu Berikutnya Sekarang", function()
+    if AutoDice then
+        local ok, nameOrErr = AutoDice.BuyNextDiceOnce()
+        if ok then
+            Window.Notify("Dice Bought", string.format("Berhasil membeli dadu: %s!", nameOrErr), 2.5)
+        else
+            Window.Notify("Dice Shop", nameOrErr or "Gagal membeli dadu.", 2.5)
+        end
+    end
+end)
+
+ShopTab:AddButton("✨ Pasang Dadu Terbaik Milikmu", function()
+    if AutoDice then
+        local ok, res = AutoDice.EquipBestDiceOnce()
+        if ok then
+            Window.Notify("Equip Dice", string.format("Berhasil memasang dadu terbaik: %s!", res), 2.0)
+        else
+            Window.Notify("Equip Dice", res or "Dadu terbaik sudah terpasang.", 2.0)
+        end
+    end
+end)
+
+ShopTab:AddButton("📊 Cek Dadu Berikutnya & Harga", function()
+    if AutoDice then
+        local nextD = AutoDice.GetNextUnownedDice()
+        if nextD then
+            print(string.format("=== NEXT DICE: %s | Luck: %sx | Harga: $%s | Mampu: %s ===", nextD.name, tostring(nextD.luck), tostring(nextD.price), tostring(nextD.canAfford)))
+            Window.Notify("Next Dice", string.format("%s (Luck %sx) - $%s", nextD.name, tostring(nextD.luck), tostring(nextD.price)), 3.5)
+        else
+            Window.Notify("Dice Shop", "Semua dadu dalam game sudah kamu miliki!", 2.5)
+        end
+    end
+end)
+
+-- ─── TAB 5: 📍 PLOT & TELEPORT ───────────────────────────────────
 local TeleportTab = Window:CreateTab("Teleport", "📍")
 
 TeleportTab:AddSection("🏰 Player Plot")
@@ -499,6 +610,12 @@ SettingsTab:AddButton("🔄 Reload Configuration", function()
         if AutoPotion then
             if CurrentConfig.AutoPotion then AutoPotion.Start() else AutoPotion.Stop() end
         end
+        if AutoUpgrades then
+            if CurrentConfig.AutoUpgrades then AutoUpgrades.Start() else AutoUpgrades.Stop() end
+        end
+        if AutoDice then
+            if CurrentConfig.AutoBuyDice or CurrentConfig.AutoEquipBestDice then AutoDice.Start() else AutoDice.Stop() end
+        end
         if AntiAFK then
             if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() else AntiAFK.Stop() end
         end
@@ -512,6 +629,8 @@ SettingsTab:AddButton("🗑️ Reset to Default Settings", function()
     if AutoPlot then AutoPlot.StopAll() end
     if AutoRewards then AutoRewards.StopAll() end
     if AutoPotion then AutoPotion.StopAll() end
+    if AutoUpgrades then AutoUpgrades.StopAll() end
+    if AutoDice then AutoDice.StopAll() end
     Window.Notify("Config Reset", "Pengaturan dikembalikan ke default!", 2.5)
 end)
 
@@ -534,6 +653,8 @@ if AutoPlot then
 end
 if AutoRewards then AutoRewards.Start() end
 if AutoPotion and CurrentConfig.AutoPotion then AutoPotion.Start() end
+if AutoUpgrades and CurrentConfig.AutoUpgrades then AutoUpgrades.Start() end
+if AutoDice and (CurrentConfig.AutoBuyDice or CurrentConfig.AutoEquipBestDice) then AutoDice.Start() end
 if AntiAFK and (CurrentConfig.AntiAFK ~= false) then AntiAFK.Start() end
 if CurrentConfig.FastRoll and AutoRoll then
     AutoRoll.Start(CurrentConfig.RollDelay or 0.1)

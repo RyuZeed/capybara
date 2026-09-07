@@ -36,7 +36,11 @@ ConfigManager.DefaultConfig = {
     AutoPotionDragon = true,
     AutoPotionTier1 = true,
     AutoPotionTier2 = true,
-    AutoPotionTier3 = true
+    AutoPotionTier3 = true,
+    -- Upgrades & Dice Shop
+    AutoUpgrades = false,
+    AutoBuyDice = false,
+    AutoEquipBestDice = true
 }
 
 ConfigManager.CurrentConfig = {}
