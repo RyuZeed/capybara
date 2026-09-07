@@ -180,6 +180,7 @@ local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {
     AutoGrade = false,
     TargetUnitId = nil,
     TargetTrait = "Transcendent",
+    TargetTraits = { "Transcendent" },
     TargetGrade = "S+",
     GradeModeOrHigher = true
 }
@@ -462,9 +463,26 @@ for dName, id in pairs(displayNameToId) do
     end
 end
 
-local selectedTargetTrait = CurrentConfig.TargetTrait or "Transcendent"
+local selectedTargetTraits = CurrentConfig.TargetTraits
+if typeof(selectedTargetTraits) ~= "table" then
+    if typeof(CurrentConfig.TargetTrait) == "string" and CurrentConfig.TargetTrait ~= "" then
+        selectedTargetTraits = { CurrentConfig.TargetTrait }
+    else
+        selectedTargetTraits = { "Transcendent" }
+    end
+end
+
 local selectedTargetGrade = CurrentConfig.TargetGrade or "S+"
 local gradeOrHigher = (CurrentConfig.GradeModeOrHigher ~= false)
+
+local function formatTraitsDisplay(list)
+    if not list or #list == 0 then return "Tidak Ada" end
+    if #list <= 3 then
+        return table.concat(list, ", ")
+    else
+        return string.format("%d Target (%s, %s...)", #list, list[1], list[2])
+    end
+end
 
 local traitGradeCard = FarmTab:AddParagraph(
     "📊 Memuat Status Unit Inventory...",
@@ -480,10 +498,11 @@ local function updateTraitGradeDisplay()
     if u then
         local traitStatus = AutoTraitsGrades.AutoTrait and " [⏳ Rolling Trait...]" or ""
         local gradeStatus = AutoTraitsGrades.AutoGrade and " [⏳ Rolling Grade...]" or ""
+        local traitsDisplay = formatTraitsDisplay(selectedTargetTraits)
         traitGradeCard:Set(
             string.format("⭐ %s (Lv.%d) [%s]", u.name, u.level, u.rarity),
-            string.format("Trait: %s%s | Target: %s\nGrade: %s%s | Target: %s\nBahan: %d Trait Rerolls | %d Gems",
-                u.trait, traitStatus, selectedTargetTrait,
+            string.format("Trait: %s%s | Target (%d): [%s]\nGrade: %s%s | Target: %s\nBahan: %d Trait Rerolls | %d Gems",
+                u.trait, traitStatus, #selectedTargetTraits, traitsDisplay,
                 u.grade, gradeStatus, selectedTargetGrade .. (gradeOrHigher and " (Atau Lebih)" or ""),
                 traitRerolls, gems)
         )
@@ -504,7 +523,7 @@ FarmTab:AddDropdown("Pilih Unit (Inventory)", unitDisplayNames, currentUnitDispl
         if AutoTraitsGrades then
             AutoTraitsGrades.TargetUnitId = targetId
             if AutoTraitsGrades.AutoTrait then
-                AutoTraitsGrades.StartAutoTrait(targetId, selectedTargetTrait)
+                AutoTraitsGrades.StartAutoTrait(targetId, selectedTargetTraits)
             end
             if AutoTraitsGrades.AutoGrade then
                 AutoTraitsGrades.StartAutoGrade(targetId, selectedTargetGrade, gradeOrHigher)
@@ -530,13 +549,17 @@ local traitListOptions = {
     "Any Mythic"
 }
 
-FarmTab:AddDropdown("Target Trait List", traitListOptions, selectedTargetTrait, function(choice)
-    selectedTargetTrait = choice
-    CurrentConfig.TargetTrait = choice
+FarmTab:AddMultiDropdown("Target Trait List (Bisa Pilih >1)", traitListOptions, selectedTargetTraits, function(chosenList, chosenMap)
+    if #chosenList == 0 then
+        chosenList = { "Transcendent" }
+    end
+    selectedTargetTraits = chosenList
+    CurrentConfig.TargetTraits = chosenList
+    CurrentConfig.TargetTrait = chosenList[1] or "Transcendent"
     if AutoTraitsGrades then
-        AutoTraitsGrades.TargetTrait = choice
+        AutoTraitsGrades.TargetTraits = chosenList
         if AutoTraitsGrades.AutoTrait and selectedUnitId then
-            AutoTraitsGrades.StartAutoTrait(selectedUnitId, choice)
+            AutoTraitsGrades.StartAutoTrait(selectedUnitId, chosenList)
         end
     end
     if ConfigManager then ConfigManager.Save() end
@@ -544,7 +567,7 @@ FarmTab:AddDropdown("Target Trait List", traitListOptions, selectedTargetTrait, 
 end)
 
 local autoTraitToggle
-autoTraitToggle = FarmTab:AddToggle("Auto Roll Trait (Stop di Target)", false, function(state)
+autoTraitToggle = FarmTab:AddToggle("Auto Roll Trait (Stop di Salah Satu Target)", false, function(state)
     CurrentConfig.AutoTrait = state
     if AutoTraitsGrades then
         if state then
@@ -555,8 +578,11 @@ autoTraitToggle = FarmTab:AddToggle("Auto Roll Trait (Stop di Target)", false, f
                 end
                 return
             end
-            AutoTraitsGrades.StartAutoTrait(selectedUnitId, selectedTargetTrait)
-            Window.Notify("Auto Trait", string.format("Auto Trait dimulai -> Target: %s", selectedTargetTrait), 2.5)
+            if not selectedTargetTraits or #selectedTargetTraits == 0 then
+                selectedTargetTraits = { "Transcendent" }
+            end
+            AutoTraitsGrades.StartAutoTrait(selectedUnitId, selectedTargetTraits)
+            Window.Notify("Auto Trait", string.format("Auto Trait dimulai! Mencari salah satu dari %d target.", #selectedTargetTraits), 2.5)
         else
             AutoTraitsGrades.StopAutoTrait()
             Window.Notify("Auto Trait", "Auto Trait dihentikan.", 1.8)
@@ -612,7 +638,7 @@ FarmTab:AddToggle("Grade Target Atau Lebih Tinggi (>=)", gradeOrHigher, function
 end)
 
 local autoGradeToggle
-autoGradeToggle = FarmTab:AddToggle("Auto Roll Grade (Stop di Target)", false, function(state)
+autoGradeToggle = FarmTab:AddToggle("Auto Roll Grade (Repeat Sampai Target)", false, function(state)
     CurrentConfig.AutoGrade = state
     if AutoTraitsGrades then
         if state then
@@ -624,7 +650,7 @@ autoGradeToggle = FarmTab:AddToggle("Auto Roll Grade (Stop di Target)", false, f
                 return
             end
             AutoTraitsGrades.StartAutoGrade(selectedUnitId, selectedTargetGrade, gradeOrHigher)
-            Window.Notify("Auto Grade", string.format("Auto Grade dimulai -> Target: %s", selectedTargetGrade), 2.5)
+            Window.Notify("Auto Grade", string.format("Auto Grade dimulai! Terus roll repeat sampai %s.", selectedTargetGrade), 2.5)
         else
             AutoTraitsGrades.StopAutoGrade()
             Window.Notify("Auto Grade", "Auto Grade dihentikan.", 1.8)

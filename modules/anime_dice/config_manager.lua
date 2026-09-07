@@ -49,6 +49,7 @@ ConfigManager.DefaultConfig = {
     AutoGrade = false,
     TargetUnitId = nil,
     TargetTrait = "Transcendent",
+    TargetTraits = { "Transcendent" },
     TargetGrade = "S+",
     GradeModeOrHigher = true
 }
@@ -81,6 +82,14 @@ function ConfigManager.Load()
             for k, v in pairs(data) do
                 if ConfigManager.DefaultConfig[k] ~= nil then
                     ConfigManager.CurrentConfig[k] = v
+                end
+            end
+            -- Validasi TargetTraits agar selalu berbentuk tabel/array
+            if typeof(ConfigManager.CurrentConfig.TargetTraits) ~= "table" then
+                if typeof(ConfigManager.CurrentConfig.TargetTrait) == "string" and ConfigManager.CurrentConfig.TargetTrait ~= "" then
+                    ConfigManager.CurrentConfig.TargetTraits = { ConfigManager.CurrentConfig.TargetTrait }
+                else
+                    ConfigManager.CurrentConfig.TargetTraits = { "Transcendent" }
                 end
             end
         end

@@ -76,12 +76,13 @@ AutoTraitsGrades.AutoTrait = false
 AutoTraitsGrades.AutoGrade = false
 AutoTraitsGrades.TargetUnitId = nil
 AutoTraitsGrades.TargetTrait = "Transcendent"
+AutoTraitsGrades.TargetTraits = { "Transcendent" }
 AutoTraitsGrades.TargetGrade = "S+"
 AutoTraitsGrades.GradeModeOrHigher = true
 AutoTraitsGrades.RollDelay = 0.35
 
-AutoTraitsGrades.OnTraitFinished = nil -- callback
-AutoTraitsGrades.OnGradeFinished = nil -- callback
+AutoTraitsGrades.OnTraitFinished = nil -- callback(success, msg)
+AutoTraitsGrades.OnGradeFinished = nil -- callback(success, msg)
 
 local traitThread = nil
 local gradeThread = nil
@@ -225,24 +226,43 @@ function AutoTraitsGrades.GetUnitById(unitId)
     }
 end
 
--- ─── PENGECEKAN KONDISI TARGET ────────────────────────────────────
-function AutoTraitsGrades.IsTraitTargetReached(currentTrait, targetTrait)
-    if not currentTrait or currentTrait == "None" or currentTrait == "" then return false end
-    if not targetTrait or targetTrait == "None" or targetTrait == "" then return false end
+-- ─── PENGECEKAN KONDISI TARGET (MENDUKUNG MULTI-TARGET LIST) ────────
+local function matchSingleTrait(cur, tgt)
+    if not cur or not tgt or cur == "" or tgt == "" then return false end
+    if tgt == "Any Mythic" then
+        return cur == "Transcendent" or cur == "Monarch" or cur == "Shogun" or cur == "Samurai"
+    end
+    return cur:lower() == tgt:lower()
+end
 
-    -- Check exact match
-    if currentTrait:lower() == targetTrait:lower() then
-        return true
+function AutoTraitsGrades.IsTraitTargetReached(currentTrait, targetTraits)
+    if not currentTrait or currentTrait == "None" or currentTrait == "" then return false, nil end
+    if not targetTraits then return false, nil end
+
+    if typeof(targetTraits) == "string" then
+        if matchSingleTrait(currentTrait, targetTraits) then
+            return true, currentTrait
+        end
+        return false, nil
     end
 
-    -- Preset: "Any Mythic" (Transcendent, Monarch, Shogun)
-    if targetTrait == "Any Mythic" then
-        if currentTrait == "Transcendent" or currentTrait == "Monarch" or currentTrait == "Shogun" then
-            return true
+    if typeof(targetTraits) == "table" then
+        -- Cek apakah dict { ["Transcendent"] = true } atau array { "Transcendent", ... }
+        for k, v in pairs(targetTraits) do
+            local candidate = nil
+            if typeof(k) == "string" and v == true then
+                candidate = k
+            elseif typeof(v) == "string" then
+                candidate = v
+            end
+
+            if candidate and matchSingleTrait(currentTrait, candidate) then
+                return true, candidate
+            end
         end
     end
 
-    return false
+    return false, nil
 end
 
 function AutoTraitsGrades.IsGradeTargetReached(currentGrade, targetGrade, orHigher)
@@ -264,22 +284,38 @@ function AutoTraitsGrades.IsGradeTargetReached(currentGrade, targetGrade, orHigh
     return false
 end
 
--- ─── AUTO TRAIT ENGINE ────────────────────────────────────────────
-function AutoTraitsGrades.StartAutoTrait(unitId, targetTrait)
+-- ─── AUTO TRAIT ENGINE (MULTI-TARGET LIST AWARE) ──────────────────
+function AutoTraitsGrades.StartAutoTrait(unitId, targetTraits)
     AutoTraitsGrades.StopAutoTrait()
     getRemotes()
 
     unitId = unitId or AutoTraitsGrades.TargetUnitId
-    targetTrait = targetTrait or AutoTraitsGrades.TargetTrait or "Transcendent"
+    targetTraits = targetTraits or AutoTraitsGrades.TargetTraits or { "Transcendent" }
     AutoTraitsGrades.TargetUnitId = unitId
-    AutoTraitsGrades.TargetTrait = targetTrait
+    AutoTraitsGrades.TargetTraits = targetTraits
     AutoTraitsGrades.AutoTrait = true
 
+    -- Format log string target
+    local targetDesc = ""
+    if typeof(targetTraits) == "table" then
+        local tList = {}
+        for k, v in pairs(targetTraits) do
+            if typeof(k) == "string" and v == true then
+                table.insert(tList, k)
+            elseif typeof(v) == "string" then
+                table.insert(tList, v)
+            end
+        end
+        targetDesc = (#tList > 0) and table.concat(tList, ", ") or "Transcendent"
+    else
+        targetDesc = tostring(targetTraits)
+    end
+
     traitThread = task.spawn(function()
-        print(string.format("[AUTO TRAIT] Memulai auto trait untuk Unit %s (Target: %s)...", tostring(unitId), targetTrait))
+        print(string.format("[AUTO TRAIT] Memulai auto trait untuk Unit %s (Target List: %s)...", tostring(unitId), targetDesc))
 
         -- 1. BACA UNIT DARI INVENTORY TERLEBIH DAHULU (Pencegahan Bug Rejoin / Double Roll)
-        task.wait(0.3)
+        task.wait(0.2)
         local initialUnit = AutoTraitsGrades.GetUnitById(unitId)
         if not initialUnit then
             warn("[AUTO TRAIT] Unit tidak ditemukan di inventory! Menghentikan.")
@@ -292,17 +328,18 @@ function AutoTraitsGrades.StartAutoTrait(unitId, targetTrait)
         end
 
         print(string.format("[AUTO TRAIT] Unit dibaca: %s | Trait saat ini: %s", initialUnit.name, initialUnit.trait))
-        if AutoTraitsGrades.IsTraitTargetReached(initialUnit.trait, targetTrait) then
-            print("[AUTO TRAIT] Unit SUDAH memiliki trait target! Tidak perlu me-roll.")
+        local alreadyReached, alreadyMatched = AutoTraitsGrades.IsTraitTargetReached(initialUnit.trait, targetTraits)
+        if alreadyReached then
+            print(string.format("[AUTO TRAIT] Unit SUDAH memiliki trait target (%s)! Tidak perlu me-roll.", tostring(alreadyMatched)))
             AutoTraitsGrades.AutoTrait = false
             traitThread = nil
             if AutoTraitsGrades.OnTraitFinished then
-                pcall(AutoTraitsGrades.OnTraitFinished, true, string.format("Unit sudah memiliki target trait: %s!", initialUnit.trait))
+                pcall(AutoTraitsGrades.OnTraitFinished, true, string.format("Unit sudah memiliki salah satu target trait: %s!", initialUnit.trait))
             end
             return
         end
 
-        -- 2. LOOP ROLLING TRAIT
+        -- 2. LOOP ROLLING TRAIT SAMPAI SALAH SATU TARGET TERCAPAI
         while AutoTraitsGrades.AutoTrait do
             -- Cek sisa bahan Trait Reroll
             local rerolls = AutoTraitsGrades.GetTraitRerolls()
@@ -324,12 +361,13 @@ function AutoTraitsGrades.StartAutoTrait(unitId, targetTrait)
                 return
             end
 
-            if AutoTraitsGrades.IsTraitTargetReached(u.trait, targetTrait) then
-                print(string.format("[AUTO TRAIT] 🎉 TARGET TERCAPAI: %s! STOP ROLL.", u.trait))
+            local reached, matched = AutoTraitsGrades.IsTraitTargetReached(u.trait, targetTraits)
+            if reached then
+                print(string.format("[AUTO TRAIT] 🎉 SALAH SATU TARGET TERCAPAI: %s! STOP ROLL.", tostring(matched)))
                 AutoTraitsGrades.AutoTrait = false
                 traitThread = nil
                 if AutoTraitsGrades.OnTraitFinished then
-                    pcall(AutoTraitsGrades.OnTraitFinished, true, string.format("Selamat! Target Trait %s berhasil didapat!", u.trait))
+                    pcall(AutoTraitsGrades.OnTraitFinished, true, string.format("Target Trait '%s' berhasil didapat!", u.trait))
                 end
                 return
             end
@@ -345,14 +383,17 @@ function AutoTraitsGrades.StartAutoTrait(unitId, targetTrait)
 
             -- Verifikasi hasil roll setelah delay
             local uAfter = AutoTraitsGrades.GetUnitById(unitId)
-            if uAfter and AutoTraitsGrades.IsTraitTargetReached(uAfter.trait, targetTrait) then
-                print(string.format("[AUTO TRAIT] 🎉 TARGET TERCAPAI: %s! STOP ROLL.", uAfter.trait))
-                AutoTraitsGrades.AutoTrait = false
-                traitThread = nil
-                if AutoTraitsGrades.OnTraitFinished then
-                    pcall(AutoTraitsGrades.OnTraitFinished, true, string.format("Selamat! Target Trait %s berhasil didapat!", uAfter.trait))
+            if uAfter then
+                local reachedAfter, matchedAfter = AutoTraitsGrades.IsTraitTargetReached(uAfter.trait, targetTraits)
+                if reachedAfter then
+                    print(string.format("[AUTO TRAIT] 🎉 SALAH SATU TARGET TERCAPAI: %s! STOP ROLL.", tostring(matchedAfter)))
+                    AutoTraitsGrades.AutoTrait = false
+                    traitThread = nil
+                    if AutoTraitsGrades.OnTraitFinished then
+                        pcall(AutoTraitsGrades.OnTraitFinished, true, string.format("Target Trait '%s' berhasil didapat!", uAfter.trait))
+                    end
+                    return
                 end
-                return
             end
         end
     end)
@@ -371,7 +412,7 @@ function AutoTraitsGrades.StopAutoTrait()
     end
 end
 
--- ─── AUTO GRADE ENGINE ────────────────────────────────────────────
+-- ─── AUTO GRADE ENGINE (REPEAT LOOP GUARANTEED) ───────────────────
 function AutoTraitsGrades.StartAutoGrade(unitId, targetGrade, orHigher)
     AutoTraitsGrades.StopAutoGrade()
     getRemotes()
@@ -390,7 +431,7 @@ function AutoTraitsGrades.StartAutoGrade(unitId, targetGrade, orHigher)
             tostring(unitId), targetGrade, tostring(orHigher)))
 
         -- 1. BACA UNIT DARI INVENTORY TERLEBIH DAHULU (Pencegahan Bug Rejoin / Double Roll)
-        task.wait(0.3)
+        task.wait(0.2)
         local initialUnit = AutoTraitsGrades.GetUnitById(unitId)
         if not initialUnit then
             warn("[AUTO GRADE] Unit tidak ditemukan di inventory! Menghentikan.")
@@ -404,7 +445,7 @@ function AutoTraitsGrades.StartAutoGrade(unitId, targetGrade, orHigher)
 
         print(string.format("[AUTO GRADE] Unit dibaca: %s | Grade saat ini: %s", initialUnit.name, initialUnit.grade))
         if AutoTraitsGrades.IsGradeTargetReached(initialUnit.grade, targetGrade, orHigher) then
-            print("[AUTO GRADE] Unit SUDAH memiliki grade target! Tidak perlu me-roll.")
+            print(string.format("[AUTO GRADE] Unit SUDAH memiliki grade target (%s)! Tidak perlu me-roll.", initialUnit.grade))
             AutoTraitsGrades.AutoGrade = false
             gradeThread = nil
             if AutoTraitsGrades.OnGradeFinished then
@@ -413,7 +454,7 @@ function AutoTraitsGrades.StartAutoGrade(unitId, targetGrade, orHigher)
             return
         end
 
-        -- 2. LOOP ROLLING GRADE
+        -- 2. LOOP ROLLING GRADE (TERUS REPEAT HINGGA TARGET TERCAPAI)
         while AutoTraitsGrades.AutoGrade do
             -- Cek sisa bahan Gems
             local gems = AutoTraitsGrades.GetGems()
@@ -427,7 +468,7 @@ function AutoTraitsGrades.StartAutoGrade(unitId, targetGrade, orHigher)
                 return
             end
 
-            -- Cek ulang unit sebelum melempar remote
+            -- Cek ulang status unit sebelum melempar remote
             local u = AutoTraitsGrades.GetUnitById(unitId)
             if not u then
                 AutoTraitsGrades.AutoGrade = false
@@ -465,6 +506,7 @@ function AutoTraitsGrades.StartAutoGrade(unitId, targetGrade, orHigher)
                 end
                 return
             end
+            -- Jika belum tercapai, while loop otomatis berulang (REPEAT)!
         end
     end)
 end

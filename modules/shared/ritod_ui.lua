@@ -1033,6 +1033,183 @@ function RitodUI:CreateWindow(options)
 			}
 		end
 
+		function elements:AddMultiDropdown(text, list, defaults, callback)
+			local open = false
+			local selectedMap = {}
+			if typeof(defaults) == "table" then
+				for k, v in pairs(defaults) do
+					if typeof(k) == "string" and v == true then
+						selectedMap[k] = true
+					elseif typeof(v) == "string" then
+						selectedMap[v] = true
+					end
+				end
+			elseif typeof(defaults) == "string" and defaults ~= "" then
+				selectedMap[defaults] = true
+			end
+
+			local function getSelectedList()
+				local t = {}
+				for _, item in ipairs(list or {}) do
+					if selectedMap[item] then
+						table.insert(t, item)
+					end
+				end
+				return t
+			end
+
+			local function getDisplayText()
+				local t = getSelectedList()
+				if #t == 0 then
+					return "Pilih Target..."
+				elseif #t == 1 then
+					return t[1]
+				elseif #t <= 2 then
+					return table.concat(t, ", ")
+				else
+					return string.format("%d Target Dipilih", #t)
+				end
+			end
+
+			local itemH = 32
+			local dropFrame = n("Frame", {
+				Size = UDim2.new(1, 0, 0, 42),
+				BackgroundColor3 = Color3.fromRGB(26, 20, 34),
+				BorderSizePixel = 0,
+				ClipsDescendants = true,
+				ZIndex = 20
+			}, page)
+			corner(8, dropFrame)
+
+			local header = n("TextButton", {
+				Size = UDim2.new(1, 0, 0, 42),
+				BackgroundTransparency = 1,
+				Text = "",
+				ZIndex = 21,
+				Active = true
+			}, dropFrame)
+
+			local titleLbl = n("TextLabel", {
+				Position = UDim2.new(0, 12, 0, 0),
+				Size = UDim2.new(0.48, 0, 1, 0),
+				BackgroundTransparency = 1,
+				Text = text,
+				TextColor3 = Color3.fromRGB(235, 225, 245),
+				TextSize = 12,
+				Font = Enum.Font.GothamMedium,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = 22
+			}, header)
+
+			local selLbl = n("TextLabel", {
+				Position = UDim2.new(0.48, 0, 0, 0),
+				Size = UDim2.new(0.52, -30, 1, 0),
+				BackgroundTransparency = 1,
+				Text = getDisplayText(),
+				TextColor3 = Color3.fromRGB(190, 120, 255),
+				TextSize = 12,
+				Font = Enum.Font.GothamBold,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				ZIndex = 22
+			}, header)
+
+			local arrow = n("TextLabel", {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -10, 0.5, 0),
+				Size = UDim2.new(0, 16, 0, 16),
+				BackgroundTransparency = 1,
+				Text = "▼",
+				TextColor3 = Color3.fromRGB(160, 140, 175),
+				TextSize = 10,
+				Font = Enum.Font.GothamBold,
+				ZIndex = 22
+			}, header)
+
+			local listContainer = n("Frame", {
+				Position = UDim2.new(0, 0, 0, 42),
+				Size = UDim2.new(1, 0, 0, #(list or {}) * itemH),
+				BackgroundTransparency = 1,
+				ZIndex = 21
+			}, dropFrame)
+
+			local function toggleDrop()
+				open = not open
+				local targetH = open and (42 + (#(list or {}) * itemH)) or 42
+				TweenService:Create(dropFrame, TW_MED, {Size = UDim2.new(1, 0, 0, targetH)}):Play()
+				arrow.Text = open and "▲" or "▼"
+			end
+
+			header.Activated:Connect(toggleDrop)
+
+			local itemButtons = {}
+			for i, itemText in ipairs(list or {}) do
+				local isSel = selectedMap[itemText] == true
+				local itemBtn = n("TextButton", {
+					Position = UDim2.new(0, 0, 0, (i - 1) * itemH),
+					Size = UDim2.new(1, 0, 0, itemH),
+					BackgroundColor3 = isSel and Color3.fromRGB(48, 30, 68) or Color3.fromRGB(32, 24, 42),
+					BackgroundTransparency = isSel and 0.2 or 0.8,
+					Text = (isSel and "  [✓] " or "  [  ] ") .. tostring(itemText),
+					TextColor3 = isSel and Color3.fromRGB(220, 160, 255) or Color3.fromRGB(180, 165, 195),
+					TextSize = 11,
+					Font = Enum.Font.GothamMedium,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					ZIndex = 23,
+					Active = true
+				}, listContainer)
+
+				itemButtons[itemText] = itemBtn
+
+				itemBtn.Activated:Connect(function()
+					selectedMap[itemText] = not selectedMap[itemText]
+					local nowSel = selectedMap[itemText] == true
+					itemBtn.Text = (nowSel and "  [✓] " or "  [  ] ") .. tostring(itemText)
+					itemBtn.BackgroundColor3 = nowSel and Color3.fromRGB(48, 30, 68) or Color3.fromRGB(32, 24, 42)
+					itemBtn.BackgroundTransparency = nowSel and 0.2 or 0.8
+					itemBtn.TextColor3 = nowSel and Color3.fromRGB(220, 160, 255) or Color3.fromRGB(180, 165, 195)
+					selLbl.Text = getDisplayText()
+					if callback then
+						callback(getSelectedList(), selectedMap)
+					end
+				end)
+			end
+
+			return {
+				Set = function(self, newDefaults, fireCb)
+					selectedMap = {}
+					if typeof(newDefaults) == "table" then
+						for k, v in pairs(newDefaults) do
+							if typeof(k) == "string" and v == true then
+								selectedMap[k] = true
+							elseif typeof(v) == "string" then
+								selectedMap[v] = true
+							end
+						end
+					elseif typeof(newDefaults) == "string" and newDefaults ~= "" then
+						selectedMap[newDefaults] = true
+					end
+					for itemText, btn in pairs(itemButtons) do
+						local nowSel = selectedMap[itemText] == true
+						btn.Text = (nowSel and "  [✓] " or "  [  ] ") .. tostring(itemText)
+						btn.BackgroundColor3 = nowSel and Color3.fromRGB(48, 30, 68) or Color3.fromRGB(32, 24, 42)
+						btn.BackgroundTransparency = nowSel and 0.2 or 0.8
+						btn.TextColor3 = nowSel and Color3.fromRGB(220, 160, 255) or Color3.fromRGB(180, 165, 195)
+					end
+					selLbl.Text = getDisplayText()
+					if fireCb and callback then
+						callback(getSelectedList(), selectedMap)
+					end
+				end,
+				Get = function(self)
+					return getSelectedList()
+				end,
+				GetMap = function(self)
+					return selectedMap
+				end
+			}
+		end
+
 		function elements:AddLabel(text)
 			local lblFrame = n("Frame", {
 				Size = UDim2.new(1, 0, 0, 34),
