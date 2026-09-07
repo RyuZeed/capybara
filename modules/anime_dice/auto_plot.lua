@@ -19,6 +19,7 @@ local levelUpSlotRE = plotRE and plotRE:FindFirstChild("LevelUpSlot")
 
 AutoPlot.IsRunning = false
 AutoPlot.CollectCash = true
+AutoPlot.CollectInterval = 30
 AutoPlot.EquipBest = true
 AutoPlot.UpgradeSlots = false
 
@@ -134,8 +135,12 @@ function AutoPlot.Start()
                 shouldCollect = cfg.AutoCollectCash
             end
 
-            -- Auto Collect Cash (setiap 1.0 detik untuk semua slot 1-8)
-            if shouldCollect and (now - tickCollect) >= 1.0 then
+            -- Auto Collect Cash (cooldown default 30 detik)
+            local interval = AutoPlot.CollectInterval or 30
+            if cfg and cfg.CollectCashInterval then
+                interval = tonumber(cfg.CollectCashInterval) or interval
+            end
+            if shouldCollect and (now - tickCollect) >= interval then
                 tickCollect = now
                 AutoPlot.CollectBalanceOnce()
             end

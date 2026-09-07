@@ -17,6 +17,7 @@ ConfigManager.DefaultConfig = {
     FastRoll = false,
     RollDelay = 0.1,
     AutoCollectCash = true,
+    CollectCashInterval = 30,
     AutoEquipBest = true,
     AutoUpgradeSlots = false,
     AutoClaimDaily = true,

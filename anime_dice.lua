@@ -207,6 +207,12 @@ FarmTab:AddToggle("Auto Collect Cash (Plot)", CurrentConfig.AutoCollectCash ~= f
     Window.Notify("Collect Cash", state and "Auto Collect Cash aktif" or "Auto Collect Cash mati", 1.8)
 end)
 
+FarmTab:AddSlider("Collect Cooldown (Detik)", 5, 60, CurrentConfig.CollectCashInterval or 30, function(val)
+    CurrentConfig.CollectCashInterval = val
+    if AutoPlot then AutoPlot.CollectInterval = val end
+    if ConfigManager then ConfigManager.Save() end
+end)
+
 FarmTab:AddToggle("Auto Equip Best Units", CurrentConfig.AutoEquipBest ~= false, function(state)
     CurrentConfig.AutoEquipBest = state
     if AutoPlot then AutoPlot.EquipBest = state end
@@ -374,6 +380,7 @@ end)
 -- =================================================================
 if AutoPlot then
     AutoPlot.CollectCash = (CurrentConfig.AutoCollectCash ~= false)
+    AutoPlot.CollectInterval = CurrentConfig.CollectCashInterval or 30
     AutoPlot.EquipBest = (CurrentConfig.AutoEquipBest ~= false)
     AutoPlot.UpgradeSlots = (CurrentConfig.AutoUpgradeSlots == true)
     AutoPlot.Start()
