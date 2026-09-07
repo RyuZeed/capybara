@@ -201,7 +201,8 @@ function AutoTraitsGrades.StartAutoTrait(targetSlot, targetTrait)
         local initialUnit = AutoTraitsGrades.GetSlotUnit(targetSlot)
         if not initialUnit then
             warn("[AUTO TRAIT] Tidak ada unit di Slot " .. targetSlot .. "! Menghentikan.")
-            AutoTraitsGrades.StopAutoTrait()
+            AutoTraitsGrades.AutoTrait = false
+            traitThread = nil
             if AutoTraitsGrades.OnTraitFinished then
                 pcall(AutoTraitsGrades.OnTraitFinished, false, "Tidak ada unit di slot ini!")
             end
@@ -211,7 +212,8 @@ function AutoTraitsGrades.StartAutoTrait(targetSlot, targetTrait)
         print(string.format("[AUTO TRAIT] Unit dibaca: %s | Trait saat ini: %s", initialUnit.unitName, initialUnit.trait))
         if AutoTraitsGrades.IsTraitTargetReached(initialUnit.trait, targetTrait) then
             print("[AUTO TRAIT] Unit SUDAH memiliki trait target! Tidak perlu me-roll.")
-            AutoTraitsGrades.StopAutoTrait()
+            AutoTraitsGrades.AutoTrait = false
+            traitThread = nil
             if AutoTraitsGrades.OnTraitFinished then
                 pcall(AutoTraitsGrades.OnTraitFinished, true, string.format("Unit sudah memiliki target trait: %s!", initialUnit.trait))
             end
@@ -224,27 +226,30 @@ function AutoTraitsGrades.StartAutoTrait(targetSlot, targetTrait)
             local rerolls = AutoTraitsGrades.GetTraitRerolls()
             if rerolls < 1 then
                 warn("[AUTO TRAIT] Kehabisan Trait Reroll!")
-                AutoTraitsGrades.StopAutoTrait()
+                AutoTraitsGrades.AutoTrait = false
+                traitThread = nil
                 if AutoTraitsGrades.OnTraitFinished then
                     pcall(AutoTraitsGrades.OnTraitFinished, false, "Kehabisan Trait Reroll!")
                 end
-                break
+                return
             end
 
             -- Cek ulang unit sebelum melempar remote
             local u = AutoTraitsGrades.GetSlotUnit(targetSlot)
             if not u then
-                AutoTraitsGrades.StopAutoTrait()
-                break
+                AutoTraitsGrades.AutoTrait = false
+                traitThread = nil
+                return
             end
 
             if AutoTraitsGrades.IsTraitTargetReached(u.trait, targetTrait) then
                 print(string.format("[AUTO TRAIT] 🎉 TARGET TERCAPAI: %s! STOP ROLL.", u.trait))
-                AutoTraitsGrades.StopAutoTrait()
+                AutoTraitsGrades.AutoTrait = false
+                traitThread = nil
                 if AutoTraitsGrades.OnTraitFinished then
                     pcall(AutoTraitsGrades.OnTraitFinished, true, string.format("Selamat! Target Trait %s berhasil didapat!", u.trait))
                 end
-                break
+                return
             end
 
             -- Eksekusi Roll dengan bypass protect (argumen kedua true)
@@ -260,11 +265,12 @@ function AutoTraitsGrades.StartAutoTrait(targetSlot, targetTrait)
             local uAfter = AutoTraitsGrades.GetSlotUnit(targetSlot)
             if uAfter and AutoTraitsGrades.IsTraitTargetReached(uAfter.trait, targetTrait) then
                 print(string.format("[AUTO TRAIT] 🎉 TARGET TERCAPAI: %s! STOP ROLL.", uAfter.trait))
-                AutoTraitsGrades.StopAutoTrait()
+                AutoTraitsGrades.AutoTrait = false
+                traitThread = nil
                 if AutoTraitsGrades.OnTraitFinished then
                     pcall(AutoTraitsGrades.OnTraitFinished, true, string.format("Selamat! Target Trait %s berhasil didapat!", uAfter.trait))
                 end
-                break
+                return
             end
         end
     end)
@@ -275,9 +281,11 @@ function AutoTraitsGrades.StopAutoTrait()
     if traitThread then
         local t = traitThread
         traitThread = nil
-        if t ~= coroutine.running() then
-            pcall(task.cancel, t)
-        end
+        pcall(function()
+            if t ~= coroutine.running() then
+                task.cancel(t)
+            end
+        end)
     end
 end
 
@@ -304,7 +312,8 @@ function AutoTraitsGrades.StartAutoGrade(targetSlot, targetGrade, orHigher)
         local initialUnit = AutoTraitsGrades.GetSlotUnit(targetSlot)
         if not initialUnit then
             warn("[AUTO GRADE] Tidak ada unit di Slot " .. targetSlot .. "! Menghentikan.")
-            AutoTraitsGrades.StopAutoGrade()
+            AutoTraitsGrades.AutoGrade = false
+            gradeThread = nil
             if AutoTraitsGrades.OnGradeFinished then
                 pcall(AutoTraitsGrades.OnGradeFinished, false, "Tidak ada unit di slot ini!")
             end
@@ -314,7 +323,8 @@ function AutoTraitsGrades.StartAutoGrade(targetSlot, targetGrade, orHigher)
         print(string.format("[AUTO GRADE] Unit dibaca: %s | Grade saat ini: %s", initialUnit.unitName, initialUnit.grade))
         if AutoTraitsGrades.IsGradeTargetReached(initialUnit.grade, targetGrade, orHigher) then
             print("[AUTO GRADE] Unit SUDAH memiliki grade target! Tidak perlu me-roll.")
-            AutoTraitsGrades.StopAutoGrade()
+            AutoTraitsGrades.AutoGrade = false
+            gradeThread = nil
             if AutoTraitsGrades.OnGradeFinished then
                 pcall(AutoTraitsGrades.OnGradeFinished, true, string.format("Unit sudah memiliki target grade: %s!", initialUnit.grade))
             end
@@ -327,27 +337,30 @@ function AutoTraitsGrades.StartAutoGrade(targetSlot, targetGrade, orHigher)
             local gems = AutoTraitsGrades.GetGems()
             if gems < 1 then
                 warn("[AUTO GRADE] Kehabisan Gems!")
-                AutoTraitsGrades.StopAutoGrade()
+                AutoTraitsGrades.AutoGrade = false
+                gradeThread = nil
                 if AutoTraitsGrades.OnGradeFinished then
                     pcall(AutoTraitsGrades.OnGradeFinished, false, "Kehabisan Gems!")
                 end
-                break
+                return
             end
 
             -- Cek ulang unit sebelum melempar remote
             local u = AutoTraitsGrades.GetSlotUnit(targetSlot)
             if not u then
-                AutoTraitsGrades.StopAutoGrade()
-                break
+                AutoTraitsGrades.AutoGrade = false
+                gradeThread = nil
+                return
             end
 
             if AutoTraitsGrades.IsGradeTargetReached(u.grade, targetGrade, orHigher) then
                 print(string.format("[AUTO GRADE] 🎉 TARGET TERCAPAI: %s! STOP ROLL.", u.grade))
-                AutoTraitsGrades.StopAutoGrade()
+                AutoTraitsGrades.AutoGrade = false
+                gradeThread = nil
                 if AutoTraitsGrades.OnGradeFinished then
                     pcall(AutoTraitsGrades.OnGradeFinished, true, string.format("Selamat! Target Grade %s berhasil didapat!", u.grade))
                 end
-                break
+                return
             end
 
             -- Eksekusi Roll Grade dengan bypass protect (argumen kedua true)
@@ -363,11 +376,12 @@ function AutoTraitsGrades.StartAutoGrade(targetSlot, targetGrade, orHigher)
             local uAfter = AutoTraitsGrades.GetSlotUnit(targetSlot)
             if uAfter and AutoTraitsGrades.IsGradeTargetReached(uAfter.grade, targetGrade, orHigher) then
                 print(string.format("[AUTO GRADE] 🎉 TARGET TERCAPAI: %s! STOP ROLL.", uAfter.grade))
-                AutoTraitsGrades.StopAutoGrade()
+                AutoTraitsGrades.AutoGrade = false
+                gradeThread = nil
                 if AutoTraitsGrades.OnGradeFinished then
                     pcall(AutoTraitsGrades.OnGradeFinished, true, string.format("Selamat! Target Grade %s berhasil didapat!", uAfter.grade))
                 end
-                break
+                return
             end
         end
     end)
@@ -378,9 +392,11 @@ function AutoTraitsGrades.StopAutoGrade()
     if gradeThread then
         local t = gradeThread
         gradeThread = nil
-        if t ~= coroutine.running() then
-            pcall(task.cancel, t)
-        end
+        pcall(function()
+            if t ~= coroutine.running() then
+                task.cancel(t)
+            end
+        end)
     end
 end
 
