@@ -1,8 +1,17 @@
 --[[
 	===============================================================
-	⚡ RITOD HUB - ANIME DICE (BULLETPROOF ANTI-AFK 24/7)
+	⚡ RITOD HUB - ANIME DICE (ZERO-INTERFERENCE ANTI-AFK 24/7)
 	Module: modules/anime_dice/anti_afk.lua
 	GitHub: https://github.com/RyuZeed/capybara
+	===============================================================
+	- 🛡️ 100% PURE CONNECTION BYPASS:
+	  Disables Roblox CoreScript 'Idled' connections via getconnections().
+	- 🚫 ZERO MOUSE / KEYBOARD SIMULATION:
+	  No VirtualUser, no RightShift, no mouse clicks. Guaranteed
+	  zero shift-lock activation and zero camera interference.
+	- 🔓 AUTOMATIC SHIFTLOCK DEFUSER:
+	  Disables the game's internal ShiftlockController so pressing
+	  Shift never locks the cursor to the center.
 	===============================================================
 ]]
 
@@ -10,12 +19,11 @@ local AntiAFK = {}
 AntiAFK.__index = AntiAFK
 
 local Players = game:GetService("Players")
-local VirtualUser = game:GetService("VirtualUser")
-local Workspace = game:GetService("Workspace")
 local GuiService = game:GetService("GuiService")
 local TeleportService = game:GetService("TeleportService")
 local CoreGui = game:GetService("CoreGui")
-
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer or (function()
     local t = tick()
@@ -30,6 +38,7 @@ local errorConn = nil
 local overlayConn = nil
 local isReconnecting = false
 
+-- ─── 1. Reconnection Daemon ──────────────────────────────────────
 local function queueAutoExecute()
     local autoScript = [[
         loadstring(game:HttpGet("https://raw.githubusercontent.com/RyuZeed/capybara/main/main.lua"))()
@@ -61,13 +70,30 @@ local function triggerReconnect(reason)
     end)
 end
 
-local function simulateActivity()
+-- ─── 2. Shiftlock Defuser ────────────────────────────────────────
+local function defuseGameShiftlock()
     pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new(0, 0))
+        local slMod = ReplicatedStorage:FindFirstChild("Framework")
+            and ReplicatedStorage.Framework:FindFirstChild("Features")
+            and ReplicatedStorage.Framework.Features:FindFirstChild("Player")
+            and ReplicatedStorage.Framework.Features.Player:FindFirstChild("ShiftlockController")
+        if slMod then
+            local sl = require(slMod)
+            if sl then
+                if typeof(sl.Disable) == "function" then
+                    sl:Disable()
+                elseif sl.Enabled then
+                    sl:ToggleShiftLock(false)
+                end
+            end
+        end
+        if UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        end
     end)
 end
 
+-- ─── 3. Pure Idled Connection Bypass ─────────────────────────────
 local function disableIdledConnections()
     pcall(function()
         local lp = Players.LocalPlayer or LocalPlayer
@@ -83,6 +109,7 @@ local function disableIdledConnections()
     end)
 end
 
+-- ─── 4. Error / Disconnect Listeners ─────────────────────────────
 local function setupDisconnectCatchers()
     pcall(function()
         if errorConn then errorConn:Disconnect() end
@@ -113,13 +140,19 @@ local function setupDisconnectCatchers()
     end)
 end
 
+-- ─── 5. Public Controller ────────────────────────────────────────
 function AntiAFK.Start()
     if AntiAFK.Enabled then return end
     AntiAFK.Enabled = true
     isReconnecting = false
 
+    -- 1. Defuse game shift lock immediately
+    defuseGameShiftlock()
+
+    -- 2. Disable Roblox 20-minute idle connections
     disableIdledConnections()
 
+    -- 3. Listener fallback: if Idled ever fires, re-disable without moving camera or mouse
     if idledConn then
         pcall(function() idledConn:Disconnect() end)
         idledConn = nil
@@ -129,16 +162,18 @@ function AntiAFK.Start()
     if lp then
         idledConn = lp.Idled:Connect(function()
             if AntiAFK.Enabled then
-                simulateActivity()
+                disableIdledConnections()
+                defuseGameShiftlock()
             end
         end)
     end
 
+    -- 4. Passive heartbeat loop (every 60s) to keep connections disabled
     if not loopThread then
         loopThread = task.spawn(function()
             while AntiAFK.Enabled do
                 disableIdledConnections()
-                simulateActivity()
+                defuseGameShiftlock()
                 task.wait(60)
             end
         end)
