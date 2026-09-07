@@ -64,35 +64,10 @@ local function triggerReconnect(reason)
 end
 
 local function simulateActivity()
-    local cam = Workspace.CurrentCamera
-    local viewportSize = (cam and cam.ViewportSize) or Vector2.new(1280, 720)
-    if viewportSize.X <= 0 or viewportSize.Y <= 0 then
-        viewportSize = Vector2.new(1280, 720)
-    end
-
-    local rx = math.random(math.floor(viewportSize.X * 0.2), math.floor(viewportSize.X * 0.8))
-    local ry = math.random(math.floor(viewportSize.Y * 0.2), math.floor(viewportSize.Y * 0.8))
-    local screenPos = Vector2.new(rx, ry)
-    local camCF = cam and cam.CFrame or CFrame.new()
-
     pcall(function()
         VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(screenPos, camCF)
+        VirtualUser:ClickButton2(Vector2.new(0, 0))
     end)
-
-    pcall(function()
-        VirtualUser:Button2Down(screenPos, camCF)
-        task.wait(0.02)
-        VirtualUser:Button2Up(screenPos, camCF)
-    end)
-
-    if VIM then
-        pcall(function()
-            VIM:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
-            task.wait(0.02)
-            VIM:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
-        end)
-    end
 end
 
 local function disableIdledConnections()
@@ -166,7 +141,7 @@ function AntiAFK.Start()
             while AntiAFK.Enabled do
                 disableIdledConnections()
                 simulateActivity()
-                task.wait(15)
+                task.wait(60)
             end
         end)
     end

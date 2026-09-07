@@ -134,30 +134,12 @@ function AntiAFK.Start()
     if loopThread then task.cancel(loopThread) end
     loopThread = task.spawn(function()
         while AntiAFK.Enabled do
-            task.wait(15)
+            task.wait(60)
             if not AntiAFK.Enabled then break end
 
             pcall(function()
                 VirtualUser:CaptureController()
                 VirtualUser:ClickButton2(Vector2.new(0, 0))
-            end)
-
-            if VIM then
-                pcall(function()
-                    VIM:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
-                    task.wait(0.05)
-                    VIM:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
-                end)
-            end
-
-            pcall(function()
-                local camera = Workspace.CurrentCamera
-                if camera then
-                    local currentCF = camera.CFrame
-                    camera.CFrame = currentCF * CFrame.Angles(0, 0, math.rad(0.01))
-                    task.wait(0.05)
-                    camera.CFrame = currentCF
-                end
             end)
         end
     end)

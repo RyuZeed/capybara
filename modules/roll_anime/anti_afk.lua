@@ -27,27 +27,6 @@ local function simulateActivity()
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new(0, 0))
     end)
-
-    pcall(function()
-        local cam = Workspace.CurrentCamera
-        local cf = cam and cam.CFrame or CFrame.new()
-        VirtualUser:Button2Down(Vector2.new(0, 0), cf)
-        task.wait(0.05)
-        VirtualUser:Button2Up(Vector2.new(0, 0), cf)
-    end)
-
-    if VIM then
-        pcall(function()
-            VIM:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
-            task.wait(0.03)
-            VIM:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
-        end)
-        pcall(function()
-            VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-            task.wait(0.03)
-            VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-        end)
-    end
 end
 
 local function disableIdledConnections()

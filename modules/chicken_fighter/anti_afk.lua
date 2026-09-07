@@ -98,43 +98,9 @@ local function simulateActivity()
     local screenPos = Vector2.new(rx, ry)
     local camCF = cam and cam.CFrame or CFrame.new()
 
-    -- 1. VirtualUser Controller Capture & Click
     pcall(function()
         VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(screenPos, camCF)
-    end)
-
-    pcall(function()
-        VirtualUser:Button2Down(screenPos, camCF)
-        task.wait(0.02)
-        VirtualUser:Button2Up(screenPos, camCF)
-    end)
-
-    pcall(function()
-        VirtualUser:ClickButton1(screenPos, camCF)
-    end)
-
-    -- 2. VirtualInputManager Native Input Events
-    if VIM then
-        pcall(function()
-            VIM:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
-            task.wait(0.02)
-            VIM:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
-        end)
-        pcall(function()
-            VIM:SendMouseMoveEvent(rx, ry, game)
-            VIM:SendMouseButtonEvent(rx, ry, 0, true, game, 0)
-            task.wait(0.02)
-            VIM:SendMouseButtonEvent(rx, ry, 0, false, game, 0)
-        end)
-    end
-
-    -- 3. Virtual Key Pulse (Hardware simulation)
-    pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:SetKeyDown("0x20")
-        task.wait(0.02)
-        VirtualUser:SetKeyUp("0x20")
+        VirtualUser:ClickButton2(Vector2.new(0, 0))
     end)
 end
 

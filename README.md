@@ -72,5 +72,5 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/RyuZeed/capybara/main
 ### 🛡️ Sistem Anti-AFK 24/7 (3-Layer Bypass)
 Semua game dilengkapi modul Anti-AFK multi-layer:
 1. Pemutus koneksi `player.Idled`.
-2. Hardware virtual keypulse (`RightShift` simulation) setiap 45 detik untuk mereset timer 20 menit Roblox.
+2. Simulasi hardware input virtual (`VirtualUser` controller capture) untuk mereset timer 20 menit Roblox tanpa mengganggu gameplay/shift lock.
 3. Metatable hook pencegah pemanggilan `player:Kick()`.
