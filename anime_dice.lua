@@ -70,6 +70,21 @@ pcall(function()
     if _G.RitodHubAnimeDice and typeof(_G.RitodHubAnimeDice) == "Instance" then
         pcall(function() _G.RitodHubAnimeDice:Destroy() end)
     end
+    -- 🔓 Otomatis lepaskan Shift Lock game bawaan agar kursor tidak terkunci di tengah
+    pcall(function()
+        local rs = game:GetService("ReplicatedStorage")
+        local slMod = rs:FindFirstChild("Framework")
+            and rs.Framework:FindFirstChild("Features")
+            and rs.Framework.Features:FindFirstChild("Player")
+            and rs.Framework.Features.Player:FindFirstChild("ShiftlockController")
+        if slMod then
+            local sl = require(slMod)
+            if sl and sl.Enabled then
+                sl:ToggleShiftLock(false)
+            end
+        end
+        game:GetService("UserInputService").MouseBehavior = Enum.MouseBehavior.Default
+    end)
 end)
 
 -- =================================================================
@@ -436,6 +451,22 @@ SettingsTab:AddButton("🗑️ Reset to Default Settings", function()
 end)
 
 SettingsTab:AddSection("🚪 Utilities")
+
+SettingsTab:AddButton("🔓 Force Unlock Mouse / Shift Lock", function()
+    pcall(function()
+        local rs = game:GetService("ReplicatedStorage")
+        local slMod = rs:FindFirstChild("Framework")
+            and rs.Framework:FindFirstChild("Features")
+            and rs.Framework.Features:FindFirstChild("Player")
+            and rs.Framework.Features.Player:FindFirstChild("ShiftlockController")
+        if slMod then
+            local sl = require(slMod)
+            sl:ToggleShiftLock(false)
+        end
+        game:GetService("UserInputService").MouseBehavior = Enum.MouseBehavior.Default
+    end)
+    Window.Notify("Mouse Unlocked", "Kursor mouse dan Shift Lock berhasil dilepaskan!", 2.5)
+end)
 
 SettingsTab:AddButton("🔄 Rejoin Server", function()
     local ts = game:GetService("TeleportService")

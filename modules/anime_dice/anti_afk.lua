@@ -16,8 +16,6 @@ local GuiService = game:GetService("GuiService")
 local TeleportService = game:GetService("TeleportService")
 local CoreGui = game:GetService("CoreGui")
 
-local VIM = nil
-pcall(function() VIM = game:GetService("VirtualInputManager") end)
 
 local LocalPlayer = Players.LocalPlayer or (function()
     local t = tick()
