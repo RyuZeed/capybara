@@ -51,7 +51,14 @@ ConfigManager.DefaultConfig = {
     TargetTrait = "Transcendent",
     TargetTraits = { "Transcendent" },
     TargetGrade = "S+",
-    GradeModeOrHigher = true
+    GradeModeOrHigher = true,
+    -- Auto Towers (Official 4 Towers & 2 Modes)
+    AutoTower = false,
+    TowerMode = "Farm Potion", -- "Farm Potion" atau "Single Repeat"
+    SelectedSingleTower = "Dragon Tower",
+    InfinityExitFloor = 140,
+    AutoEquipBestTowerTeam = true,
+    HideTowerBattle = true
 }
 
 ConfigManager.CurrentConfig = {}

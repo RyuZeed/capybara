@@ -69,6 +69,9 @@ pcall(function()
     if _G.AnimeDiceAutoDice and typeof(_G.AnimeDiceAutoDice.StopAll) == "function" then
         _G.AnimeDiceAutoDice.StopAll()
     end
+    if _G.AnimeDiceAutoTowers and typeof(_G.AnimeDiceAutoTowers.StopAll) == "function" then
+        _G.AnimeDiceAutoTowers.StopAll()
+    end
     if _G.AnimeDiceAntiAFK and typeof(_G.AnimeDiceAntiAFK.Stop) == "function" then
         _G.AnimeDiceAntiAFK.Stop()
     end
@@ -144,6 +147,7 @@ local AutoPotion = loadModule("auto_potion", false) or _G.AnimeDiceAutoPotion
 local AutoUpgrades = loadModule("auto_upgrades", false) or _G.AnimeDiceAutoUpgrades
 local AutoDice = loadModule("auto_dice", false) or _G.AnimeDiceAutoDice
 local AutoTraitsGrades = loadModule("auto_traits_grades", false) or _G.AnimeDiceAutoTraitsGrades
+local AutoTowers = loadModule("auto_towers", false) or _G.AnimeDiceAutoTowers
 local Teleports = loadModule("teleports", false) or _G.AnimeDiceTeleports
 local AntiAFK = loadModule("anti_afk", false) or _G.AnimeDiceAntiAFK
 
@@ -182,7 +186,14 @@ local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {
     TargetTrait = "Transcendent",
     TargetTraits = { "Transcendent" },
     TargetGrade = "S+",
-    GradeModeOrHigher = true
+    GradeModeOrHigher = true,
+    -- Auto Towers (Official 4 Towers & 2 Modes)
+    AutoTower = false,
+    TowerMode = "Farm Potion",
+    SelectedSingleTower = "Dragon Tower",
+    InfinityExitFloor = 140,
+    AutoEquipBestTowerTeam = true,
+    HideTowerBattle = true
 }
 
 -- =================================================================
@@ -200,6 +211,7 @@ local Window = RitodUI:CreateWindow({
         if AutoUpgrades then AutoUpgrades.StopAll() end
         if AutoDice then AutoDice.StopAll() end
         if AutoTraitsGrades then AutoTraitsGrades.StopAll() end
+        if AutoTowers then AutoTowers.StopAll() end
         if AntiAFK then AntiAFK.Stop() end
         print("[RITOD HUB] All Anime Dice routines terminated.")
     end
@@ -836,7 +848,171 @@ PotionsTab:AddButton("📊 Cek Potion yang Dimiliki (Console)", function()
     end
 end)
 
--- ─── TAB 4: 🛒 SHOP & UPGRADES ─────────────────────────────────
+-- ─── TAB 4: 🏰 AUTO TOWERS ──────────────────────────────────────
+local TowersTab = Window:CreateTab("Towers", "🏰")
+
+TowersTab:AddSection("🏰 Auto Towers Controller")
+
+local towerModeOptions = {
+    "Farm Potion (Rotasi 4 Tower)",
+    "Fokus 1 Tower (Repeat)"
+}
+
+local singleTowerOptions = {
+    "Dragon Tower (Easy)",
+    "Cursed Tower (Medium)",
+    "Pirate Tower (Hard)",
+    "Infinity Tower (Infinity)"
+}
+
+local function getModeKey(displayMode)
+    if displayMode and displayMode:find("Farm Potion") then return "Farm Potion" end
+    return "Single Repeat"
+end
+
+local function getSingleTowerName(displayStr)
+    if not displayStr then return "Dragon Tower" end
+    if displayStr:find("Dragon") then return "Dragon Tower"
+    elseif displayStr:find("Cursed") then return "Cursed Tower"
+    elseif displayStr:find("Pirate") then return "Pirate Tower"
+    elseif displayStr:find("Infinity") then return "Infinity Tower"
+    end
+    return "Dragon Tower"
+end
+
+local function getSingleTowerDisplay(towerName)
+    for _, opt in ipairs(singleTowerOptions) do
+        if opt:find(towerName or "") then return opt end
+    end
+    return "Dragon Tower (Easy)"
+end
+
+local currentModeDisplay = (CurrentConfig.TowerMode == "Single Repeat") and "Fokus 1 Tower (Repeat)" or "Farm Potion (Rotasi 4 Tower)"
+local currentSingleDisplay = getSingleTowerDisplay(CurrentConfig.SelectedSingleTower or "Dragon Tower")
+
+local autoTowerToggle
+autoTowerToggle = TowersTab:AddToggle("Auto Towers (Aktifkan)", CurrentConfig.AutoTower or false, function(state)
+    CurrentConfig.AutoTower = state
+    if ConfigManager then ConfigManager.Save() end
+    if state then
+        if AutoTowers then
+            AutoTowers.Mode = CurrentConfig.TowerMode or "Farm Potion"
+            AutoTowers.SelectedSingleTower = CurrentConfig.SelectedSingleTower or "Dragon Tower"
+            AutoTowers.InfinityExitFloor = tonumber(CurrentConfig.InfinityExitFloor) or 140
+            AutoTowers.AutoEquipBestTeam = (CurrentConfig.AutoEquipBestTowerTeam ~= false)
+            AutoTowers.HideBattleScreen = (CurrentConfig.HideTowerBattle ~= false)
+            AutoTowers.Start()
+        end
+        Window.Notify("Auto Towers", "Auto Towers diaktifkan! Mode: " .. (CurrentConfig.TowerMode or "Farm Potion"), 2.5)
+    else
+        if AutoTowers then AutoTowers.Stop() end
+        Window.Notify("Auto Towers", "Auto Towers dinonaktifkan.", 2.0)
+    end
+end)
+
+TowersTab:AddDropdown("Pilih Mode Tower", towerModeOptions, currentModeDisplay, function(choice)
+    local modeKey = getModeKey(choice)
+    CurrentConfig.TowerMode = modeKey
+    if AutoTowers then
+        AutoTowers.Mode = modeKey
+    end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Mode Tower", "Mode diubah: " .. choice, 2.0)
+end)
+
+TowersTab:AddDropdown("Pilih Single Tower (Repeat)", singleTowerOptions, currentSingleDisplay, function(choice)
+    local towerName = getSingleTowerName(choice)
+    CurrentConfig.SelectedSingleTower = towerName
+    if AutoTowers then
+        AutoTowers.SelectedSingleTower = towerName
+    end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Single Tower", "Target repeat: " .. towerName, 2.0)
+end)
+
+TowersTab:AddSlider("Infinity Exit Floor (Batas Keluar)", 10, 300, CurrentConfig.InfinityExitFloor or 140, function(val)
+    CurrentConfig.InfinityExitFloor = val
+    if AutoTowers then
+        AutoTowers.InfinityExitFloor = val
+    end
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+TowersTab:AddSection("🛡️ Strategi & Optimasi")
+
+TowersTab:AddToggle("Auto Equip Best Team (Sebelum Mulai)", CurrentConfig.AutoEquipBestTowerTeam ~= false, function(state)
+    CurrentConfig.AutoEquipBestTowerTeam = state
+    if AutoTowers then AutoTowers.AutoEquipBestTeam = state end
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+TowersTab:AddToggle("Sembunyikan Animasi Layar (Hemat FPS)", CurrentConfig.HideTowerBattle ~= false, function(state)
+    CurrentConfig.HideTowerBattle = state
+    if AutoTowers then AutoTowers.HideBattleScreen = state end
+    if ConfigManager then ConfigManager.Save() end
+end)
+
+local towerStatusCard = TowersTab:AddParagraph(
+    "📊 Status Tower Realtime",
+    "Menunggu inisialisasi auto tower..."
+)
+
+local function updateTowerDisplay()
+    if not AutoTowers then return end
+    local isRunning = AutoTowers.IsRunning
+    local curTower = AutoTowers.CurrentTower or "-"
+    local curFloor = AutoTowers.CurrentFloor or 0
+    local status = AutoTowers.StatusText or "Siaga"
+    local mode = (CurrentConfig.TowerMode == "Single Repeat") and "Fokus 1 Tower" or "Farm Potion (Rotasi)"
+    local exitFloor = CurrentConfig.InfinityExitFloor or 140
+
+    local line1 = string.format("Status: %s | Mode: %s", isRunning and "🟢 BERJALAN" or "🔴 NONAKTIF", mode)
+    local line2 = string.format("Tower Aktif: %s | Floor Saat Ini: %s", curTower, curFloor > 0 and tostring(curFloor) or "-")
+    local line3 = string.format("Catatan Mode: %s", (CurrentConfig.TowerMode == "Farm Potion") 
+        and string.format("Rotasi (Dragon->Cursed->Pirate->Infinity [Exit Lv.%d]->Dragon)", exitFloor)
+        or string.format("Repeat terus menerus di %s", CurrentConfig.SelectedSingleTower or "Dragon Tower"))
+    local line4 = string.format("Statistik: %d Tower Selesai | %d Rotasi Selesai", AutoTowers.CompletedTowersCount or 0, AutoTowers.CompletedRotationsCount or 0)
+
+    towerStatusCard:Set(
+        string.format("🏰 Auto Towers (%s)", isRunning and curTower or "Nonaktif"),
+        string.format("%s\n%s\n%s\n%s\nInfo: %s", line1, line2, line3, line4, status)
+    )
+end
+
+TowersTab:AddSection("⚡ Tindakan Cepat (Manual)")
+
+TowersTab:AddButton("🚪 Keluar dari Tower Sekarang (Exit / Cancel)", function()
+    if AutoTowers then
+        local ok = AutoTowers.CancelTower()
+        Window.Notify("Exit Tower", ok and "Permintaan keluar tower dikirim!" or "Gagal / Tidak sedang di tower.", 2.0)
+    end
+end)
+
+TowersTab:AddButton("⚔️ Pasang Tim Tower Terbaik Sekarang", function()
+    if AutoTowers then
+        local ok = AutoTowers.EquipBestTeam()
+        Window.Notify("Tower Team", ok and "Tim tower terkuat berhasil dipasang!" or "Gagal memasang tim.", 2.0)
+    end
+end)
+
+TowersTab:AddButton("👁️ Toggle Sembunyikan / Buka Layar Tower", function()
+    if AutoTowers and AutoTowers.IsInTower() then
+        local willHide = not (AutoTowers.HideBattleScreen)
+        AutoTowers.SetHidden(willHide)
+        Window.Notify("Layar Tower", willHide and "Layar tower disembunyikan!" or "Layar tower dibuka!", 1.5)
+    else
+        Window.Notify("Layar Tower", "Kamu tidak sedang berada di dalam tower.", 1.8)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1.0)
+        pcall(updateTowerDisplay)
+    end
+end)
+
+-- ─── TAB 5: 🛒 SHOP & UPGRADES ─────────────────────────────────
 local ShopTab = Window:CreateTab("Shop & Upgrades", "🛒")
 
 ShopTab:AddSection("🌳 Tree Upgrades (Urutan Sesuai)")
@@ -1006,6 +1182,14 @@ SettingsTab:AddButton("🔄 Reload Configuration", function()
         if AutoDice then
             if CurrentConfig.AutoBuyDice or CurrentConfig.AutoEquipBestDice then AutoDice.Start() else AutoDice.Stop() end
         end
+        if AutoTowers then
+            AutoTowers.Mode = CurrentConfig.TowerMode or "Farm Potion"
+            AutoTowers.SelectedSingleTower = CurrentConfig.SelectedSingleTower or "Dragon Tower"
+            AutoTowers.InfinityExitFloor = tonumber(CurrentConfig.InfinityExitFloor) or 140
+            AutoTowers.AutoEquipBestTeam = (CurrentConfig.AutoEquipBestTowerTeam ~= false)
+            AutoTowers.HideBattleScreen = (CurrentConfig.HideTowerBattle ~= false)
+            if CurrentConfig.AutoTower then AutoTowers.Start() else AutoTowers.Stop() end
+        end
         if AntiAFK then
             if CurrentConfig.AntiAFK ~= false then AntiAFK.Start() else AntiAFK.Stop() end
         end
@@ -1021,6 +1205,7 @@ SettingsTab:AddButton("🗑️ Reset to Default Settings", function()
     if AutoPotion then AutoPotion.StopAll() end
     if AutoUpgrades then AutoUpgrades.StopAll() end
     if AutoDice then AutoDice.StopAll() end
+    if AutoTowers then AutoTowers.StopAll() end
     Window.Notify("Config Reset", "Pengaturan dikembalikan ke default!", 2.5)
 end)
 
@@ -1045,6 +1230,16 @@ if AutoRewards then AutoRewards.Start() end
 if AutoPotion and CurrentConfig.AutoPotion then AutoPotion.Start() end
 if AutoUpgrades and CurrentConfig.AutoUpgrades then AutoUpgrades.Start() end
 if AutoDice and (CurrentConfig.AutoBuyDice or CurrentConfig.AutoEquipBestDice) then AutoDice.Start() end
+if AutoTowers then
+    AutoTowers.Mode = CurrentConfig.TowerMode or "Farm Potion"
+    AutoTowers.SelectedSingleTower = CurrentConfig.SelectedSingleTower or "Dragon Tower"
+    AutoTowers.InfinityExitFloor = tonumber(CurrentConfig.InfinityExitFloor) or 140
+    AutoTowers.AutoEquipBestTeam = (CurrentConfig.AutoEquipBestTowerTeam ~= false)
+    AutoTowers.HideBattleScreen = (CurrentConfig.HideTowerBattle ~= false)
+    if CurrentConfig.AutoTower then
+        AutoTowers.Start()
+    end
+end
 if AntiAFK and (CurrentConfig.AntiAFK ~= false) then AntiAFK.Start() end
 if CurrentConfig.FastRoll and AutoRoll then
     AutoRoll.Start(CurrentConfig.RollDelay or 0.1)
