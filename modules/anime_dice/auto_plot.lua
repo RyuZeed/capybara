@@ -31,10 +31,17 @@ local function getRemotes()
     end
 end
 
-function AutoPlot.CollectBalanceOnce()
+function AutoPlot.CollectBalanceOnce(slotIndex)
     getRemotes()
     if collectRE then
-        return pcall(function() collectRE:FireServer() end)
+        if slotIndex then
+            return pcall(function() collectRE:FireServer(slotIndex) end)
+        else
+            for slot = 1, 8 do
+                pcall(function() collectRE:FireServer(slot) end)
+            end
+            return true
+        end
     end
     return false
 end
@@ -60,7 +67,7 @@ function AutoPlot.UpgradeAllSlotsOnce()
     for i = 1, 8 do
         local ok = AutoPlot.UpgradeSlot(i)
         if ok then successCount = successCount + 1 end
-        task.wait(0.08)
+        task.wait(0.05)
     end
     return successCount
 end
@@ -78,8 +85,8 @@ function AutoPlot.Start()
             local cfg = _G.AnimeDiceConfigManager and _G.AnimeDiceConfigManager.CurrentConfig or {}
             local now = tick()
 
-            -- Auto Collect Cash (every 2.0s)
-            if cfg.AutoCollectCash and (now - tickCollect) >= 2.0 then
+            -- Auto Collect Cash (every 1.5s for all slots 1-8)
+            if (cfg.AutoCollectCash ~= false) and (now - tickCollect) >= 1.5 then
                 tickCollect = now
                 AutoPlot.CollectBalanceOnce()
             end
@@ -96,7 +103,7 @@ function AutoPlot.Start()
                 for i = 1, 8 do
                     if not AutoPlot.IsRunning then break end
                     AutoPlot.UpgradeSlot(i)
-                    task.wait(0.1)
+                    task.wait(0.05)
                 end
             end
 
