@@ -100,6 +100,44 @@ end
 
 AutoPlot.UpgradeTimes = 5 -- Berapa kali upgrade default
 AutoPlot.TargetSlot = 0 -- 0 = Semua Slot, 1..8 = Slot tertentu
+AutoPlot.SlotRemaining = {} -- [slotIndex] = remainingQuota
+AutoPlot.OnUpgradeCompleted = nil -- callback ketika kuota upgrade selesai
+
+function AutoPlot.StartAutoUpgradeSession(times, targetSlot)
+    times = math.max(1, tonumber(times) or 1)
+    targetSlot = tonumber(targetSlot) or 0
+    AutoPlot.UpgradeTimes = times
+    AutoPlot.TargetSlot = targetSlot
+    AutoPlot.SlotRemaining = {}
+
+    if targetSlot > 0 then
+        AutoPlot.SlotRemaining[targetSlot] = times
+    else
+        for s = 1, 8 do
+            local info = AutoPlot.GetSlotUnitInfo(s)
+            if info.hasUnit then
+                AutoPlot.SlotRemaining[s] = times
+            end
+        end
+    end
+    AutoPlot.UpgradeSlots = true
+end
+
+function AutoPlot.StopAutoUpgradeSession()
+    AutoPlot.UpgradeSlots = false
+    AutoPlot.SlotRemaining = {}
+end
+
+function AutoPlot.GetRemainingQuota(slotIndex)
+    if slotIndex and slotIndex > 0 then
+        return AutoPlot.SlotRemaining[slotIndex] or 0
+    end
+    local total = 0
+    for _, rem in pairs(AutoPlot.SlotRemaining) do
+        total = total + rem
+    end
+    return total
+end
 
 function AutoPlot.GetSlotUnitInfo(slotIdx)
     local info = {
@@ -240,7 +278,7 @@ function AutoPlot.Start()
                 AutoPlot.EquipBestOnce()
             end
 
-            -- Auto Upgrade Slots dengan target unit & jumlah kali (setiap 2.5 detik)
+            -- Auto Upgrade Slots dengan target unit & batasan kuota (tidak lebih dari X kali)
             local shouldUpgrade = AutoPlot.UpgradeSlots
             if cfg and cfg.AutoUpgradeSlots ~= nil then
                 shouldUpgrade = cfg.AutoUpgradeSlots
@@ -254,12 +292,56 @@ function AutoPlot.Start()
                 targetTimes = tonumber(cfg.SlotUpgradeTargetTimes) or 5
             end
 
-            if shouldUpgrade and (now - tickUpgrade) >= 2.5 then
+            if shouldUpgrade and (now - tickUpgrade) >= 2.0 then
                 tickUpgrade = now
+
+                -- Inisialisasi kuota jika kosong
+                local hasAnySlot = false
+                for _, _ in pairs(AutoPlot.SlotRemaining) do
+                    hasAnySlot = true
+                    break
+                end
+                if not hasAnySlot then
+                    AutoPlot.StartAutoUpgradeSession(targetTimes, targetSlot)
+                end
+
+                local hasRemaining = false
+
                 if targetSlot > 0 then
-                    AutoPlot.UpgradeSlotTimes(targetSlot, targetTimes)
+                    local rem = AutoPlot.SlotRemaining[targetSlot] or 0
+                    if rem > 0 then
+                        local did = AutoPlot.UpgradeSlotTimes(targetSlot, rem)
+                        if did > 0 then
+                            AutoPlot.SlotRemaining[targetSlot] = math.max(0, rem - did)
+                        end
+                        if (AutoPlot.SlotRemaining[targetSlot] or 0) > 0 then
+                            hasRemaining = true
+                        end
+                    end
                 else
-                    AutoPlot.UpgradeAllSlotsTimes(targetTimes)
+                    for s = 1, 8 do
+                        local rem = AutoPlot.SlotRemaining[s] or 0
+                        if rem > 0 then
+                            local did = AutoPlot.UpgradeSlotTimes(s, rem)
+                            if did > 0 then
+                                AutoPlot.SlotRemaining[s] = math.max(0, rem - did)
+                            end
+                            if (AutoPlot.SlotRemaining[s] or 0) > 0 then
+                                hasRemaining = true
+                            end
+                        end
+                    end
+                end
+
+                -- Jika kuota telah terpenuhi (tidak lebih dari target):
+                if not hasRemaining then
+                    AutoPlot.UpgradeSlots = false
+                    AutoPlot.SlotRemaining = {}
+                    if cfg then cfg.AutoUpgradeSlots = false end
+                    if _G.AnimeDiceConfigManager then _G.AnimeDiceConfigManager.Save() end
+                    if AutoPlot.OnUpgradeCompleted then
+                        pcall(AutoPlot.OnUpgradeCompleted, targetTimes, targetSlot)
+                    end
                 end
             end
 
