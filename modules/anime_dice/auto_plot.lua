@@ -18,6 +18,10 @@ local equipBestRE = plotRE and plotRE:FindFirstChild("EquipBest")
 local levelUpSlotRE = plotRE and plotRE:FindFirstChild("LevelUpSlot")
 
 AutoPlot.IsRunning = false
+AutoPlot.CollectCash = true
+AutoPlot.EquipBest = true
+AutoPlot.UpgradeSlots = false
+
 local loopThread = nil
 
 local function getRemotes()
@@ -31,17 +35,56 @@ local function getRemotes()
     end
 end
 
+local function playCollectSound()
+    pcall(function()
+        local sound = ReplicatedStorage:FindFirstChild("Assets")
+            and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+            and ReplicatedStorage.Assets.Sounds:FindFirstChild("Collect")
+        if sound then
+            local s = sound:Clone()
+            s.Parent = workspace
+            s:Play()
+            game:GetService("Debris"):AddItem(s, 1.2)
+        end
+    end)
+end
+
 function AutoPlot.CollectBalanceOnce(slotIndex)
     getRemotes()
     if collectRE then
+        local collectedAny = false
+        pcall(function()
+            local DataController = require(ReplicatedStorage.Framework.Features.Data.DataController)
+            if DataController and DataController.Slots then
+                if slotIndex then
+                    local sData = DataController.Slots[tostring(slotIndex)] and DataController.Slots[tostring(slotIndex)]()
+                    if sData and sData.balance and sData.balance > 0 then
+                        collectedAny = true
+                    end
+                else
+                    for slot = 1, 8 do
+                        local sData = DataController.Slots[tostring(slot)] and DataController.Slots[tostring(slot)]()
+                        if sData and sData.balance and sData.balance > 0 then
+                            collectedAny = true
+                            break
+                        end
+                    end
+                end
+            end
+        end)
+
         if slotIndex then
-            return pcall(function() collectRE:FireServer(slotIndex) end)
+            pcall(function() collectRE:FireServer(slotIndex) end)
         else
             for slot = 1, 8 do
                 pcall(function() collectRE:FireServer(slot) end)
             end
-            return true
         end
+
+        if collectedAny then
+            playCollectSound()
+        end
+        return true
     end
     return false
 end
@@ -82,23 +125,37 @@ function AutoPlot.Start()
         local tickUpgrade = 0
 
         while AutoPlot.IsRunning do
-            local cfg = _G.AnimeDiceConfigManager and _G.AnimeDiceConfigManager.CurrentConfig or {}
             local now = tick()
+            local cfg = _G.AnimeDiceConfigManager and _G.AnimeDiceConfigManager.CurrentConfig
 
-            -- Auto Collect Cash (every 1.5s for all slots 1-8)
-            if (cfg.AutoCollectCash ~= false) and (now - tickCollect) >= 1.5 then
+            -- Prioritas: AutoPlot.CollectCash property atau Config
+            local shouldCollect = AutoPlot.CollectCash
+            if cfg and cfg.AutoCollectCash ~= nil then
+                shouldCollect = cfg.AutoCollectCash
+            end
+
+            -- Auto Collect Cash (setiap 1.0 detik untuk semua slot 1-8)
+            if shouldCollect and (now - tickCollect) >= 1.0 then
                 tickCollect = now
                 AutoPlot.CollectBalanceOnce()
             end
 
-            -- Auto Equip Best (every 3.5s)
-            if cfg.AutoEquipBest and (now - tickEquip) >= 3.5 then
+            -- Auto Equip Best (setiap 3.5 detik)
+            local shouldEquip = AutoPlot.EquipBest
+            if cfg and cfg.AutoEquipBest ~= nil then
+                shouldEquip = cfg.AutoEquipBest
+            end
+            if shouldEquip and (now - tickEquip) >= 3.5 then
                 tickEquip = now
                 AutoPlot.EquipBestOnce()
             end
 
-            -- Auto Upgrade Slots (every 2.5s)
-            if cfg.AutoUpgradeSlots and (now - tickUpgrade) >= 2.5 then
+            -- Auto Upgrade Slots (setiap 2.5 detik)
+            local shouldUpgrade = AutoPlot.UpgradeSlots
+            if cfg and cfg.AutoUpgradeSlots ~= nil then
+                shouldUpgrade = cfg.AutoUpgradeSlots
+            end
+            if shouldUpgrade and (now - tickUpgrade) >= 2.5 then
                 tickUpgrade = now
                 for i = 1, 8 do
                     if not AutoPlot.IsRunning then break end

@@ -199,18 +199,21 @@ FarmTab:AddSection("🏰 Plot & Unit Automation")
 
 FarmTab:AddToggle("Auto Collect Cash (Plot)", CurrentConfig.AutoCollectCash ~= false, function(state)
     CurrentConfig.AutoCollectCash = state
+    if AutoPlot then AutoPlot.CollectCash = state end
     if ConfigManager then ConfigManager.Save() end
     Window.Notify("Collect Cash", state and "Auto Collect Cash aktif" or "Auto Collect Cash mati", 1.8)
 end)
 
 FarmTab:AddToggle("Auto Equip Best Units", CurrentConfig.AutoEquipBest ~= false, function(state)
     CurrentConfig.AutoEquipBest = state
+    if AutoPlot then AutoPlot.EquipBest = state end
     if ConfigManager then ConfigManager.Save() end
     Window.Notify("Equip Best", state and "Auto Equip Best aktif" or "Auto Equip Best mati", 1.8)
 end)
 
 FarmTab:AddToggle("Auto Upgrade Slots (1-8)", CurrentConfig.AutoUpgradeSlots or false, function(state)
     CurrentConfig.AutoUpgradeSlots = state
+    if AutoPlot then AutoPlot.UpgradeSlots = state end
     if ConfigManager then ConfigManager.Save() end
     Window.Notify("Upgrade Slots", state and "Auto Upgrade Slots aktif" or "Auto Upgrade Slots mati", 1.8)
 end)
@@ -366,7 +369,12 @@ end)
 -- =================================================================
 -- 🚀 5. AUTO START WORKERS BASED ON SAVED CONFIG
 -- =================================================================
-if AutoPlot then AutoPlot.Start() end
+if AutoPlot then
+    AutoPlot.CollectCash = (CurrentConfig.AutoCollectCash ~= false)
+    AutoPlot.EquipBest = (CurrentConfig.AutoEquipBest ~= false)
+    AutoPlot.UpgradeSlots = (CurrentConfig.AutoUpgradeSlots == true)
+    AutoPlot.Start()
+end
 if AutoRewards then AutoRewards.Start() end
 if AntiAFK and (CurrentConfig.AntiAFK ~= false) then AntiAFK.Start() end
 if CurrentConfig.FastRoll and AutoRoll then
