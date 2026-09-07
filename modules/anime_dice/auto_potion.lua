@@ -118,8 +118,13 @@ function AutoPotion.GetActiveBuffs()
         local serverNow = workspace:GetServerTimeNow()
         if active then
             for name, entry in pairs(active) do
-                if typeof(entry.remaining) == "number" and typeof(entry.startedAt) == "number" then
-                    local left = math.max(0, math.ceil(entry.remaining - (serverNow - entry.startedAt)))
+                if typeof(entry.remaining) == "number" then
+                    local left = 0
+                    if typeof(entry.startedAt) == "number" and entry.startedAt > 0 then
+                        left = math.max(0, math.ceil(entry.remaining - (serverNow - entry.startedAt)))
+                    else
+                        left = math.max(0, math.ceil(entry.remaining))
+                    end
                     activeBuffs[name] = left
                 end
             end
