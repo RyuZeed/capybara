@@ -111,7 +111,7 @@ local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/" .. REPO
 
 local function loadModule(name, isShared)
     -- 1. Primary: Fresh GitHub Raw pinned to latest commit SHA
-    local targetUrl = (isShared and SHARED_URL or BASE_URL) .. name .. ".lua"
+    local targetUrl = (isShared and SHARED_URL or BASE_URL) .. name .. ".lua?t=" .. tostring(os.time())
     local success, result = pcall(function()
         local src = game:HttpGet(targetUrl)
         if src and #src > 10 and not src:find("404: Not Found") then
