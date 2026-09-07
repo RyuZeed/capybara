@@ -161,20 +161,42 @@ end
 -- Atur mode Hidden untuk menyembunyikan animasi kartu tower
 function AutoTowers.SetHidden(shouldHide)
     local screen, hidden = getScreenUI()
-    if not hidden or not hidden.Visible then return end
+    if not hidden or not hidden.Visible then return false end
 
-    if shouldHide and screen and screen.Visible then
-        -- Jika layar terbuka dan kita ingin hide: klik tombol hidden
-        if typeof(firesignal) == "function" and hidden:FindFirstChild("Activated") then
+    local labelText = (hidden:FindFirstChild("Label") and hidden.Label.Text) or ""
+    local isShowing = (screen and screen.Visible) or (labelText == "Hide")
+
+    if shouldHide and isShowing then
+        if typeof(firesignal) == "function" then
             pcall(function() firesignal(hidden.Activated) end)
         end
-    elseif not shouldHide and screen and not screen.Visible then
-        -- Jika layar tersembunyi dan kita ingin un-hide
-        if typeof(firesignal) == "function" and hidden:FindFirstChild("Activated") then
+        return true
+    elseif not shouldHide and not isShowing then
+        if typeof(firesignal) == "function" then
             pcall(function() firesignal(hidden.Activated) end)
+        end
+        return true
+    end
+    return false
+end
+
+-- Watcher loop otomatis: Selalu sembunyikan battle tower seketika saat tower dimulai jika HideBattleScreen aktif
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if AutoTowers.HideBattleScreen then
+            local screen, hidden = getScreenUI()
+            if hidden and hidden.Visible then
+                local labelText = (hidden:FindFirstChild("Label") and hidden.Label.Text) or ""
+                if (screen and screen.Visible) or (labelText == "Hide") then
+                    if typeof(firesignal) == "function" then
+                        pcall(function() firesignal(hidden.Activated) end)
+                    end
+                end
+            end
         end
     end
-end
+end)
 
 -- Update status dan kirim ke callback jika ada
 local function updateStatus(text, floorNum)

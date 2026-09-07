@@ -946,10 +946,11 @@ TowersTab:AddToggle("Auto Equip Best Team (Sebelum Mulai)", CurrentConfig.AutoEq
     if ConfigManager then ConfigManager.Save() end
 end)
 
-TowersTab:AddToggle("Sembunyikan Animasi Layar (Hemat FPS)", CurrentConfig.HideTowerBattle ~= false, function(state)
+TowersTab:AddToggle("Auto Hide Battle (Sembunyikan Layar Pertarungan)", CurrentConfig.HideTowerBattle ~= false, function(state)
     CurrentConfig.HideTowerBattle = state
     if AutoTowers then AutoTowers.HideBattleScreen = state end
     if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Auto Hide", state and "Auto Hide Battle aktif!" or "Auto Hide Battle dimatikan.", 1.5)
 end)
 
 local towerStatusCard = TowersTab:AddParagraph(
@@ -995,11 +996,15 @@ TowersTab:AddButton("⚔️ Pasang Tim Tower Terbaik Sekarang", function()
     end
 end)
 
-TowersTab:AddButton("👁️ Toggle Sembunyikan / Buka Layar Tower", function()
+TowersTab:AddButton("👁️ Sembunyikan / Tampilkan Layar Battle (Toggle)", function()
     if AutoTowers and AutoTowers.IsInTower() then
-        local willHide = not (AutoTowers.HideBattleScreen)
-        AutoTowers.SetHidden(willHide)
-        Window.Notify("Layar Tower", willHide and "Layar tower disembunyikan!" or "Layar tower dibuka!", 1.5)
+        local rs = game:GetService("ReplicatedStorage")
+        local uiRef = rs:FindFirstChild("Framework") and rs.Framework:FindFirstChild("Features") and rs.Framework.Features:FindFirstChild("UI") and rs.Framework.Features.UI:FindFirstChild("UIReferences")
+        local UIReferences = uiRef and require(uiRef)
+        local screen = UIReferences and UIReferences.Root and UIReferences.Root:FindFirstChild("Tower") and UIReferences.Root.Tower:FindFirstChild("Screen")
+        local isShowing = screen and screen.Visible
+        AutoTowers.SetHidden(isShowing)
+        Window.Notify("Layar Tower", isShowing and "Battle disembunyikan!" or "Battle ditampilkan!", 1.5)
     else
         Window.Notify("Layar Tower", "Kamu tidak sedang berada di dalam tower.", 1.8)
     end
