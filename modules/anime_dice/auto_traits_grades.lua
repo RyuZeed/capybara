@@ -273,8 +273,11 @@ end
 function AutoTraitsGrades.StopAutoTrait()
     AutoTraitsGrades.AutoTrait = false
     if traitThread then
-        task.cancel(traitThread)
+        local t = traitThread
         traitThread = nil
+        if t ~= coroutine.running() then
+            pcall(task.cancel, t)
+        end
     end
 end
 
@@ -373,8 +376,11 @@ end
 function AutoTraitsGrades.StopAutoGrade()
     AutoTraitsGrades.AutoGrade = false
     if gradeThread then
-        task.cancel(gradeThread)
+        local t = gradeThread
         gradeThread = nil
+        if t ~= coroutine.running() then
+            pcall(task.cancel, t)
+        end
     end
 end
 
