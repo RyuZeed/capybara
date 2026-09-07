@@ -83,14 +83,26 @@ pcall(function()
 end)
 
 -- =================================================================
--- 🌐 3. MODULAR LOADER (LOCAL FILE & GITHUB FALLBACK)
+-- 🌐 3. MODULAR LOADER (GITHUB RAW WITH COMMIT-SHA CACHE-BYPASS)
 -- =================================================================
-local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/anime_dice/"
-local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/"
+local HttpService = game:GetService("HttpService")
+local REPO_COMMIT = "main"
+pcall(function()
+    local apiRes = game:HttpGet("https://api.github.com/repos/RyuZeed/capybara/commits/main")
+    if apiRes and #apiRes > 10 then
+        local data = HttpService:JSONDecode(apiRes)
+        if data and data.sha then
+            REPO_COMMIT = tostring(data.sha)
+        end
+    end
+end)
+
+local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/" .. REPO_COMMIT .. "/modules/anime_dice/"
+local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/" .. REPO_COMMIT .. "/modules/shared/"
 
 local function loadModule(name, isShared)
-    -- 1. Primary: Fresh GitHub Raw with cache-busting
-    local targetUrl = (isShared and SHARED_URL or BASE_URL) .. name .. ".lua?t=" .. tostring(os.time()) .. "&nocache=" .. tostring(math.random(100000, 999999))
+    -- 1. Primary: Fresh GitHub Raw pinned to latest commit SHA
+    local targetUrl = (isShared and SHARED_URL or BASE_URL) .. name .. ".lua"
     local success, result = pcall(function()
         local src = game:HttpGet(targetUrl)
         if src and #src > 10 and not src:find("404: Not Found") then
