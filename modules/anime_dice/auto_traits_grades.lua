@@ -133,8 +133,13 @@ function AutoTraitsGrades.GetAllInventoryUnits()
 
     local EntryRegistry = nil
     pcall(function()
-        EntryRegistry = require(ReplicatedStorage.Framework.Features.Inventory.EntryRegistry)
+        EntryRegistry = require(ReplicatedStorage.Framework.Features.Entries.EntryRegistry)
     end)
+    if not EntryRegistry then
+        pcall(function()
+            EntryRegistry = require(ReplicatedStorage.Framework.Features.Inventory.EntryRegistry)
+        end)
+    end
 
     local list = {}
     for id, item in pairs(inv) do
@@ -199,8 +204,13 @@ function AutoTraitsGrades.GetUnitById(unitId)
 
     local EntryRegistry = nil
     pcall(function()
-        EntryRegistry = require(ReplicatedStorage.Framework.Features.Inventory.EntryRegistry)
+        EntryRegistry = require(ReplicatedStorage.Framework.Features.Entries.EntryRegistry)
     end)
+    if not EntryRegistry then
+        pcall(function()
+            EntryRegistry = require(ReplicatedStorage.Framework.Features.Inventory.EntryRegistry)
+        end)
+    end
     local cfg = EntryRegistry and EntryRegistry.getEntryConfig and EntryRegistry.getEntryConfig(unitItem.name)
     local attrs = unitItem.attributes or {}
 
