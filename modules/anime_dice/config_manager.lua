@@ -27,6 +27,7 @@ ConfigManager.DefaultConfig = {
     AntiAFK = true,
     -- Potion Automation
     AutoPotion = false,
+    AutoPotionMode = "Spam All", -- "Spam All" (habiskan sampai 0) atau "Keepalive" (hemat durasi)
     AutoPotionLuck = true,
     AutoPotionIncome = false,
     AutoPotionDamage = false,

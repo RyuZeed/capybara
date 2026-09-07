@@ -164,6 +164,7 @@ local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {
     AutoRebirth = false,
     AntiAFK = true,
     AutoPotion = false,
+    AutoPotionMode = "Spam All",
     AutoPotionLuck = true,
     AutoPotionIncome = false,
     AutoPotionDamage = false,
@@ -738,16 +739,41 @@ local PotionsTab = Window:CreateTab("Potions", "🧪")
 
 PotionsTab:AddSection("⚡ Master Control")
 
-PotionsTab:AddToggle("Auto Use Potion (Active Buff Keepalive)", CurrentConfig.AutoPotion or false, function(state)
+local potionModeOptions = {
+    "Habiskan Semua (Terus Gunakan Sampai 0)",
+    "Hemat Durasi (Gunakan saat Mau Habis)"
+}
+
+local function getPotionModeKey(display)
+    if display and display:find("Hemat") then return "Keepalive" end
+    return "Spam All"
+end
+
+local currentPotionModeDisplay = (CurrentConfig.AutoPotionMode == "Keepalive") and "Hemat Durasi (Gunakan saat Mau Habis)" or "Habiskan Semua (Terus Gunakan Sampai 0)"
+
+PotionsTab:AddToggle("Auto Use Potion (Otomatis Gunakan)", CurrentConfig.AutoPotion or false, function(state)
     CurrentConfig.AutoPotion = state
     if ConfigManager then ConfigManager.Save() end
     if state then
-        if AutoPotion then AutoPotion.Start() end
-        Window.Notify("Auto Potion", "Auto Use Potion diaktifkan!", 2.0)
+        if AutoPotion then
+            AutoPotion.Mode = CurrentConfig.AutoPotionMode or "Spam All"
+            AutoPotion.Start()
+        end
+        Window.Notify("Auto Potion", "Auto Use Potion aktif!", 2.0)
     else
         if AutoPotion then AutoPotion.Stop() end
         Window.Notify("Auto Potion", "Auto Use Potion dinonaktifkan.", 2.0)
     end
+end)
+
+PotionsTab:AddDropdown("Mode Penggunaan Potion", potionModeOptions, currentPotionModeDisplay, function(choice)
+    local modeKey = getPotionModeKey(choice)
+    CurrentConfig.AutoPotionMode = modeKey
+    if AutoPotion then
+        AutoPotion.Mode = modeKey
+    end
+    if ConfigManager then ConfigManager.Save() end
+    Window.Notify("Mode Potion", "Mode: " .. choice, 2.0)
 end)
 
 PotionsTab:AddSection("🍀 Filter Berdasarkan Efek (Stat)")
@@ -1226,6 +1252,7 @@ SettingsTab:AddButton("🔄 Reload Configuration", function()
             if CurrentConfig.NativeAutoRoll ~= nil then AutoRoll.SetNativeAutoRoll(CurrentConfig.NativeAutoRoll) end
         end
         if AutoPotion then
+            AutoPotion.Mode = CurrentConfig.AutoPotionMode or "Spam All"
             if CurrentConfig.AutoPotion then AutoPotion.Start() else AutoPotion.Stop() end
         end
         if AutoUpgrades then
@@ -1279,7 +1306,12 @@ if AutoPlot then
     AutoPlot.Start()
 end
 if AutoRewards then AutoRewards.Start() end
-if AutoPotion and CurrentConfig.AutoPotion then AutoPotion.Start() end
+if AutoPotion then
+    AutoPotion.Mode = CurrentConfig.AutoPotionMode or "Spam All"
+    if CurrentConfig.AutoPotion then
+        AutoPotion.Start()
+    end
+end
 if AutoUpgrades and CurrentConfig.AutoUpgrades then AutoUpgrades.Start() end
 if AutoDice and (CurrentConfig.AutoBuyDice or CurrentConfig.AutoEquipBestDice) then AutoDice.Start() end
 if AutoTowers then

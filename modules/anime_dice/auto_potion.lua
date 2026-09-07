@@ -24,8 +24,9 @@ local boostRE = network and network:FindFirstChild("BoostService") and network.B
 local useRE = boostRE and boostRE:FindFirstChild("Use")
 
 AutoPotion.IsRunning = false
-AutoPotion.CheckInterval = 2.5
-AutoPotion.ReUseThreshold = 5 -- Gunakan lagi jika sisa durasi <= 5 detik
+AutoPotion.CheckInterval = 1.5
+AutoPotion.ReUseThreshold = 5 -- Untuk mode Keepalive
+AutoPotion.Mode = "Spam All" -- "Spam All" (default: habiskan sampai 0) atau "Keepalive"
 
 local loopThread = nil
 
@@ -188,31 +189,54 @@ end
 -- =================================================================
 -- ⚡ MAIN AUTO POTION ROUTINE
 -- =================================================================
+-- =================================================================
+-- ⚡ MAIN AUTO POTION ROUTINE
+-- =================================================================
 function AutoPotion.RunCheck()
     local ConfigManager = _G.AnimeDiceConfigManager
     local cfg = ConfigManager and ConfigManager.CurrentConfig
-    if not cfg or not cfg.AutoPotion then return end
+    if not cfg or not cfg.AutoPotion then return false end
 
+    local mode = cfg.AutoPotionMode or AutoPotion.Mode or "Spam All"
     local owned = AutoPotion.GetOwnedPotions()
-    if #owned == 0 then return end
+    if #owned == 0 then return false end
 
-    local activeBuffs = AutoPotion.GetActiveBuffs()
+    local usedAny = false
 
-    for _, pot in ipairs(owned) do
-        if shouldAutoUse(pot, cfg) then
-            local remainingTime = activeBuffs[pot.fullName] or 0
-            if remainingTime <= AutoPotion.ReUseThreshold then
-                -- Buff tidak aktif atau hampir habis! Gunakan 1 potion
+    if mode == "Spam All" then
+        -- 🌪️ MODE HABISKAN SEMUA: Terus minum potion yang cocok sampai habis (amount 0)
+        for _, pot in ipairs(owned) do
+            if not AutoPotion.IsRunning then break end
+            if shouldAutoUse(pot, cfg) and pot.amount > 0 then
                 local ok = AutoPotion.UsePotion(pot.fullName)
                 if ok then
-                    print(string.format("[⚡ Auto Potion] Menggunakan %s (Tersisa: %d)", pot.fullName, pot.amount - 1))
-                    task.wait(0.3) -- Delay sopan antar pemakaian potion
-                    -- Perbarui catatan lokal agar tidak double consume
-                    activeBuffs[pot.fullName] = pot.duration or 180
+                    usedAny = true
+                    print(string.format("[⚡ Auto Potion] Mengonsumsi %s (Tersisa di inventory: %d)", pot.fullName, pot.amount - 1))
+                    task.wait(0.2) -- Jeda aman antar konsumsi
+                end
+            end
+        end
+    else
+        -- 🛡️ MODE KEEPALIVE: Hanya minum saat durasi buff mau habis (<= 5s)
+        local activeBuffs = AutoPotion.GetActiveBuffs()
+        for _, pot in ipairs(owned) do
+            if not AutoPotion.IsRunning then break end
+            if shouldAutoUse(pot, cfg) and pot.amount > 0 then
+                local remainingTime = activeBuffs[pot.fullName] or 0
+                if remainingTime <= AutoPotion.ReUseThreshold then
+                    local ok = AutoPotion.UsePotion(pot.fullName)
+                    if ok then
+                        usedAny = true
+                        print(string.format("[⚡ Auto Potion] Memperbarui buff %s (Tersisa: %d)", pot.fullName, pot.amount - 1))
+                        task.wait(0.25)
+                        activeBuffs[pot.fullName] = pot.duration or 180
+                    end
                 end
             end
         end
     end
+
+    return usedAny
 end
 
 -- =================================================================
@@ -242,15 +266,25 @@ function AutoPotion.Start()
     if loopThread then task.cancel(loopThread) end
     loopThread = task.spawn(function()
         while AutoPotion.IsRunning do
-            local success, err = pcall(function()
-                AutoPotion.RunCheck()
-            end)
-            if not success and err then
-                warn("[Auto Potion Error]", err)
+            local ConfigManager = _G.AnimeDiceConfigManager
+            local cfg = ConfigManager and ConfigManager.CurrentConfig
+            local isSpam = not cfg or (cfg.AutoPotionMode ~= "Keepalive")
+
+            local success, usedAny = pcall(AutoPotion.RunCheck)
+            if not success and usedAny then
+                warn("[Auto Potion Error]", usedAny)
             end
-            task.wait(AutoPotion.CheckInterval)
+
+            -- Jika sedang menghabiskan potion, beri jeda singkat untuk lanjut minum batch berikutnya
+            -- Jika sudah habis semua di inventory, jeda 1.5 detik
+            if isSpam and usedAny then
+                task.wait(0.2)
+            else
+                task.wait(AutoPotion.CheckInterval or 1.5)
+            end
         end
     end)
+    print("🧪 [Auto Potion] Dimulai.")
 end
 
 function AutoPotion.Stop()
