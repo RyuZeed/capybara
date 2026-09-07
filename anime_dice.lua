@@ -89,16 +89,8 @@ local BASE_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/module
 local SHARED_URL = "https://raw.githubusercontent.com/RyuZeed/capybara/main/modules/shared/"
 
 local function loadModule(name, isShared)
-    local localPath = (isShared and "modules/shared/" or "modules/anime_dice/") .. name .. ".lua"
-    if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(localPath) then
-        local content = readfile(localPath)
-        if content and #content > 10 then
-            local fn = loadstring(content)
-            if fn then return fn() end
-        end
-    end
-
-    local targetUrl = (isShared and SHARED_URL or BASE_URL) .. name .. ".lua"
+    -- 1. Primary: Fresh GitHub Raw with cache-busting
+    local targetUrl = (isShared and SHARED_URL or BASE_URL) .. name .. ".lua?t=" .. tostring(os.time()) .. "&nocache=" .. tostring(math.random(100000, 999999))
     local success, result = pcall(function()
         local src = game:HttpGet(targetUrl)
         if src and #src > 10 and not src:find("404: Not Found") then
@@ -108,6 +100,17 @@ local function loadModule(name, isShared)
         return nil
     end)
     if success and result then return result end
+
+    -- 2. Fallback: Local file if offline
+    local localPath = (isShared and "modules/shared/" or "modules/anime_dice/") .. name .. ".lua"
+    if typeof(readfile) == "function" and typeof(isfile) == "function" and isfile(localPath) then
+        local content = readfile(localPath)
+        if content and #content > 10 then
+            local fn = loadstring(content)
+            if fn then return fn() end
+        end
+    end
+
     return nil
 end
 
