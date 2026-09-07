@@ -13,34 +13,22 @@ local HttpService = game:GetService("HttpService")
 local FILE_NAME = "RitodHub_AnimeDice_Config.json"
 
 ConfigManager.DefaultConfig = {
-    AutoRoll = false,
+    NativeAutoRoll = false,
+    FastRoll = false,
     RollDelay = 0.1,
-    InGameAutoRoll = false,
     AutoCollectCash = true,
     AutoEquipBest = true,
     AutoUpgradeSlots = false,
-    AutoSellInventory = false,
     AutoClaimDaily = true,
     AutoClaimGroup = true,
-    AutoClaimQuests = true,
     AutoClaimOffline = true,
     AutoRebirth = false,
-    SelectedDice = "Lightning",
-    AutoEquipSelectedDice = false,
-    AutoBuySelectedDice = false,
     AntiAFK = true
 }
 
 ConfigManager.CurrentConfig = {}
 for k, v in pairs(ConfigManager.DefaultConfig) do
-    if type(v) == "table" then
-        ConfigManager.CurrentConfig[k] = {}
-        for subK, subV in pairs(v) do
-            ConfigManager.CurrentConfig[k][subK] = subV
-        end
-    else
-        ConfigManager.CurrentConfig[k] = v
-    end
+    ConfigManager.CurrentConfig[k] = v
 end
 
 function ConfigManager.Save()
@@ -59,16 +47,12 @@ function ConfigManager.Load()
         return true
     end
 
-    local success, result = pcall(function()
+    local success = pcall(function()
         local json = readfile(FILE_NAME)
         local data = HttpService:JSONDecode(json)
         if type(data) == "table" then
             for k, v in pairs(data) do
-                if type(v) == "table" and type(ConfigManager.CurrentConfig[k]) == "table" then
-                    for subK, subV in pairs(v) do
-                        ConfigManager.CurrentConfig[k][subK] = subV
-                    end
-                else
+                if ConfigManager.DefaultConfig[k] ~= nil then
                     ConfigManager.CurrentConfig[k] = v
                 end
             end
@@ -79,14 +63,7 @@ end
 
 function ConfigManager.Reset()
     for k, v in pairs(ConfigManager.DefaultConfig) do
-        if type(v) == "table" then
-            ConfigManager.CurrentConfig[k] = {}
-            for subK, subV in pairs(v) do
-                ConfigManager.CurrentConfig[k][subK] = subV
-            end
-        else
-            ConfigManager.CurrentConfig[k] = v
-        end
+        ConfigManager.CurrentConfig[k] = v
     end
     ConfigManager.Save()
 end

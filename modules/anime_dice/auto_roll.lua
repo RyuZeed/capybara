@@ -10,49 +10,59 @@ local AutoRoll = {}
 AutoRoll.__index = AutoRoll
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local network = ReplicatedStorage:WaitForChild("Network", 5)
 
-local rollServiceRF = network and network:FindFirstChild("RollService") and network.RollService:FindFirstChild("RF") and network.RollService.RF:FindFirstChild("RollDice")
-local rollServiceRE = network and network:FindFirstChild("RollService") and network.RollService:FindFirstChild("RE") and network.RollService.RE:FindFirstChild("SetAutoRoll")
+local function getRemotes()
+    local net = ReplicatedStorage:FindFirstChild("Network")
+    if not net then return nil, nil end
+    local rollSvc = net:FindFirstChild("RollService")
+    if not rollSvc then return nil, nil end
+
+    local re = rollSvc:FindFirstChild("RE")
+    local rf = rollSvc:FindFirstChild("RF")
+
+    local setAutoRollRE = re and re:FindFirstChild("SetAutoRoll")
+    local rollDiceRF = rf and rf:FindFirstChild("RollDice")
+
+    return setAutoRollRE, rollDiceRF
+end
 
 AutoRoll.IsRolling = false
 local rollThread = nil
 
+-- 1. Native In-Game Auto Roll Toggle
+function AutoRoll.SetNativeAutoRoll(state)
+    local setAutoRollRE = getRemotes()
+    if setAutoRollRE then
+        return pcall(function()
+            setAutoRollRE:FireServer(state)
+        end)
+    end
+    return false
+end
+
+-- 2. Fast Server Roll Single Invocation
 function AutoRoll.RollOnce()
-    if not rollServiceRF then
-        local rf = ReplicatedStorage:FindFirstChild("Network") and ReplicatedStorage.Network.RollService.RF:FindFirstChild("RollDice")
-        if rf then rollServiceRF = rf end
-    end
-    if rollServiceRF then
-        local ok, res = pcall(function()
-            return rollServiceRF:InvokeServer()
-        end)
-        return ok, res
-    end
-    return false, "RollDice RemoteFunction not found"
-end
-
-function AutoRoll.SetInGameAutoRoll(state)
-    if not rollServiceRE then
-        local re = ReplicatedStorage:FindFirstChild("Network") and ReplicatedStorage.Network.RollService.RE:FindFirstChild("SetAutoRoll")
-        if re then rollServiceRE = re end
-    end
-    if rollServiceRE then
-        pcall(function()
-            rollServiceRE:FireServer(state)
+    local _, rollDiceRF = getRemotes()
+    if rollDiceRF then
+        return pcall(function()
+            return rollDiceRF:InvokeServer()
         end)
     end
+    return false
 end
 
+-- 3. Custom Fast Roll Loop
 function AutoRoll.Start(delaySec)
     if AutoRoll.IsRolling then return end
     AutoRoll.IsRolling = true
+    delaySec = math.max(0.05, tonumber(delaySec) or 0.1)
 
     rollThread = task.spawn(function()
         while AutoRoll.IsRolling do
             local delay = delaySec
             if _G.AnimeDiceConfigManager and _G.AnimeDiceConfigManager.CurrentConfig then
-                delay = _G.AnimeDiceConfigManager.CurrentConfig.RollDelay or delay
+                local cfgDelay = _G.AnimeDiceConfigManager.CurrentConfig.RollDelay
+                if cfgDelay then delay = cfgDelay end
             end
             delay = math.max(0.05, tonumber(delay) or 0.1)
 
@@ -72,7 +82,7 @@ end
 
 function AutoRoll.StopAll()
     AutoRoll.Stop()
-    AutoRoll.SetInGameAutoRoll(false)
+    AutoRoll.SetNativeAutoRoll(false)
 end
 
 _G.AnimeDiceAutoRoll = AutoRoll
