@@ -143,6 +143,7 @@ local AutoRewards = loadModule("auto_rewards", false) or _G.AnimeDiceAutoRewards
 local AutoPotion = loadModule("auto_potion", false) or _G.AnimeDiceAutoPotion
 local AutoUpgrades = loadModule("auto_upgrades", false) or _G.AnimeDiceAutoUpgrades
 local AutoDice = loadModule("auto_dice", false) or _G.AnimeDiceAutoDice
+local AutoTraitsGrades = loadModule("auto_traits_grades", false) or _G.AnimeDiceAutoTraitsGrades
 local Teleports = loadModule("teleports", false) or _G.AnimeDiceTeleports
 local AntiAFK = loadModule("anti_afk", false) or _G.AnimeDiceAntiAFK
 
@@ -173,7 +174,15 @@ local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {
     AutoBuyDice = false,
     AutoEquipBestDice = true,
     SlotUpgradeTargetSlot = 0,
-    SlotUpgradeTargetTimes = 5
+    SlotUpgradeTargetTimes = 5,
+    -- Traits & Grades
+    AutoTrait = false,
+    AutoGrade = false,
+    TraitTargetSlot = 1,
+    GradeTargetSlot = 1,
+    TargetTrait = "Transcendent",
+    TargetGrade = "S+",
+    GradeModeOrHigher = true
 }
 
 -- =================================================================
@@ -190,6 +199,7 @@ local Window = RitodUI:CreateWindow({
         if AutoPotion then AutoPotion.StopAll() end
         if AutoUpgrades then AutoUpgrades.StopAll() end
         if AutoDice then AutoDice.StopAll() end
+        if AutoTraitsGrades then AutoTraitsGrades.StopAll() end
         if AntiAFK then AntiAFK.Stop() end
         print("[RITOD HUB] All Anime Dice routines terminated.")
     end
@@ -424,10 +434,184 @@ FarmTab:AddButton("⬆️ Upgrade Unit Sekarang (Sesuai Pilihan X Kali)", functi
     end
 end)
 
+-- ─── 🧬 AUTO TRAITS & AUTO GRADES ENGINE ────────────────────────
+FarmTab:AddSection("🧬 Unit Traits & Grades (Auto Roll)")
+
+local selectedTGSlot = tonumber(CurrentConfig.TraitTargetSlot) or 1
+local selectedTargetTrait = CurrentConfig.TargetTrait or "Transcendent"
+local selectedTargetGrade = CurrentConfig.TargetGrade or "S+"
+local gradeOrHigher = (CurrentConfig.GradeModeOrHigher ~= false)
+
+local traitGradeCard = FarmTab:AddParagraph(
+    "📊 Memuat Status Unit Trait & Grade...",
+    "Membaca data unit, trait, grade, dan sisa bahan roll..."
+)
+
+local function updateTraitGradeDisplay()
+    if not AutoTraitsGrades then return end
+    local u = AutoTraitsGrades.GetSlotUnit(selectedTGSlot)
+    local traitRerolls = AutoTraitsGrades.GetTraitRerolls()
+    local gems = AutoTraitsGrades.GetGems()
+
+    if u then
+        local traitStatus = AutoTraitsGrades.AutoTrait and " [⏳ Rolling Trait...]" or ""
+        local gradeStatus = AutoTraitsGrades.AutoGrade and " [⏳ Rolling Grade...]" or ""
+        traitGradeCard:Set(
+            string.format("⭐ [Slot %d] %s (Lv.%d)", u.slot, u.unitName, u.level),
+            string.format("Trait: %s%s | Target: %s\nGrade: %s%s | Target: %s\nBahan: %d Trait Rerolls | %d Gems",
+                u.trait, traitStatus, selectedTargetTrait,
+                u.grade, gradeStatus, selectedTargetGrade .. (gradeOrHigher and " (Atau Lebih)" or ""),
+                traitRerolls, gems)
+        )
+    else
+        traitGradeCard:Set(
+            string.format("⚪ [Slot %d] Slot Kosong", selectedTGSlot),
+            string.format("Tidak ada unit di slot %d.\nBahan: %d Trait Rerolls | %d Gems", selectedTGSlot, traitRerolls, gems)
+        )
+    end
+end
+
+-- Dropdown Pilih Slot Unit untuk Trait & Grade
+local tgSlotOptions = {"Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6", "Slot 7", "Slot 8"}
+FarmTab:AddDropdown("Pilih Slot Unit (Trait & Grade)", tgSlotOptions, "Slot " .. selectedTGSlot, function(choice)
+    local num = choice:match("%d+")
+    selectedTGSlot = tonumber(num) or 1
+    CurrentConfig.TraitTargetSlot = selectedTGSlot
+    CurrentConfig.GradeTargetSlot = selectedTGSlot
+    if AutoTraitsGrades then
+        AutoTraitsGrades.TargetSlot = selectedTGSlot
+        if AutoTraitsGrades.AutoTrait then
+            AutoTraitsGrades.StartAutoTrait(selectedTGSlot, selectedTargetTrait)
+        end
+        if AutoTraitsGrades.AutoGrade then
+            AutoTraitsGrades.StartAutoGrade(selectedTGSlot, selectedTargetGrade, gradeOrHigher)
+        end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    updateTraitGradeDisplay()
+end)
+
+-- SEKSI TRAIT:
+local traitListOptions = {
+    "Transcendent",
+    "Monarch",
+    "Shogun",
+    "Samurai",
+    "Money III",
+    "Damage III",
+    "Health III",
+    "Money II",
+    "Damage II",
+    "Health II",
+    "Any Mythic"
+}
+
+FarmTab:AddDropdown("Target Trait List", traitListOptions, selectedTargetTrait, function(choice)
+    selectedTargetTrait = choice
+    CurrentConfig.TargetTrait = choice
+    if AutoTraitsGrades then
+        AutoTraitsGrades.TargetTrait = choice
+        if AutoTraitsGrades.AutoTrait then
+            AutoTraitsGrades.StartAutoTrait(selectedTGSlot, choice)
+        end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    updateTraitGradeDisplay()
+end)
+
+local autoTraitToggle
+autoTraitToggle = FarmTab:AddToggle("Auto Roll Trait (Stop di Target)", false, function(state)
+    CurrentConfig.AutoTrait = state
+    if AutoTraitsGrades then
+        if state then
+            AutoTraitsGrades.StartAutoTrait(selectedTGSlot, selectedTargetTrait)
+            Window.Notify("Auto Trait", string.format("Auto Trait dimulai untuk Slot %d -> Target: %s", selectedTGSlot, selectedTargetTrait), 2.5)
+        else
+            AutoTraitsGrades.StopAutoTrait()
+            Window.Notify("Auto Trait", "Auto Trait dihentikan.", 1.8)
+        end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    updateTraitGradeDisplay()
+end)
+
+if AutoTraitsGrades then
+    AutoTraitsGrades.OnTraitFinished = function(success, msg)
+        CurrentConfig.AutoTrait = false
+        if autoTraitToggle and typeof(autoTraitToggle.Set) == "function" then
+            autoTraitToggle:Set(false, false)
+        end
+        Window.Notify("Trait Result", msg or (success and "Target Trait tercapai!" or "Auto Trait selesai."), 3.5)
+        updateTraitGradeDisplay()
+    end
+end
+
+-- SEKSI GRADE:
+local gradeListOptions = {
+    "Z+",
+    "Z",
+    "S+",
+    "S",
+    "A+",
+    "A",
+    "B"
+}
+
+FarmTab:AddDropdown("Target Grade List", gradeListOptions, selectedTargetGrade, function(choice)
+    selectedTargetGrade = choice
+    CurrentConfig.TargetGrade = choice
+    if AutoTraitsGrades then
+        AutoTraitsGrades.TargetGrade = choice
+        if AutoTraitsGrades.AutoGrade then
+            AutoTraitsGrades.StartAutoGrade(selectedTGSlot, choice, gradeOrHigher)
+        end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    updateTraitGradeDisplay()
+end)
+
+FarmTab:AddToggle("Grade Target Atau Lebih Tinggi (>=)", gradeOrHigher, function(state)
+    gradeOrHigher = state
+    CurrentConfig.GradeModeOrHigher = state
+    if AutoTraitsGrades then
+        AutoTraitsGrades.GradeModeOrHigher = state
+    end
+    if ConfigManager then ConfigManager.Save() end
+    updateTraitGradeDisplay()
+end)
+
+local autoGradeToggle
+autoGradeToggle = FarmTab:AddToggle("Auto Roll Grade (Stop di Target)", false, function(state)
+    CurrentConfig.AutoGrade = state
+    if AutoTraitsGrades then
+        if state then
+            AutoTraitsGrades.StartAutoGrade(selectedTGSlot, selectedTargetGrade, gradeOrHigher)
+            Window.Notify("Auto Grade", string.format("Auto Grade dimulai untuk Slot %d -> Target: %s", selectedTGSlot, selectedTargetGrade), 2.5)
+        else
+            AutoTraitsGrades.StopAutoGrade()
+            Window.Notify("Auto Grade", "Auto Grade dihentikan.", 1.8)
+        end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    updateTraitGradeDisplay()
+end)
+
+if AutoTraitsGrades then
+    AutoTraitsGrades.OnGradeFinished = function(success, msg)
+        CurrentConfig.AutoGrade = false
+        if autoGradeToggle and typeof(autoGradeToggle.Set) == "function" then
+            autoGradeToggle:Set(false, false)
+        end
+        Window.Notify("Grade Result", msg or (success and "Target Grade tercapai!" or "Auto Grade selesai."), 3.5)
+        updateTraitGradeDisplay()
+    end
+end
+
 task.spawn(function()
     while true do
         task.wait(1.2)
         pcall(updateSlotDisplay)
+        pcall(updateTraitGradeDisplay)
     end
 end)
 
