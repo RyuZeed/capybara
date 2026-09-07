@@ -175,11 +175,10 @@ local CurrentConfig = ConfigManager and ConfigManager.CurrentConfig or {
     AutoEquipBestDice = true,
     SlotUpgradeTargetSlot = 0,
     SlotUpgradeTargetTimes = 5,
-    -- Traits & Grades
+    -- Traits & Grades (Inventory Direct)
     AutoTrait = false,
     AutoGrade = false,
-    TraitTargetSlot = 1,
-    GradeTargetSlot = 1,
+    TargetUnitId = nil,
     TargetTrait = "Transcendent",
     TargetGrade = "S+",
     GradeModeOrHigher = true
@@ -434,22 +433,47 @@ FarmTab:AddButton("⬆️ Upgrade Unit Sekarang (Sesuai Pilihan X Kali)", functi
     end
 end)
 
--- ─── 🧬 AUTO TRAITS & AUTO GRADES ENGINE ────────────────────────
-FarmTab:AddSection("🧬 Unit Traits & Grades (Auto Roll)")
+-- ─── 🧬 AUTO TRAITS & AUTO GRADES ENGINE (INVENTORY DIRECT) ────
+FarmTab:AddSection("🧬 Unit Traits & Grades (Inventory)")
 
-local selectedTGSlot = tonumber(CurrentConfig.TraitTargetSlot) or 1
+local invUnits = (AutoTraitsGrades and AutoTraitsGrades.GetAllInventoryUnits()) or {}
+local unitDisplayNames = {}
+local displayNameToId = {}
+
+for _, u in ipairs(invUnits) do
+    local dName = string.format("%s (Lv.%d)", u.name, u.level)
+    if displayNameToId[dName] then
+        dName = string.format("%s (Lv.%d #%s)", u.name, u.level, u.id:sub(1, 4))
+    end
+    table.insert(unitDisplayNames, dName)
+    displayNameToId[dName] = u.id
+end
+
+if #unitDisplayNames == 0 then
+    table.insert(unitDisplayNames, "Tidak Ada Unit di Inventory")
+end
+
+local selectedUnitId = CurrentConfig.TargetUnitId or (invUnits[1] and invUnits[1].id)
+local currentUnitDisplayName = unitDisplayNames[1]
+for dName, id in pairs(displayNameToId) do
+    if id == selectedUnitId then
+        currentUnitDisplayName = dName
+        break
+    end
+end
+
 local selectedTargetTrait = CurrentConfig.TargetTrait or "Transcendent"
 local selectedTargetGrade = CurrentConfig.TargetGrade or "S+"
 local gradeOrHigher = (CurrentConfig.GradeModeOrHigher ~= false)
 
 local traitGradeCard = FarmTab:AddParagraph(
-    "📊 Memuat Status Unit Trait & Grade...",
-    "Membaca data unit, trait, grade, dan sisa bahan roll..."
+    "📊 Memuat Status Unit Inventory...",
+    "Membaca data unit dari inventory, trait, grade, dan sisa bahan roll..."
 )
 
 local function updateTraitGradeDisplay()
     if not AutoTraitsGrades then return end
-    local u = AutoTraitsGrades.GetSlotUnit(selectedTGSlot)
+    local u = AutoTraitsGrades.GetUnitById(selectedUnitId)
     local traitRerolls = AutoTraitsGrades.GetTraitRerolls()
     local gems = AutoTraitsGrades.GetGems()
 
@@ -457,7 +481,7 @@ local function updateTraitGradeDisplay()
         local traitStatus = AutoTraitsGrades.AutoTrait and " [⏳ Rolling Trait...]" or ""
         local gradeStatus = AutoTraitsGrades.AutoGrade and " [⏳ Rolling Grade...]" or ""
         traitGradeCard:Set(
-            string.format("⭐ [Slot %d] %s (Lv.%d)", u.slot, u.unitName, u.level),
+            string.format("⭐ %s (Lv.%d) [%s]", u.name, u.level, u.rarity),
             string.format("Trait: %s%s | Target: %s\nGrade: %s%s | Target: %s\nBahan: %d Trait Rerolls | %d Gems",
                 u.trait, traitStatus, selectedTargetTrait,
                 u.grade, gradeStatus, selectedTargetGrade .. (gradeOrHigher and " (Atau Lebih)" or ""),
@@ -465,30 +489,30 @@ local function updateTraitGradeDisplay()
         )
     else
         traitGradeCard:Set(
-            string.format("⚪ [Slot %d] Slot Kosong", selectedTGSlot),
-            string.format("Tidak ada unit di slot %d.\nBahan: %d Trait Rerolls | %d Gems", selectedTGSlot, traitRerolls, gems)
+            "⚪ Pilih Unit dari Inventory",
+            string.format("Silakan pilih salah satu unit dari inventory di bawah.\nBahan: %d Trait Rerolls | %d Gems", traitRerolls, gems)
         )
     end
 end
 
--- Dropdown Pilih Slot Unit untuk Trait & Grade
-local tgSlotOptions = {"Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6", "Slot 7", "Slot 8"}
-FarmTab:AddDropdown("Pilih Slot Unit (Trait & Grade)", tgSlotOptions, "Slot " .. selectedTGSlot, function(choice)
-    local num = choice:match("%d+")
-    selectedTGSlot = tonumber(num) or 1
-    CurrentConfig.TraitTargetSlot = selectedTGSlot
-    CurrentConfig.GradeTargetSlot = selectedTGSlot
-    if AutoTraitsGrades then
-        AutoTraitsGrades.TargetSlot = selectedTGSlot
-        if AutoTraitsGrades.AutoTrait then
-            AutoTraitsGrades.StartAutoTrait(selectedTGSlot, selectedTargetTrait)
+-- Dropdown Pilih Unit Langsung dari Inventory
+FarmTab:AddDropdown("Pilih Unit (Inventory)", unitDisplayNames, currentUnitDisplayName, function(choice)
+    local targetId = displayNameToId[choice]
+    if targetId then
+        selectedUnitId = targetId
+        CurrentConfig.TargetUnitId = targetId
+        if AutoTraitsGrades then
+            AutoTraitsGrades.TargetUnitId = targetId
+            if AutoTraitsGrades.AutoTrait then
+                AutoTraitsGrades.StartAutoTrait(targetId, selectedTargetTrait)
+            end
+            if AutoTraitsGrades.AutoGrade then
+                AutoTraitsGrades.StartAutoGrade(targetId, selectedTargetGrade, gradeOrHigher)
+            end
         end
-        if AutoTraitsGrades.AutoGrade then
-            AutoTraitsGrades.StartAutoGrade(selectedTGSlot, selectedTargetGrade, gradeOrHigher)
-        end
+        if ConfigManager then ConfigManager.Save() end
+        updateTraitGradeDisplay()
     end
-    if ConfigManager then ConfigManager.Save() end
-    updateTraitGradeDisplay()
 end)
 
 -- SEKSI TRAIT:
@@ -511,8 +535,8 @@ FarmTab:AddDropdown("Target Trait List", traitListOptions, selectedTargetTrait, 
     CurrentConfig.TargetTrait = choice
     if AutoTraitsGrades then
         AutoTraitsGrades.TargetTrait = choice
-        if AutoTraitsGrades.AutoTrait then
-            AutoTraitsGrades.StartAutoTrait(selectedTGSlot, choice)
+        if AutoTraitsGrades.AutoTrait and selectedUnitId then
+            AutoTraitsGrades.StartAutoTrait(selectedUnitId, choice)
         end
     end
     if ConfigManager then ConfigManager.Save() end
@@ -524,8 +548,15 @@ autoTraitToggle = FarmTab:AddToggle("Auto Roll Trait (Stop di Target)", false, f
     CurrentConfig.AutoTrait = state
     if AutoTraitsGrades then
         if state then
-            AutoTraitsGrades.StartAutoTrait(selectedTGSlot, selectedTargetTrait)
-            Window.Notify("Auto Trait", string.format("Auto Trait dimulai untuk Slot %d -> Target: %s", selectedTGSlot, selectedTargetTrait), 2.5)
+            if not selectedUnitId then
+                Window.Notify("Auto Trait", "Silakan pilih unit dari inventory terlebih dahulu!", 2.0)
+                if autoTraitToggle and typeof(autoTraitToggle.Set) == "function" then
+                    autoTraitToggle:Set(false, false)
+                end
+                return
+            end
+            AutoTraitsGrades.StartAutoTrait(selectedUnitId, selectedTargetTrait)
+            Window.Notify("Auto Trait", string.format("Auto Trait dimulai -> Target: %s", selectedTargetTrait), 2.5)
         else
             AutoTraitsGrades.StopAutoTrait()
             Window.Notify("Auto Trait", "Auto Trait dihentikan.", 1.8)
@@ -562,8 +593,8 @@ FarmTab:AddDropdown("Target Grade List", gradeListOptions, selectedTargetGrade, 
     CurrentConfig.TargetGrade = choice
     if AutoTraitsGrades then
         AutoTraitsGrades.TargetGrade = choice
-        if AutoTraitsGrades.AutoGrade then
-            AutoTraitsGrades.StartAutoGrade(selectedTGSlot, choice, gradeOrHigher)
+        if AutoTraitsGrades.AutoGrade and selectedUnitId then
+            AutoTraitsGrades.StartAutoGrade(selectedUnitId, choice, gradeOrHigher)
         end
     end
     if ConfigManager then ConfigManager.Save() end
@@ -585,8 +616,15 @@ autoGradeToggle = FarmTab:AddToggle("Auto Roll Grade (Stop di Target)", false, f
     CurrentConfig.AutoGrade = state
     if AutoTraitsGrades then
         if state then
-            AutoTraitsGrades.StartAutoGrade(selectedTGSlot, selectedTargetGrade, gradeOrHigher)
-            Window.Notify("Auto Grade", string.format("Auto Grade dimulai untuk Slot %d -> Target: %s", selectedTGSlot, selectedTargetGrade), 2.5)
+            if not selectedUnitId then
+                Window.Notify("Auto Grade", "Silakan pilih unit dari inventory terlebih dahulu!", 2.0)
+                if autoGradeToggle and typeof(autoGradeToggle.Set) == "function" then
+                    autoGradeToggle:Set(false, false)
+                end
+                return
+            end
+            AutoTraitsGrades.StartAutoGrade(selectedUnitId, selectedTargetGrade, gradeOrHigher)
+            Window.Notify("Auto Grade", string.format("Auto Grade dimulai -> Target: %s", selectedTargetGrade), 2.5)
         else
             AutoTraitsGrades.StopAutoGrade()
             Window.Notify("Auto Grade", "Auto Grade dihentikan.", 1.8)

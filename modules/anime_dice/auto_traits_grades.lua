@@ -74,10 +74,10 @@ AutoTraitsGrades.GradeRanks = {
 AutoTraitsGrades.IsRunning = false
 AutoTraitsGrades.AutoTrait = false
 AutoTraitsGrades.AutoGrade = false
-AutoTraitsGrades.TargetSlot = 1
+AutoTraitsGrades.TargetUnitId = nil
 AutoTraitsGrades.TargetTrait = "Transcendent"
 AutoTraitsGrades.TargetGrade = "S+"
-AutoTraitsGrades.GradeModeOrHigher = true -- true: stop jika grade >= target (misal target S+, maka S+, Z, Z+ juga stop)
+AutoTraitsGrades.GradeModeOrHigher = true
 AutoTraitsGrades.RollDelay = 0.35
 
 AutoTraitsGrades.OnTraitFinished = nil -- callback
@@ -116,25 +116,102 @@ function AutoTraitsGrades.GetGems()
     return count
 end
 
--- ─── HELPER: BACA UNIT DI SLOT (ANTI-BUG RELOG/REJOIN) ─────────────
-function AutoTraitsGrades.GetSlotUnit(slotIndex)
+-- ─── AMBIL SEMUA UNIT DARI INVENTORY (TANPA PERLU SLOT PLOT) ──────
+function AutoTraitsGrades.GetAllInventoryUnits()
     local dc = AutoTraitsGrades.GetDataController()
-    if not dc or not dc.Slots or not dc.Inventory then return nil end
+    if not dc or not dc.Inventory then return {} end
 
-    local slotData = dc.Slots[tostring(slotIndex)] and dc.Slots[tostring(slotIndex)]()
-    if not slotData or not slotData.unitId then return nil end
+    local inv = nil
+    pcall(function()
+        if typeof(dc.Inventory) == "function" then
+            inv = dc.Inventory()
+        elseif typeof(dc.Inventory) == "table" and getmetatable(dc.Inventory) and getmetatable(dc.Inventory).__call then
+            inv = dc.Inventory()
+        end
+    end)
+    if not inv then return {} end
 
-    local unitItem = dc.Inventory[slotData.unitId] and dc.Inventory[slotData.unitId]()
-    if not unitItem then return nil end
+    local EntryRegistry = nil
+    pcall(function()
+        EntryRegistry = require(ReplicatedStorage.Framework.Features.Inventory.EntryRegistry)
+    end)
 
+    local list = {}
+    for id, item in pairs(inv) do
+        if typeof(item) == "table" and item.name then
+            local isUnit = false
+            local rarity = "Common"
+            if EntryRegistry and EntryRegistry.getEntryConfig then
+                local cfg = EntryRegistry.getEntryConfig(item.name)
+                if cfg and cfg.kind == "Unit" then
+                    isUnit = true
+                    rarity = cfg.rarity or "Common"
+                end
+            elseif item.attributes and (item.attributes.level or item.attributes.grade) then
+                isUnit = true
+            end
+
+            if isUnit then
+                local attrs = item.attributes or {}
+                table.insert(list, {
+                    id = id,
+                    name = item.name,
+                    rarity = rarity,
+                    level = attrs.level or 1,
+                    grade = attrs.grade or "D",
+                    trait = attrs.trait or "None",
+                    mutation = attrs.mutation or "None"
+                })
+            end
+        end
+    end
+
+    -- Urutkan berdasarkan level tertinggi lalu nama
+    table.sort(list, function(a, b)
+        if a.level ~= b.level then
+            return a.level > b.level
+        end
+        return a.name < b.name
+    end)
+
+    return list
+end
+
+-- ─── AMBIL DETAIL 1 UNIT BERDASARKAN ID ────────────────────────────
+function AutoTraitsGrades.GetUnitById(unitId)
+    if not unitId then return nil end
+    local dc = AutoTraitsGrades.GetDataController()
+    if not dc or not dc.Inventory then return nil end
+
+    local unitItem = nil
+    pcall(function()
+        if dc.Inventory[unitId] and typeof(dc.Inventory[unitId]) == "function" then
+            unitItem = dc.Inventory[unitId]()
+        end
+    end)
+    if not unitItem then
+        -- Fallback: cari dari GetAllInventoryUnits
+        for _, u in ipairs(AutoTraitsGrades.GetAllInventoryUnits()) do
+            if u.id == unitId then return u end
+        end
+        return nil
+    end
+
+    local EntryRegistry = nil
+    pcall(function()
+        EntryRegistry = require(ReplicatedStorage.Framework.Features.Inventory.EntryRegistry)
+    end)
+    local cfg = EntryRegistry and EntryRegistry.getEntryConfig and EntryRegistry.getEntryConfig(unitItem.name)
     local attrs = unitItem.attributes or {}
+
     return {
-        unitId = slotData.unitId,
-        unitName = unitItem.name,
-        slot = slotIndex,
-        trait = attrs.trait or "None",
+        id = unitId,
+        name = unitItem.name,
+        rarity = cfg and cfg.rarity or "Common",
+        level = attrs.level or 1,
         grade = attrs.grade or "D",
-        level = attrs.level or 1
+        trait = attrs.trait or "None",
+        mutation = attrs.mutation or "None"
     }
 end
 
@@ -154,11 +231,6 @@ function AutoTraitsGrades.IsTraitTargetReached(currentTrait, targetTrait)
             return true
         end
     end
-
-    -- Preset: "Damage Max" (Damage III)
-    if targetTrait == "Damage Max" and currentTrait == "Damage III" then return true end
-    -- Preset: "Money Max" (Money III)
-    if targetTrait == "Money Max" and currentTrait == "Money III" then return true end
 
     return false
 end
@@ -183,33 +255,33 @@ function AutoTraitsGrades.IsGradeTargetReached(currentGrade, targetGrade, orHigh
 end
 
 -- ─── AUTO TRAIT ENGINE ────────────────────────────────────────────
-function AutoTraitsGrades.StartAutoTrait(targetSlot, targetTrait)
+function AutoTraitsGrades.StartAutoTrait(unitId, targetTrait)
     AutoTraitsGrades.StopAutoTrait()
     getRemotes()
 
-    targetSlot = tonumber(targetSlot) or AutoTraitsGrades.TargetSlot or 1
+    unitId = unitId or AutoTraitsGrades.TargetUnitId
     targetTrait = targetTrait or AutoTraitsGrades.TargetTrait or "Transcendent"
-    AutoTraitsGrades.TargetSlot = targetSlot
+    AutoTraitsGrades.TargetUnitId = unitId
     AutoTraitsGrades.TargetTrait = targetTrait
     AutoTraitsGrades.AutoTrait = true
 
     traitThread = task.spawn(function()
-        print(string.format("[AUTO TRAIT] Memulai auto trait untuk Slot %d (Target: %s)...", targetSlot, targetTrait))
+        print(string.format("[AUTO TRAIT] Memulai auto trait untuk Unit %s (Target: %s)...", tostring(unitId), targetTrait))
 
-        -- 1. BACA UNIT TERLEBIH DAHULU (Pencegahan Bug Rejoin / Double Roll)
+        -- 1. BACA UNIT DARI INVENTORY TERLEBIH DAHULU (Pencegahan Bug Rejoin / Double Roll)
         task.wait(0.3)
-        local initialUnit = AutoTraitsGrades.GetSlotUnit(targetSlot)
+        local initialUnit = AutoTraitsGrades.GetUnitById(unitId)
         if not initialUnit then
-            warn("[AUTO TRAIT] Tidak ada unit di Slot " .. targetSlot .. "! Menghentikan.")
+            warn("[AUTO TRAIT] Unit tidak ditemukan di inventory! Menghentikan.")
             AutoTraitsGrades.AutoTrait = false
             traitThread = nil
             if AutoTraitsGrades.OnTraitFinished then
-                pcall(AutoTraitsGrades.OnTraitFinished, false, "Tidak ada unit di slot ini!")
+                pcall(AutoTraitsGrades.OnTraitFinished, false, "Unit tidak ditemukan di inventory!")
             end
             return
         end
 
-        print(string.format("[AUTO TRAIT] Unit dibaca: %s | Trait saat ini: %s", initialUnit.unitName, initialUnit.trait))
+        print(string.format("[AUTO TRAIT] Unit dibaca: %s | Trait saat ini: %s", initialUnit.name, initialUnit.trait))
         if AutoTraitsGrades.IsTraitTargetReached(initialUnit.trait, targetTrait) then
             print("[AUTO TRAIT] Unit SUDAH memiliki trait target! Tidak perlu me-roll.")
             AutoTraitsGrades.AutoTrait = false
@@ -235,7 +307,7 @@ function AutoTraitsGrades.StartAutoTrait(targetSlot, targetTrait)
             end
 
             -- Cek ulang unit sebelum melempar remote
-            local u = AutoTraitsGrades.GetSlotUnit(targetSlot)
+            local u = AutoTraitsGrades.GetUnitById(unitId)
             if not u then
                 AutoTraitsGrades.AutoTrait = false
                 traitThread = nil
@@ -255,14 +327,14 @@ function AutoTraitsGrades.StartAutoTrait(targetSlot, targetTrait)
             -- Eksekusi Roll dengan bypass protect (argumen kedua true)
             if traitRE then
                 pcall(function()
-                    traitRE:FireServer(u.unitId, true)
+                    traitRE:FireServer(unitId, true)
                 end)
             end
 
             task.wait(AutoTraitsGrades.RollDelay or 0.35)
 
             -- Verifikasi hasil roll setelah delay
-            local uAfter = AutoTraitsGrades.GetSlotUnit(targetSlot)
+            local uAfter = AutoTraitsGrades.GetUnitById(unitId)
             if uAfter and AutoTraitsGrades.IsTraitTargetReached(uAfter.trait, targetTrait) then
                 print(string.format("[AUTO TRAIT] 🎉 TARGET TERCAPAI: %s! STOP ROLL.", uAfter.trait))
                 AutoTraitsGrades.AutoTrait = false
@@ -290,37 +362,37 @@ function AutoTraitsGrades.StopAutoTrait()
 end
 
 -- ─── AUTO GRADE ENGINE ────────────────────────────────────────────
-function AutoTraitsGrades.StartAutoGrade(targetSlot, targetGrade, orHigher)
+function AutoTraitsGrades.StartAutoGrade(unitId, targetGrade, orHigher)
     AutoTraitsGrades.StopAutoGrade()
     getRemotes()
 
-    targetSlot = tonumber(targetSlot) or AutoTraitsGrades.TargetSlot or 1
+    unitId = unitId or AutoTraitsGrades.TargetUnitId
     targetGrade = targetGrade or AutoTraitsGrades.TargetGrade or "S+"
     if orHigher == nil then orHigher = AutoTraitsGrades.GradeModeOrHigher end
 
-    AutoTraitsGrades.TargetSlot = targetSlot
+    AutoTraitsGrades.TargetUnitId = unitId
     AutoTraitsGrades.TargetGrade = targetGrade
     AutoTraitsGrades.GradeModeOrHigher = orHigher
     AutoTraitsGrades.AutoGrade = true
 
     gradeThread = task.spawn(function()
-        print(string.format("[AUTO GRADE] Memulai auto grade untuk Slot %d (Target: %s, OrHigher: %s)...",
-            targetSlot, targetGrade, tostring(orHigher)))
+        print(string.format("[AUTO GRADE] Memulai auto grade untuk Unit %s (Target: %s, OrHigher: %s)...",
+            tostring(unitId), targetGrade, tostring(orHigher)))
 
-        -- 1. BACA UNIT TERLEBIH DAHULU (Pencegahan Bug Rejoin / Double Roll)
+        -- 1. BACA UNIT DARI INVENTORY TERLEBIH DAHULU (Pencegahan Bug Rejoin / Double Roll)
         task.wait(0.3)
-        local initialUnit = AutoTraitsGrades.GetSlotUnit(targetSlot)
+        local initialUnit = AutoTraitsGrades.GetUnitById(unitId)
         if not initialUnit then
-            warn("[AUTO GRADE] Tidak ada unit di Slot " .. targetSlot .. "! Menghentikan.")
+            warn("[AUTO GRADE] Unit tidak ditemukan di inventory! Menghentikan.")
             AutoTraitsGrades.AutoGrade = false
             gradeThread = nil
             if AutoTraitsGrades.OnGradeFinished then
-                pcall(AutoTraitsGrades.OnGradeFinished, false, "Tidak ada unit di slot ini!")
+                pcall(AutoTraitsGrades.OnGradeFinished, false, "Unit tidak ditemukan di inventory!")
             end
             return
         end
 
-        print(string.format("[AUTO GRADE] Unit dibaca: %s | Grade saat ini: %s", initialUnit.unitName, initialUnit.grade))
+        print(string.format("[AUTO GRADE] Unit dibaca: %s | Grade saat ini: %s", initialUnit.name, initialUnit.grade))
         if AutoTraitsGrades.IsGradeTargetReached(initialUnit.grade, targetGrade, orHigher) then
             print("[AUTO GRADE] Unit SUDAH memiliki grade target! Tidak perlu me-roll.")
             AutoTraitsGrades.AutoGrade = false
@@ -346,7 +418,7 @@ function AutoTraitsGrades.StartAutoGrade(targetSlot, targetGrade, orHigher)
             end
 
             -- Cek ulang unit sebelum melempar remote
-            local u = AutoTraitsGrades.GetSlotUnit(targetSlot)
+            local u = AutoTraitsGrades.GetUnitById(unitId)
             if not u then
                 AutoTraitsGrades.AutoGrade = false
                 gradeThread = nil
@@ -366,14 +438,14 @@ function AutoTraitsGrades.StartAutoGrade(targetSlot, targetGrade, orHigher)
             -- Eksekusi Roll Grade dengan bypass protect (argumen kedua true)
             if gradeRE then
                 pcall(function()
-                    gradeRE:FireServer(u.unitId, true)
+                    gradeRE:FireServer(unitId, true)
                 end)
             end
 
             task.wait(AutoTraitsGrades.RollDelay or 0.35)
 
             -- Verifikasi hasil roll setelah delay
-            local uAfter = AutoTraitsGrades.GetSlotUnit(targetSlot)
+            local uAfter = AutoTraitsGrades.GetUnitById(unitId)
             if uAfter and AutoTraitsGrades.IsGradeTargetReached(uAfter.grade, targetGrade, orHigher) then
                 print(string.format("[AUTO GRADE] 🎉 TARGET TERCAPAI: %s! STOP ROLL.", uAfter.grade))
                 AutoTraitsGrades.AutoGrade = false

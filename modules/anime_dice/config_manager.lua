@@ -44,11 +44,10 @@ ConfigManager.DefaultConfig = {
     -- Slot Unit Upgrades
     SlotUpgradeTargetSlot = 0, -- 0 = Semua Slot, 1..8 = Slot 1-8
     SlotUpgradeTargetTimes = 5,
-    -- Traits & Grades Automation
+    -- Traits & Grades Automation (Inventory Direct)
     AutoTrait = false,
     AutoGrade = false,
-    TraitTargetSlot = 1,
-    GradeTargetSlot = 1,
+    TargetUnitId = nil,
     TargetTrait = "Transcendent",
     TargetGrade = "S+",
     GradeModeOrHigher = true
