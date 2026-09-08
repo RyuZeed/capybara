@@ -75,8 +75,20 @@ pcall(function()
     if _G.AnimeDiceAntiAFK and typeof(_G.AnimeDiceAntiAFK.Stop) == "function" then
         _G.AnimeDiceAntiAFK.Stop()
     end
-    if _G.RitodHubAnimeDice and typeof(_G.RitodHubAnimeDice) == "Instance" then
-        pcall(function() _G.RitodHubAnimeDice:Destroy() end)
+    if _G.RitodHubGui and typeof(_G.RitodHubGui) == "Instance" then
+        pcall(function() _G.RitodHubGui:Destroy() end)
+    end
+    for _, name in ipairs({"RitodHubUltra", "RitodHub_AnimeDice"}) do
+        pcall(function()
+            local g1 = CoreGui:FindFirstChild(name)
+            if g1 then g1:Destroy() end
+        end)
+        pcall(function()
+            if LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui") then
+                local g2 = LocalPlayer.PlayerGui:FindFirstChild(name)
+                if g2 then g2:Destroy() end
+            end
+        end)
     end
 
     -- 🔓 Lepaskan Shift Lock game bawaan agar kursor bebas
