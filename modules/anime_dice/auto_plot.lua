@@ -17,11 +17,52 @@ local collectRE = plotRE and plotRE:FindFirstChild("CollectBalance")
 local equipBestRE = plotRE and plotRE:FindFirstChild("EquipBest")
 local levelUpSlotRE = plotRE and plotRE:FindFirstChild("LevelUpSlot")
 
+AutoPlot.MAX_SLOTS = 13
 AutoPlot.IsRunning = false
 AutoPlot.CollectCash = true
 AutoPlot.CollectInterval = 30
 AutoPlot.EquipBest = true
 AutoPlot.UpgradeSlots = false
+AutoPlot.LevelUpByRebirth = false
+AutoPlot.LevelMultiplierPerRebirth = 10
+
+local SLOT_REBIRTH_REQS = {
+    [1] = 0, [2] = 0, [3] = 0, [4] = 0,
+    [5] = 1, [6] = 2, [7] = 3, [8] = 4,
+    [9] = 6, [10] = 7, [11] = 8, [12] = 9, [13] = 10
+}
+
+function AutoPlot.GetPlayerRebirth()
+    local rebirth = 0
+    pcall(function()
+        local DataController = require(ReplicatedStorage.Framework.Features.Data.DataController)
+        rebirth = (DataController.Rebirth and DataController.Rebirth()) or 0
+    end)
+    return rebirth
+end
+
+function AutoPlot.GetSlotRebirthRequirement(slot)
+    if SLOT_REBIRTH_REQS[slot] ~= nil then
+        return SLOT_REBIRTH_REQS[slot]
+    end
+    local req = nil
+    pcall(function()
+        local PlotConfig = require(ReplicatedStorage.Framework.Features.Plot.PlotConfig)
+        req = PlotConfig.GetSlotRebirthRequirement and PlotConfig.GetSlotRebirthRequirement(slot)
+    end)
+    return req or 0
+end
+
+function AutoPlot.IsSlotUnlocked(slot)
+    local req = AutoPlot.GetSlotRebirthRequirement(slot)
+    return AutoPlot.GetPlayerRebirth() >= req
+end
+
+function AutoPlot.GetTargetLevelForRebirth()
+    local rebirth = AutoPlot.GetPlayerRebirth()
+    local mult = AutoPlot.LevelMultiplierPerRebirth or 10
+    return math.max(10, (rebirth + 1) * mult)
+end
 
 local loopThread = nil
 
@@ -63,11 +104,13 @@ function AutoPlot.CollectBalanceOnce(slotIndex)
                         collectedAny = true
                     end
                 else
-                    for slot = 1, 8 do
-                        local sData = DataController.Slots[tostring(slot)] and DataController.Slots[tostring(slot)]()
-                        if sData and sData.balance and sData.balance > 0 then
-                            collectedAny = true
-                            break
+                    for slot = 1, AutoPlot.MAX_SLOTS do
+                        if AutoPlot.IsSlotUnlocked(slot) then
+                            local sData = DataController.Slots[tostring(slot)] and DataController.Slots[tostring(slot)]()
+                            if sData and sData.balance and sData.balance > 0 then
+                                collectedAny = true
+                                break
+                            end
                         end
                     end
                 end
@@ -77,8 +120,10 @@ function AutoPlot.CollectBalanceOnce(slotIndex)
         if slotIndex then
             pcall(function() collectRE:FireServer(slotIndex) end)
         else
-            for slot = 1, 8 do
-                pcall(function() collectRE:FireServer(slot) end)
+            for slot = 1, AutoPlot.MAX_SLOTS do
+                if AutoPlot.IsSlotUnlocked(slot) then
+                    pcall(function() collectRE:FireServer(slot) end)
+                end
             end
         end
 
@@ -99,7 +144,7 @@ function AutoPlot.EquipBestOnce()
 end
 
 AutoPlot.UpgradeTimes = 5 -- Berapa kali upgrade default
-AutoPlot.TargetSlot = 0 -- 0 = Semua Slot, 1..8 = Slot tertentu
+AutoPlot.TargetSlot = 0 -- 0 = Semua Slot, 1..13 = Slot tertentu
 AutoPlot.SlotRemaining = {} -- [slotIndex] = remainingQuota
 AutoPlot.OnUpgradeCompleted = nil -- callback ketika kuota upgrade selesai
 
@@ -113,10 +158,12 @@ function AutoPlot.StartAutoUpgradeSession(times, targetSlot)
     if targetSlot > 0 then
         AutoPlot.SlotRemaining[targetSlot] = times
     else
-        for s = 1, 8 do
-            local info = AutoPlot.GetSlotUnitInfo(s)
-            if info.hasUnit then
-                AutoPlot.SlotRemaining[s] = times
+        for s = 1, AutoPlot.MAX_SLOTS do
+            if AutoPlot.IsSlotUnlocked(s) then
+                local info = AutoPlot.GetSlotUnitInfo(s)
+                if info.hasUnit then
+                    AutoPlot.SlotRemaining[s] = times
+                end
             end
         end
     end
@@ -185,12 +232,14 @@ function AutoPlot.GetSlotUnitInfo(slotIdx)
             end
         end
     end)
+    info.isUnlocked = AutoPlot.IsSlotUnlocked(slotIdx)
+    info.requiredRebirth = AutoPlot.GetSlotRebirthRequirement(slotIdx)
     return info
 end
 
 function AutoPlot.GetAllSlotsInfo()
     local all = {}
-    for i = 1, 8 do
+    for i = 1, AutoPlot.MAX_SLOTS do
         table.insert(all, AutoPlot.GetSlotUnitInfo(i))
     end
     return all
@@ -227,16 +276,36 @@ end
 function AutoPlot.UpgradeAllSlotsTimes(times)
     times = math.max(1, tonumber(times) or 1)
     local total = 0
-    for slot = 1, 8 do
-        local count = AutoPlot.UpgradeSlotTimes(slot, times)
-        total = total + count
-        task.wait(0.05)
+    for slot = 1, AutoPlot.MAX_SLOTS do
+        if AutoPlot.IsSlotUnlocked(slot) then
+            local count = AutoPlot.UpgradeSlotTimes(slot, times)
+            total = total + count
+            task.wait(0.05)
+        end
     end
     return total
 end
 
 function AutoPlot.UpgradeAllSlotsOnce()
     return AutoPlot.UpgradeAllSlotsTimes(1)
+end
+
+function AutoPlot.LevelUpSlotsByRebirthOnce()
+    local targetLv = AutoPlot.GetTargetLevelForRebirth()
+    local upgraded = 0
+    for slot = 1, AutoPlot.MAX_SLOTS do
+        if AutoPlot.IsSlotUnlocked(slot) then
+            local info = AutoPlot.GetSlotUnitInfo(slot)
+            if info.hasUnit and info.level < targetLv and info.canAfford then
+                local ok = AutoPlot.UpgradeSlot(slot)
+                if ok then
+                    upgraded = upgraded + 1
+                    task.wait(0.15)
+                end
+            end
+        end
+    end
+    return upgraded
 end
 
 function AutoPlot.Start()
@@ -247,6 +316,7 @@ function AutoPlot.Start()
         local tickCollect = 0
         local tickEquip = 0
         local tickUpgrade = 0
+        local tickLevelUpRebirth = 0
 
         while AutoPlot.IsRunning do
             local now = tick()
@@ -319,15 +389,17 @@ function AutoPlot.Start()
                         end
                     end
                 else
-                    for s = 1, 8 do
-                        local rem = AutoPlot.SlotRemaining[s] or 0
-                        if rem > 0 then
-                            local did = AutoPlot.UpgradeSlotTimes(s, rem)
-                            if did > 0 then
-                                AutoPlot.SlotRemaining[s] = math.max(0, rem - did)
-                            end
-                            if (AutoPlot.SlotRemaining[s] or 0) > 0 then
-                                hasRemaining = true
+                    for s = 1, AutoPlot.MAX_SLOTS do
+                        if AutoPlot.IsSlotUnlocked(s) then
+                            local rem = AutoPlot.SlotRemaining[s] or 0
+                            if rem > 0 then
+                                local did = AutoPlot.UpgradeSlotTimes(s, rem)
+                                if did > 0 then
+                                    AutoPlot.SlotRemaining[s] = math.max(0, rem - did)
+                                end
+                                if (AutoPlot.SlotRemaining[s] or 0) > 0 then
+                                    hasRemaining = true
+                                end
                             end
                         end
                     end
@@ -343,6 +415,20 @@ function AutoPlot.Start()
                         pcall(AutoPlot.OnUpgradeCompleted, targetTimes, targetSlot)
                     end
                 end
+            end
+
+            -- Auto Level Up Sesuai Rebirth (target level otomatis mengikuti Rebirth player)
+            local shouldLevelUpByRebirth = AutoPlot.LevelUpByRebirth
+            if cfg and cfg.AutoLevelUpByRebirth ~= nil then
+                shouldLevelUpByRebirth = cfg.AutoLevelUpByRebirth
+            end
+            if cfg and cfg.LevelUpRebirthMultiplier ~= nil then
+                AutoPlot.LevelMultiplierPerRebirth = tonumber(cfg.LevelUpRebirthMultiplier) or 10
+            end
+
+            if shouldLevelUpByRebirth and (now - tickLevelUpRebirth) >= 1.5 then
+                tickLevelUpRebirth = now
+                AutoPlot.LevelUpSlotsByRebirthOnce()
             end
 
             task.wait(0.5)

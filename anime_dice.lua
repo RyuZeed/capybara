@@ -327,6 +327,8 @@ local slotInfoCard = FarmTab:AddParagraph(
 
 local autoUpgradeToggle
 
+local maxPlotSlots = (AutoPlot and AutoPlot.MAX_SLOTS) or 13
+
 local function updateSlotDisplay()
     if not AutoPlot or not AutoPlot.GetSlotUnitInfo then return end
     local isUpgrading = AutoPlot.UpgradeSlots
@@ -344,8 +346,8 @@ local function updateSlotDisplay()
         local summaryStr = (#lines > 0) and table.concat(lines, " | ") or "Semua slot kosong."
         local statusNote = isUpgrading and string.format("\n⏳ Status: Auto Upgrade Berjalan (Target: %dx)", selectedUpgradeTimes) or ""
         slotInfoCard:Set(
-            string.format("🌟 Semua Slot Unit (%d/8 Terpasang)", activeCount),
-            string.format("Target: Semua Slot (1-8)\n%s%s", summaryStr, statusNote)
+            string.format("🌟 Semua Slot Unit (%d/%d Terpasang)", activeCount, maxPlotSlots),
+            string.format("Target: Semua Slot (1-%d)\n%s%s", maxPlotSlots, summaryStr, statusNote)
         )
     else
         local s = AutoPlot.GetSlotUnitInfo(selectedSlotIdx)
@@ -359,23 +361,23 @@ local function updateSlotDisplay()
                     s.level, s.grade, s.trait, s.mutation, formatCash(s.price), statusStr, statusNote)
             )
         else
+            local unlockNote = s.isUnlocked and "Slot Terbuka (Kosong)" or string.format("Terkunci (Butuh Rebirth %d)", s.requiredRebirth or 0)
             slotInfoCard:Set(
                 string.format("⚪ [Slot %d] Slot Kosong", selectedSlotIdx),
-                "Tidak ada unit yang ditempatkan pada slot ini.\nGunakan 'Pasang Unit Terbaik Sekarang' untuk mengisi slot."
+                string.format("Status: %s\nTidak ada unit yang ditempatkan pada slot ini.\nGunakan 'Pasang Unit Terbaik Sekarang' untuk mengisi slot.", unlockNote)
             )
         end
     end
 end
 
-local slotOptions = {
-    "Semua Slot (1-8)",
-    "Slot 1", "Slot 2", "Slot 3", "Slot 4",
-    "Slot 5", "Slot 6", "Slot 7", "Slot 8"
-}
-local currentSlotName = (selectedSlotIdx == 0) and "Semua Slot (1-8)" or ("Slot " .. selectedSlotIdx)
+local slotOptions = { "Semua Slot (1-" .. maxPlotSlots .. ")" }
+for s = 1, maxPlotSlots do
+    table.insert(slotOptions, "Slot " .. s)
+end
+local currentSlotName = (selectedSlotIdx == 0) and ("Semua Slot (1-" .. maxPlotSlots .. ")") or ("Slot " .. selectedSlotIdx)
 
-FarmTab:AddDropdown("Pilih Slot Unit", slotOptions, currentSlotName, function(choice)
-    if choice == "Semua Slot (1-8)" then
+local slotDropdown = FarmTab:AddDropdown("Pilih Slot Unit", slotOptions, currentSlotName, function(choice)
+    if choice:find("Semua Slot") then
         selectedSlotIdx = 0
     else
         local num = choice:match("%d+")
@@ -390,6 +392,47 @@ FarmTab:AddDropdown("Pilih Slot Unit", slotOptions, currentSlotName, function(ch
     end
     if ConfigManager then ConfigManager.Save() end
     updateSlotDisplay()
+end)
+
+FarmTab:AddInput("🔍 Cari Unit di Slot", "Ketik nama unit / nomor slot...", function(text)
+    if not text or text == "" then return end
+    local query = string.lower(text)
+    local foundSlot = nil
+
+    local num = query:match("%d+")
+    if num then
+        local n = tonumber(num)
+        if n and n >= 1 and n <= maxPlotSlots then
+            foundSlot = n
+        end
+    end
+
+    if not foundSlot and AutoPlot and AutoPlot.GetAllSlotsInfo then
+        local all = AutoPlot.GetAllSlotsInfo()
+        for _, s in ipairs(all) do
+            if s.hasUnit and string.find(string.lower(s.unitName), query, 1, true) then
+                foundSlot = s.slot
+                break
+            end
+        end
+    end
+
+    if foundSlot then
+        selectedSlotIdx = foundSlot
+        CurrentConfig.SlotUpgradeTargetSlot = foundSlot
+        if slotDropdown and slotDropdown.Set then
+            slotDropdown:Set("Slot " .. foundSlot, false)
+        end
+        if AutoPlot then
+            AutoPlot.TargetSlot = foundSlot
+            if AutoPlot.UpgradeSlots then
+                AutoPlot.StartAutoUpgradeSession(selectedUpgradeTimes, foundSlot)
+            end
+        end
+        if ConfigManager then ConfigManager.Save() end
+        updateSlotDisplay()
+        Window.Notify("Cari Slot", string.format("Unit ditemukan di Slot %d!", foundSlot), 1.5)
+    end
 end)
 
 FarmTab:AddSlider("Berapa Kali Upgrade (1 - 50x)", 1, 50, selectedUpgradeTimes, function(val)
@@ -447,6 +490,74 @@ FarmTab:AddButton("⬆️ Upgrade Unit Sekarang (Sesuai Pilihan X Kali)", functi
     end
 end)
 
+-- ─── 🎯 AUTO LEVEL UP UNIT SESUAI REBIRTH ────
+FarmTab:AddSection("🎯 Auto Level Up Sesuai Rebirth")
+
+local rebirthLevelCard = FarmTab:AddParagraph(
+    "🎯 Memuat Status Rebirth & Level...",
+    "Menghitung target level unit berdasarkan Rebirth player saat ini..."
+)
+
+local function updateRebirthLevelCard()
+    if not AutoPlot then return end
+    local rebirth = AutoPlot.GetPlayerRebirth()
+    local targetLv = AutoPlot.GetTargetLevelForRebirth()
+    local mult = AutoPlot.LevelMultiplierPerRebirth or 10
+    local isLvlUp = AutoPlot.LevelUpByRebirth
+    local status = isLvlUp and "🟢 AKTIF (Menaikkan unit hingga target)" or "⚪ NONAKTIF"
+
+    local allSlots = AutoPlot.GetAllSlotsInfo()
+    local underTargetCount = 0
+    local totalActive = 0
+    for _, s in ipairs(allSlots) do
+        if s.hasUnit then
+            totalActive = totalActive + 1
+            if s.level < targetLv then
+                underTargetCount = underTargetCount + 1
+            end
+        end
+    end
+
+    rebirthLevelCard:Set(
+        string.format("🎯 Rebirth: %d | Target Level Unit: Lv.%d", rebirth, targetLv),
+        string.format("Formula: (Rebirth + 1) x %d Level\nStatus: %s\nUnit di Slot: %d unit terpasang (%d butuh level up)\nMaksimal Slot Game: 13 Slot (Terbuka penuh di Rebirth 10)",
+            mult, status, totalActive, underTargetCount)
+    )
+end
+
+FarmTab:AddSlider("Level per Rebirth (Target Lv = [R+1] x N)", 5, 30, CurrentConfig.LevelUpRebirthMultiplier or 10, function(val)
+    CurrentConfig.LevelUpRebirthMultiplier = val
+    if AutoPlot then
+        AutoPlot.LevelMultiplierPerRebirth = val
+    end
+    if ConfigManager then ConfigManager.Save() end
+    updateRebirthLevelCard()
+end)
+
+FarmTab:AddToggle("Auto Level Up Unit Sesuai Rebirth", CurrentConfig.AutoLevelUpByRebirth or false, function(state)
+    CurrentConfig.AutoLevelUpByRebirth = state
+    if AutoPlot then
+        AutoPlot.LevelUpByRebirth = state
+        if state then
+            local tLv = AutoPlot.GetTargetLevelForRebirth()
+            Window.Notify("Level Up Rebirth", string.format("Auto Level Up aktif! Target Lv.%d (Rebirth %d).", tLv, AutoPlot.GetPlayerRebirth()), 2.5)
+        else
+            Window.Notify("Level Up Rebirth", "Auto Level Up sesuai Rebirth dimatikan.", 1.8)
+        end
+    end
+    if ConfigManager then ConfigManager.Save() end
+    updateRebirthLevelCard()
+end)
+
+FarmTab:AddButton("⬆️ Level Up Sesuai Rebirth Sekarang (1 Siklus)", function()
+    if AutoPlot then
+        local count = AutoPlot.LevelUpSlotsByRebirthOnce()
+        Window.Notify("Level Up Rebirth", string.format("Berhasil menaikkan %d level unit!", count), 2.5)
+        updateSlotDisplay()
+        updateRebirthLevelCard()
+    end
+end)
+
 -- ─── 🧬 AUTO TRAITS & AUTO GRADES ENGINE (INVENTORY DIRECT) ────
 FarmTab:AddSection("🧬 Unit Traits & Grades (Inventory)")
 
@@ -454,18 +565,24 @@ local invUnits = (AutoTraitsGrades and AutoTraitsGrades.GetAllInventoryUnits()) 
 local unitDisplayNames = {}
 local displayNameToId = {}
 
-for _, u in ipairs(invUnits) do
-    local dName = string.format("%s (Lv.%d)", u.name, u.level)
-    if displayNameToId[dName] then
-        dName = string.format("%s (Lv.%d #%s)", u.name, u.level, u.id:sub(1, 4))
+local function rebuildInventoryList()
+    invUnits = (AutoTraitsGrades and AutoTraitsGrades.GetAllInventoryUnits()) or {}
+    unitDisplayNames = {}
+    displayNameToId = {}
+    for _, u in ipairs(invUnits) do
+        local dName = string.format("%s (Lv.%d)", u.name, u.level)
+        if displayNameToId[dName] then
+            dName = string.format("%s (Lv.%d #%s)", u.name, u.level, u.id:sub(1, 4))
+        end
+        table.insert(unitDisplayNames, dName)
+        displayNameToId[dName] = u.id
     end
-    table.insert(unitDisplayNames, dName)
-    displayNameToId[dName] = u.id
+    if #unitDisplayNames == 0 then
+        table.insert(unitDisplayNames, "Tidak Ada Unit di Inventory")
+    end
 end
 
-if #unitDisplayNames == 0 then
-    table.insert(unitDisplayNames, "Tidak Ada Unit di Inventory")
-end
+rebuildInventoryList()
 
 local selectedUnitId = CurrentConfig.TargetUnitId or (invUnits[1] and invUnits[1].id)
 local currentUnitDisplayName = unitDisplayNames[1]
@@ -527,8 +644,35 @@ local function updateTraitGradeDisplay()
     end
 end
 
+local unitDropdown
+
+FarmTab:AddInput("🔍 Cari Unit (Trait / Grade)", "Ketik nama unit...", function(query)
+    query = string.lower(query or "")
+    local filtered = {}
+    for _, dName in ipairs(unitDisplayNames) do
+        if query == "" or string.find(string.lower(dName), query, 1, true) then
+            table.insert(filtered, dName)
+        end
+    end
+    if #filtered == 0 then
+        table.insert(filtered, "Tidak Ada Unit yang Cocok")
+    end
+    if unitDropdown and unitDropdown.Refresh then
+        unitDropdown:Refresh(filtered, filtered[1], true)
+    end
+end)
+
+FarmTab:AddButton("🔄 Refresh Daftar Unit Inventory", function()
+    rebuildInventoryList()
+    if unitDropdown and unitDropdown.Refresh then
+        unitDropdown:Refresh(unitDisplayNames, unitDisplayNames[1], true)
+    end
+    Window.Notify("Inventory Unit", string.format("%d unit berhasil di-refresh!", #invUnits), 2.0)
+    updateTraitGradeDisplay()
+end)
+
 -- Dropdown Pilih Unit Langsung dari Inventory
-FarmTab:AddDropdown("Pilih Unit (Inventory)", unitDisplayNames, currentUnitDisplayName, function(choice)
+unitDropdown = FarmTab:AddDropdown("Pilih Unit (Inventory)", unitDisplayNames, currentUnitDisplayName, function(choice)
     local targetId = displayNameToId[choice]
     if targetId then
         selectedUnitId = targetId
@@ -689,6 +833,7 @@ task.spawn(function()
         task.wait(1.2)
         pcall(updateSlotDisplay)
         pcall(updateTraitGradeDisplay)
+        pcall(updateRebirthLevelCard)
     end
 end)
 

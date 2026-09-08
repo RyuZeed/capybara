@@ -929,8 +929,12 @@ function RitodUI:CreateWindow(options)
 
 		function elements:AddDropdown(text, list, default, callback)
 			local open = false
-			local selected = default or (list and list[1]) or ""
+			list = list or {}
+			local selected = default or list[1] or ""
 			local itemH = 32
+			local maxVisible = 6
+			local maxListH = maxVisible * itemH
+
 			local dropFrame = n("Frame", {
 				Size = UDim2.new(1, 0, 0, 42),
 				BackgroundColor3 = Color3.fromRGB(26, 20, 34),
@@ -969,6 +973,7 @@ function RitodUI:CreateWindow(options)
 				TextSize = 12,
 				Font = Enum.Font.GothamBold,
 				TextXAlignment = Enum.TextXAlignment.Right,
+				TextTruncate = Enum.TextTruncate.AtEnd,
 				ZIndex = 22
 			}, header)
 
@@ -984,57 +989,106 @@ function RitodUI:CreateWindow(options)
 				ZIndex = 22
 			}, header)
 
-			local listContainer = n("Frame", {
+			local listContainer = n("ScrollingFrame", {
 				Position = UDim2.new(0, 0, 0, 42),
-				Size = UDim2.new(1, 0, 0, #(list or {}) * itemH),
+				Size = UDim2.new(1, 0, 0, 0),
 				BackgroundTransparency = 1,
-				ZIndex = 21
+				BorderSizePixel = 0,
+				ScrollBarThickness = 3,
+				ScrollBarImageColor3 = Color3.fromRGB(180, 90, 255),
+				CanvasSize = UDim2.new(0, 0, 0, #list * itemH),
+				ZIndex = 21,
+				ClipsDescendants = true
 			}, dropFrame)
 
 			local function toggleDrop()
 				open = not open
-				local targetH = open and (42 + (#(list or {}) * itemH)) or 42
+				local totalH = #list * itemH
+				local contentH = math.min(maxListH, totalH)
+				local targetH = open and (42 + contentH) or 42
+				listContainer.Size = UDim2.new(1, 0, 0, open and contentH or 0)
 				TweenService:Create(dropFrame, TW_MED, {Size = UDim2.new(1, 0, 0, targetH)}):Play()
 				arrow.Text = open and "▲" or "▼"
 			end
 
 			header.Activated:Connect(toggleDrop)
 
-			for i, itemText in ipairs(list or {}) do
-				local itemBtn = n("TextButton", {
-					Position = UDim2.new(0, 0, 0, (i - 1) * itemH),
-					Size = UDim2.new(1, 0, 0, itemH),
-					BackgroundColor3 = Color3.fromRGB(32, 24, 42),
-					BackgroundTransparency = (itemText == selected) and 0.3 or 0.8,
-					Text = "   " .. tostring(itemText),
-					TextColor3 = (itemText == selected) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 165, 195),
-					TextSize = 11,
-					Font = Enum.Font.GothamMedium,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					ZIndex = 23,
-					Active = true
-				}, listContainer)
+			local function rebuildItems(newList)
+				list = newList or {}
+				for _, child in ipairs(listContainer:GetChildren()) do
+					if child:IsA("GuiObject") then
+						child:Destroy()
+					end
+				end
+				listContainer.CanvasSize = UDim2.new(0, 0, 0, #list * itemH)
 
-				itemBtn.Activated:Connect(function()
-					selected = itemText
-					selLbl.Text = tostring(selected)
-					toggleDrop()
-					if callback then callback(selected) end
-				end)
+				for i, itemText in ipairs(list) do
+					local isSel = (itemText == selected)
+					local itemBtn = n("TextButton", {
+						Position = UDim2.new(0, 0, 0, (i - 1) * itemH),
+						Size = UDim2.new(1, -4, 0, itemH),
+						BackgroundColor3 = Color3.fromRGB(32, 24, 42),
+						BackgroundTransparency = isSel and 0.3 or 0.8,
+						Text = "   " .. tostring(itemText),
+						TextColor3 = isSel and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 165, 195),
+						TextSize = 11,
+						Font = Enum.Font.GothamMedium,
+						TextXAlignment = Enum.TextXAlignment.Left,
+						ZIndex = 23,
+						Active = true
+					}, listContainer)
+
+					itemBtn.Activated:Connect(function()
+						selected = itemText
+						selLbl.Text = tostring(selected)
+						toggleDrop()
+						if callback then callback(selected) end
+					end)
+				end
 			end
 
-			return {
+			rebuildItems(list)
+
+			local dropdownObj = {
 				Set = function(self, val, fireCb)
 					selected = val
 					selLbl.Text = tostring(val)
 					if fireCb and callback then callback(val) end
 				end,
-				Get = function(self) return selected end
+				Get = function(self) return selected end,
+				Refresh = function(self, newList, newDefault, fireCb)
+					rebuildItems(newList)
+					if newDefault ~= nil then
+						self:Set(newDefault, fireCb)
+					elseif #list > 0 then
+						local found = false
+						for _, it in ipairs(list) do
+							if it == selected then
+								found = true
+								break
+							end
+						end
+						if not found then
+							self:Set(list[1], fireCb)
+						end
+					else
+						self:Set("", fireCb)
+					end
+					if open then
+						local totalH = #list * itemH
+						local contentH = math.min(maxListH, totalH)
+						listContainer.Size = UDim2.new(1, 0, 0, contentH)
+						dropFrame.Size = UDim2.new(1, 0, 0, 42 + contentH)
+					end
+				end
 			}
+
+			return dropdownObj
 		end
 
 		function elements:AddMultiDropdown(text, list, defaults, callback)
 			local open = false
+			list = list or {}
 			local selectedMap = {}
 			if typeof(defaults) == "table" then
 				for k, v in pairs(defaults) do
@@ -1072,6 +1126,9 @@ function RitodUI:CreateWindow(options)
 			end
 
 			local itemH = 32
+			local maxVisible = 6
+			local maxListH = maxVisible * itemH
+
 			local dropFrame = n("Frame", {
 				Size = UDim2.new(1, 0, 0, 42),
 				BackgroundColor3 = Color3.fromRGB(26, 20, 34),
@@ -1126,16 +1183,24 @@ function RitodUI:CreateWindow(options)
 				ZIndex = 22
 			}, header)
 
-			local listContainer = n("Frame", {
+			local listContainer = n("ScrollingFrame", {
 				Position = UDim2.new(0, 0, 0, 42),
-				Size = UDim2.new(1, 0, 0, #(list or {}) * itemH),
+				Size = UDim2.new(1, 0, 0, 0),
 				BackgroundTransparency = 1,
-				ZIndex = 21
+				BorderSizePixel = 0,
+				ScrollBarThickness = 3,
+				ScrollBarImageColor3 = Color3.fromRGB(180, 90, 255),
+				CanvasSize = UDim2.new(0, 0, 0, #list * itemH),
+				ZIndex = 21,
+				ClipsDescendants = true
 			}, dropFrame)
 
 			local function toggleDrop()
 				open = not open
-				local targetH = open and (42 + (#(list or {}) * itemH)) or 42
+				local totalH = #list * itemH
+				local contentH = math.min(maxListH, totalH)
+				local targetH = open and (42 + contentH) or 42
+				listContainer.Size = UDim2.new(1, 0, 0, open and contentH or 0)
 				TweenService:Create(dropFrame, TW_MED, {Size = UDim2.new(1, 0, 0, targetH)}):Play()
 				arrow.Text = open and "▲" or "▼"
 			end
@@ -1143,37 +1208,52 @@ function RitodUI:CreateWindow(options)
 			header.Activated:Connect(toggleDrop)
 
 			local itemButtons = {}
-			for i, itemText in ipairs(list or {}) do
-				local isSel = selectedMap[itemText] == true
-				local itemBtn = n("TextButton", {
-					Position = UDim2.new(0, 0, 0, (i - 1) * itemH),
-					Size = UDim2.new(1, 0, 0, itemH),
-					BackgroundColor3 = isSel and Color3.fromRGB(48, 30, 68) or Color3.fromRGB(32, 24, 42),
-					BackgroundTransparency = isSel and 0.2 or 0.8,
-					Text = (isSel and "  [✓] " or "  [  ] ") .. tostring(itemText),
-					TextColor3 = isSel and Color3.fromRGB(220, 160, 255) or Color3.fromRGB(180, 165, 195),
-					TextSize = 11,
-					Font = Enum.Font.GothamMedium,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					ZIndex = 23,
-					Active = true
-				}, listContainer)
 
-				itemButtons[itemText] = itemBtn
-
-				itemBtn.Activated:Connect(function()
-					selectedMap[itemText] = not selectedMap[itemText]
-					local nowSel = selectedMap[itemText] == true
-					itemBtn.Text = (nowSel and "  [✓] " or "  [  ] ") .. tostring(itemText)
-					itemBtn.BackgroundColor3 = nowSel and Color3.fromRGB(48, 30, 68) or Color3.fromRGB(32, 24, 42)
-					itemBtn.BackgroundTransparency = nowSel and 0.2 or 0.8
-					itemBtn.TextColor3 = nowSel and Color3.fromRGB(220, 160, 255) or Color3.fromRGB(180, 165, 195)
-					selLbl.Text = getDisplayText()
-					if callback then
-						callback(getSelectedList(), selectedMap)
+			local function rebuildMultiItems(newList)
+				list = newList or {}
+				itemButtons = {}
+				for _, child in ipairs(listContainer:GetChildren()) do
+					if child:IsA("GuiObject") then
+						child:Destroy()
 					end
-				end)
+				end
+				listContainer.CanvasSize = UDim2.new(0, 0, 0, #list * itemH)
+
+				for i, itemText in ipairs(list) do
+					local isSel = selectedMap[itemText] == true
+					local itemBtn = n("TextButton", {
+						Position = UDim2.new(0, 0, 0, (i - 1) * itemH),
+						Size = UDim2.new(1, -4, 0, itemH),
+						BackgroundColor3 = isSel and Color3.fromRGB(48, 30, 68) or Color3.fromRGB(32, 24, 42),
+						BackgroundTransparency = isSel and 0.2 or 0.8,
+						Text = (isSel and "  [✓] " or "  [  ] ") .. tostring(itemText),
+						TextColor3 = isSel and Color3.fromRGB(220, 160, 255) or Color3.fromRGB(180, 165, 195),
+						TextSize = 11,
+						Font = Enum.Font.GothamMedium,
+						TextXAlignment = Enum.TextXAlignment.Left,
+						ZIndex = 23,
+						Active = true
+					}, listContainer)
+
+					itemButtons[itemText] = itemBtn
+
+					itemBtn.Activated:Connect(function()
+						selectedMap[itemText] = not selectedMap[itemText]
+						local nowSel = selectedMap[itemText] == true
+						itemBtn.Text = (nowSel and "  [✓] " or "  [  ] ") .. tostring(itemText)
+						itemBtn.BackgroundColor3 = nowSel and Color3.fromRGB(48, 30, 68) or Color3.fromRGB(32, 24, 42)
+						itemBtn.BackgroundTransparency = nowSel and 0.2 or 0.8
+						itemBtn.TextColor3 = nowSel and Color3.fromRGB(220, 160, 255) or Color3.fromRGB(180, 165, 195)
+						selLbl.Text = getDisplayText()
+						if callback then
+							callback(getSelectedList(), selectedMap)
+						end
+					end)
+				end
+				selLbl.Text = getDisplayText()
 			end
+
+			rebuildMultiItems(list)
 
 			return {
 				Set = function(self, newDefaults, fireCb)
@@ -1202,10 +1282,22 @@ function RitodUI:CreateWindow(options)
 					end
 				end,
 				Get = function(self)
-					return getSelectedList()
+					return getSelectedList(), selectedMap
 				end,
 				GetMap = function(self)
 					return selectedMap
+				end,
+				Refresh = function(self, newList, newDefaults, fireCb)
+					rebuildMultiItems(newList)
+					if newDefaults ~= nil then
+						self:Set(newDefaults, fireCb)
+					end
+					if open then
+						local totalH = #list * itemH
+						local contentH = math.min(maxListH, totalH)
+						listContainer.Size = UDim2.new(1, 0, 0, contentH)
+						dropFrame.Size = UDim2.new(1, 0, 0, 42 + contentH)
+					end
 				end
 			}
 		end
