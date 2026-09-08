@@ -927,13 +927,34 @@ function RitodUI:CreateWindow(options)
 			return tb
 		end
 
-		function elements:AddDropdown(text, list, default, callback)
+		function elements:AddDropdown(text, list, default, callback, options)
 			local open = false
-			list = list or {}
-			local selected = default or list[1] or ""
+			local fullList = list or {}
+			local currentList = fullList
+			local selected = default or fullList[1] or ""
 			local itemH = 32
 			local maxVisible = 6
 			local maxListH = maxVisible * itemH
+
+			local isSearchable = false
+			local searchPlaceholder = "🔍 Cari opsi / nama unit..."
+			local onRefreshCb = nil
+
+			if typeof(options) == "table" then
+				if options.Searchable ~= nil then
+					isSearchable = options.Searchable
+				else
+					isSearchable = (#fullList >= 5)
+				end
+				searchPlaceholder = options.Placeholder or searchPlaceholder
+				onRefreshCb = options.OnRefresh
+			elseif options == true then
+				isSearchable = true
+			else
+				isSearchable = (#fullList >= 5)
+			end
+
+			local baseH = isSearchable and 82 or 42
 
 			local dropFrame = n("Frame", {
 				Size = UDim2.new(1, 0, 0, 42),
@@ -954,7 +975,7 @@ function RitodUI:CreateWindow(options)
 
 			local titleLbl = n("TextLabel", {
 				Position = UDim2.new(0, 12, 0, 0),
-				Size = UDim2.new(0.5, 0, 1, 0),
+				Size = UDim2.new(0.48, 0, 1, 0),
 				BackgroundTransparency = 1,
 				Text = text,
 				TextColor3 = Color3.fromRGB(235, 225, 245),
@@ -965,8 +986,8 @@ function RitodUI:CreateWindow(options)
 			}, header)
 
 			local selLbl = n("TextLabel", {
-				Position = UDim2.new(0.5, 0, 0, 0),
-				Size = UDim2.new(0.5, -30, 1, 0),
+				Position = UDim2.new(0.48, 0, 0, 0),
+				Size = UDim2.new(0.52, -30, 1, 0),
 				BackgroundTransparency = 1,
 				Text = tostring(selected),
 				TextColor3 = Color3.fromRGB(190, 120, 255),
@@ -989,40 +1010,116 @@ function RitodUI:CreateWindow(options)
 				ZIndex = 22
 			}, header)
 
+			local searchBox = nil
+			local searchHolder = nil
+
+			if isSearchable then
+				searchHolder = n("Frame", {
+					Position = UDim2.new(0, 8, 0, 44),
+					Size = UDim2.new(1, -16, 0, 30),
+					BackgroundColor3 = Color3.fromRGB(18, 14, 24),
+					BorderSizePixel = 0,
+					ZIndex = 22
+				}, dropFrame)
+				corner(6, searchHolder)
+				stroke(1, Color3.fromRGB(65, 48, 80), searchHolder)
+
+				local rightPad = onRefreshCb and -32 or -10
+				searchBox = n("TextBox", {
+					Position = UDim2.new(0, 10, 0, 0),
+					Size = UDim2.new(1, rightPad - 10, 1, 0),
+					BackgroundTransparency = 1,
+					PlaceholderText = searchPlaceholder,
+					PlaceholderColor3 = Color3.fromRGB(140, 120, 160),
+					Text = "",
+					TextColor3 = Color3.fromRGB(245, 240, 255),
+					TextSize = 11,
+					Font = Enum.Font.GothamMedium,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					ClearTextOnFocus = false,
+					ZIndex = 23
+				}, searchHolder)
+
+				if onRefreshCb then
+					local refreshBtn = n("TextButton", {
+						AnchorPoint = Vector2.new(1, 0.5),
+						Position = UDim2.new(1, -3, 0.5, 0),
+						Size = UDim2.new(0, 24, 0, 24),
+						BackgroundColor3 = Color3.fromRGB(34, 25, 46),
+						BackgroundTransparency = 0.3,
+						Text = "🔄",
+						TextColor3 = Color3.fromRGB(200, 140, 255),
+						TextSize = 12,
+						Font = Enum.Font.GothamBold,
+						ZIndex = 24
+					}, searchHolder)
+					corner(4, refreshBtn)
+					refreshBtn.Activated:Connect(function()
+						pcall(onRefreshCb)
+					end)
+				end
+			end
+
+			local listTop = isSearchable and 80 or 42
 			local listContainer = n("ScrollingFrame", {
-				Position = UDim2.new(0, 0, 0, 42),
+				Position = UDim2.new(0, 0, 0, listTop),
 				Size = UDim2.new(1, 0, 0, 0),
 				BackgroundTransparency = 1,
 				BorderSizePixel = 0,
 				ScrollBarThickness = 3,
 				ScrollBarImageColor3 = Color3.fromRGB(180, 90, 255),
-				CanvasSize = UDim2.new(0, 0, 0, #list * itemH),
+				CanvasSize = UDim2.new(0, 0, 0, #fullList * itemH),
 				ZIndex = 21,
 				ClipsDescendants = true
 			}, dropFrame)
 
-			local function toggleDrop()
-				open = not open
-				local totalH = #list * itemH
+			local function updateDropSize()
+				local totalH = #currentList * itemH
 				local contentH = math.min(maxListH, totalH)
-				local targetH = open and (42 + contentH) or 42
+				local targetH = open and (baseH + contentH + (isSearchable and 4 or 0)) or 42
 				listContainer.Size = UDim2.new(1, 0, 0, open and contentH or 0)
 				TweenService:Create(dropFrame, TW_MED, {Size = UDim2.new(1, 0, 0, targetH)}):Play()
 				arrow.Text = open and "▲" or "▼"
 			end
 
+			local function toggleDrop()
+				open = not open
+				if open and searchBox then
+					searchBox.Text = ""
+					task.defer(function()
+						pcall(function() searchBox:CaptureFocus() end)
+					end)
+				end
+				updateDropSize()
+			end
+
 			header.Activated:Connect(toggleDrop)
 
 			local function rebuildItems(newList)
-				list = newList or {}
+				currentList = newList or {}
 				for _, child in ipairs(listContainer:GetChildren()) do
 					if child:IsA("GuiObject") then
 						child:Destroy()
 					end
 				end
-				listContainer.CanvasSize = UDim2.new(0, 0, 0, #list * itemH)
+				listContainer.CanvasSize = UDim2.new(0, 0, 0, #currentList * itemH)
 
-				for i, itemText in ipairs(list) do
+				if #currentList == 0 then
+					local emptyLbl = n("TextLabel", {
+						Position = UDim2.new(0, 12, 0, 0),
+						Size = UDim2.new(1, -24, 0, itemH),
+						BackgroundTransparency = 1,
+						Text = "Tidak ada unit yang cocok",
+						TextColor3 = Color3.fromRGB(140, 125, 155),
+						TextSize = 11,
+						Font = Enum.Font.GothamMedium,
+						TextXAlignment = Enum.TextXAlignment.Left,
+						ZIndex = 23
+					}, listContainer)
+					return
+				end
+
+				for i, itemText in ipairs(currentList) do
 					local isSel = (itemText == selected)
 					local itemBtn = n("TextButton", {
 						Position = UDim2.new(0, 0, 0, (i - 1) * itemH),
@@ -1047,7 +1144,27 @@ function RitodUI:CreateWindow(options)
 				end
 			end
 
-			rebuildItems(list)
+			rebuildItems(fullList)
+
+			if searchBox then
+				searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+					local q = string.lower(searchBox.Text or "")
+					if q == "" then
+						rebuildItems(fullList)
+					else
+						local filtered = {}
+						for _, item in ipairs(fullList) do
+							if string.find(string.lower(tostring(item)), q, 1, true) then
+								table.insert(filtered, item)
+							end
+						end
+						rebuildItems(filtered)
+					end
+					if open then
+						updateDropSize()
+					end
+				end)
+			end
 
 			local dropdownObj = {
 				Set = function(self, val, fireCb)
@@ -1057,28 +1174,39 @@ function RitodUI:CreateWindow(options)
 				end,
 				Get = function(self) return selected end,
 				Refresh = function(self, newList, newDefault, fireCb)
-					rebuildItems(newList)
+					fullList = newList or {}
+					if searchBox and searchBox.Text ~= "" then
+						local q = string.lower(searchBox.Text)
+						local filtered = {}
+						for _, item in ipairs(fullList) do
+							if string.find(string.lower(tostring(item)), q, 1, true) then
+								table.insert(filtered, item)
+							end
+						end
+						rebuildItems(filtered)
+					else
+						rebuildItems(fullList)
+					end
+
 					if newDefault ~= nil then
 						self:Set(newDefault, fireCb)
-					elseif #list > 0 then
+					elseif #fullList > 0 then
 						local found = false
-						for _, it in ipairs(list) do
+						for _, it in ipairs(fullList) do
 							if it == selected then
 								found = true
 								break
 							end
 						end
 						if not found then
-							self:Set(list[1], fireCb)
+							self:Set(fullList[1], fireCb)
 						end
 					else
 						self:Set("", fireCb)
 					end
+
 					if open then
-						local totalH = #list * itemH
-						local contentH = math.min(maxListH, totalH)
-						listContainer.Size = UDim2.new(1, 0, 0, contentH)
-						dropFrame.Size = UDim2.new(1, 0, 0, 42 + contentH)
+						updateDropSize()
 					end
 				end
 			}

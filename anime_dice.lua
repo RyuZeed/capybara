@@ -370,13 +370,31 @@ local function updateSlotDisplay()
     end
 end
 
-local slotOptions = { "Semua Slot (1-" .. maxPlotSlots .. ")" }
-for s = 1, maxPlotSlots do
-    table.insert(slotOptions, "Slot " .. s)
+local function getSlotDropdownOptions()
+    local opts = { "Semua Slot (1-" .. maxPlotSlots .. ")" }
+    local all = (AutoPlot and AutoPlot.GetAllSlotsInfo and AutoPlot.GetAllSlotsInfo()) or {}
+    for s = 1, maxPlotSlots do
+        local slotInfo = all[s]
+        if slotInfo and slotInfo.hasUnit then
+            table.insert(opts, string.format("Slot %d: %s (Lv.%d)", s, slotInfo.unitName, slotInfo.level))
+        else
+            table.insert(opts, string.format("Slot %d (Kosong)", s))
+        end
+    end
+    return opts
 end
-local currentSlotName = (selectedSlotIdx == 0) and ("Semua Slot (1-" .. maxPlotSlots .. ")") or ("Slot " .. selectedSlotIdx)
 
-local slotDropdown = FarmTab:AddDropdown("Pilih Slot Unit", slotOptions, currentSlotName, function(choice)
+local slotOptions = getSlotDropdownOptions()
+local currentSlotName = (selectedSlotIdx == 0) and ("Semua Slot (1-" .. maxPlotSlots .. ")") or ("Slot " .. selectedSlotIdx)
+for _, opt in ipairs(slotOptions) do
+    if selectedSlotIdx > 0 and opt:find("^Slot " .. selectedSlotIdx) then
+        currentSlotName = opt
+        break
+    end
+end
+
+local slotDropdown
+slotDropdown = FarmTab:AddDropdown("Pilih Slot Unit", slotOptions, currentSlotName, function(choice)
     if choice:find("Semua Slot") then
         selectedSlotIdx = 0
     else
@@ -392,48 +410,24 @@ local slotDropdown = FarmTab:AddDropdown("Pilih Slot Unit", slotOptions, current
     end
     if ConfigManager then ConfigManager.Save() end
     updateSlotDisplay()
-end)
-
-FarmTab:AddInput("🔍 Cari Unit di Slot", "Ketik nama unit / nomor slot...", function(text)
-    if not text or text == "" then return end
-    local query = string.lower(text)
-    local foundSlot = nil
-
-    local num = query:match("%d+")
-    if num then
-        local n = tonumber(num)
-        if n and n >= 1 and n <= maxPlotSlots then
-            foundSlot = n
-        end
-    end
-
-    if not foundSlot and AutoPlot and AutoPlot.GetAllSlotsInfo then
-        local all = AutoPlot.GetAllSlotsInfo()
-        for _, s in ipairs(all) do
-            if s.hasUnit and string.find(string.lower(s.unitName), query, 1, true) then
-                foundSlot = s.slot
-                break
+end, {
+    Searchable = true,
+    Placeholder = "🔍 Cari nomor slot atau nama unit...",
+    OnRefresh = function()
+        if slotDropdown and slotDropdown.Refresh then
+            local freshOpts = getSlotDropdownOptions()
+            local cur = freshOpts[1]
+            for _, opt in ipairs(freshOpts) do
+                if selectedSlotIdx > 0 and opt:find("^Slot " .. selectedSlotIdx) then
+                    cur = opt
+                    break
+                end
             end
+            slotDropdown:Refresh(freshOpts, cur, false)
         end
-    end
-
-    if foundSlot then
-        selectedSlotIdx = foundSlot
-        CurrentConfig.SlotUpgradeTargetSlot = foundSlot
-        if slotDropdown and slotDropdown.Set then
-            slotDropdown:Set("Slot " .. foundSlot, false)
-        end
-        if AutoPlot then
-            AutoPlot.TargetSlot = foundSlot
-            if AutoPlot.UpgradeSlots then
-                AutoPlot.StartAutoUpgradeSession(selectedUpgradeTimes, foundSlot)
-            end
-        end
-        if ConfigManager then ConfigManager.Save() end
         updateSlotDisplay()
-        Window.Notify("Cari Slot", string.format("Unit ditemukan di Slot %d!", foundSlot), 1.5)
     end
-end)
+})
 
 FarmTab:AddSlider("Berapa Kali Upgrade (1 - 50x)", 1, 50, selectedUpgradeTimes, function(val)
     selectedUpgradeTimes = val
@@ -645,33 +639,7 @@ local function updateTraitGradeDisplay()
 end
 
 local unitDropdown
-
-FarmTab:AddInput("🔍 Cari Unit (Trait / Grade)", "Ketik nama unit...", function(query)
-    query = string.lower(query or "")
-    local filtered = {}
-    for _, dName in ipairs(unitDisplayNames) do
-        if query == "" or string.find(string.lower(dName), query, 1, true) then
-            table.insert(filtered, dName)
-        end
-    end
-    if #filtered == 0 then
-        table.insert(filtered, "Tidak Ada Unit yang Cocok")
-    end
-    if unitDropdown and unitDropdown.Refresh then
-        unitDropdown:Refresh(filtered, filtered[1], true)
-    end
-end)
-
-FarmTab:AddButton("🔄 Refresh Daftar Unit Inventory", function()
-    rebuildInventoryList()
-    if unitDropdown and unitDropdown.Refresh then
-        unitDropdown:Refresh(unitDisplayNames, unitDisplayNames[1], true)
-    end
-    Window.Notify("Inventory Unit", string.format("%d unit berhasil di-refresh!", #invUnits), 2.0)
-    updateTraitGradeDisplay()
-end)
-
--- Dropdown Pilih Unit Langsung dari Inventory
+-- Dropdown Pilih Unit Langsung dari Inventory (Search bar & tombol refresh terintegrasi di dalamnya)
 unitDropdown = FarmTab:AddDropdown("Pilih Unit (Inventory)", unitDisplayNames, currentUnitDisplayName, function(choice)
     local targetId = displayNameToId[choice]
     if targetId then
@@ -689,7 +657,18 @@ unitDropdown = FarmTab:AddDropdown("Pilih Unit (Inventory)", unitDisplayNames, c
         if ConfigManager then ConfigManager.Save() end
         updateTraitGradeDisplay()
     end
-end)
+end, {
+    Searchable = true,
+    Placeholder = "🔍 Cari nama unit inventory...",
+    OnRefresh = function()
+        rebuildInventoryList()
+        if unitDropdown and unitDropdown.Refresh then
+            unitDropdown:Refresh(unitDisplayNames, unitDisplayNames[1], true)
+        end
+        Window.Notify("Inventory Unit", string.format("%d unit berhasil di-refresh!", #invUnits), 2.0)
+        updateTraitGradeDisplay()
+    end
+})
 
 -- SEKSI TRAIT:
 local traitListOptions = {
