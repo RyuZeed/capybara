@@ -417,20 +417,6 @@ function AutoPlot.Start()
                 end
             end
 
-            -- Auto Level Up Sesuai Rebirth (target level otomatis mengikuti Rebirth player)
-            local shouldLevelUpByRebirth = AutoPlot.LevelUpByRebirth
-            if cfg and cfg.AutoLevelUpByRebirth ~= nil then
-                shouldLevelUpByRebirth = cfg.AutoLevelUpByRebirth
-            end
-            if cfg and cfg.LevelUpRebirthMultiplier ~= nil then
-                AutoPlot.LevelMultiplierPerRebirth = tonumber(cfg.LevelUpRebirthMultiplier) or 10
-            end
-
-            if shouldLevelUpByRebirth and (now - tickLevelUpRebirth) >= 1.5 then
-                tickLevelUpRebirth = now
-                AutoPlot.LevelUpSlotsByRebirthOnce()
-            end
-
             task.wait(0.5)
         end
     end)

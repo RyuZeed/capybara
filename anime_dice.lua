@@ -496,74 +496,6 @@ FarmTab:AddButton("⬆️ Upgrade Unit Sekarang (Sesuai Pilihan X Kali)", functi
     end
 end)
 
--- ─── 🎯 AUTO LEVEL UP UNIT SESUAI REBIRTH ────
-FarmTab:AddSection("🎯 Auto Level Up Sesuai Rebirth")
-
-local rebirthLevelCard = FarmTab:AddParagraph(
-    "🎯 Memuat Status Rebirth & Level...",
-    "Menghitung target level unit berdasarkan Rebirth player saat ini..."
-)
-
-local function updateRebirthLevelCard()
-    if not AutoPlot then return end
-    local rebirth = AutoPlot.GetPlayerRebirth()
-    local targetLv = AutoPlot.GetTargetLevelForRebirth()
-    local mult = AutoPlot.LevelMultiplierPerRebirth or 10
-    local isLvlUp = AutoPlot.LevelUpByRebirth
-    local status = isLvlUp and "🟢 AKTIF (Menaikkan unit hingga target)" or "⚪ NONAKTIF"
-
-    local allSlots = AutoPlot.GetAllSlotsInfo()
-    local underTargetCount = 0
-    local totalActive = 0
-    for _, s in ipairs(allSlots) do
-        if s.hasUnit then
-            totalActive = totalActive + 1
-            if s.level < targetLv then
-                underTargetCount = underTargetCount + 1
-            end
-        end
-    end
-
-    rebirthLevelCard:Set(
-        string.format("🎯 Rebirth: %d | Target Level Unit: Lv.%d", rebirth, targetLv),
-        string.format("Formula: (Rebirth + 1) x %d Level\nStatus: %s\nUnit di Slot: %d unit terpasang (%d butuh level up)\nMaksimal Slot Game: 13 Slot (Terbuka penuh di Rebirth 10)",
-            mult, status, totalActive, underTargetCount)
-    )
-end
-
-FarmTab:AddSlider("Level per Rebirth (Target Lv = [R+1] x N)", 5, 30, CurrentConfig.LevelUpRebirthMultiplier or 10, function(val)
-    CurrentConfig.LevelUpRebirthMultiplier = val
-    if AutoPlot then
-        AutoPlot.LevelMultiplierPerRebirth = val
-    end
-    if ConfigManager then ConfigManager.Save() end
-    updateRebirthLevelCard()
-end)
-
-FarmTab:AddToggle("Auto Level Up Unit Sesuai Rebirth", CurrentConfig.AutoLevelUpByRebirth or false, function(state)
-    CurrentConfig.AutoLevelUpByRebirth = state
-    if AutoPlot then
-        AutoPlot.LevelUpByRebirth = state
-        if state then
-            local tLv = AutoPlot.GetTargetLevelForRebirth()
-            Window.Notify("Level Up Rebirth", string.format("Auto Level Up aktif! Target Lv.%d (Rebirth %d).", tLv, AutoPlot.GetPlayerRebirth()), 2.5)
-        else
-            Window.Notify("Level Up Rebirth", "Auto Level Up sesuai Rebirth dimatikan.", 1.8)
-        end
-    end
-    if ConfigManager then ConfigManager.Save() end
-    updateRebirthLevelCard()
-end)
-
-FarmTab:AddButton("⬆️ Level Up Sesuai Rebirth Sekarang (1 Siklus)", function()
-    if AutoPlot then
-        local count = AutoPlot.LevelUpSlotsByRebirthOnce()
-        Window.Notify("Level Up Rebirth", string.format("Berhasil menaikkan %d level unit!", count), 2.5)
-        updateSlotDisplay()
-        updateRebirthLevelCard()
-    end
-end)
-
 -- ─── 🧬 AUTO TRAITS & AUTO GRADES ENGINE (INVENTORY DIRECT) ────
 FarmTab:AddSection("🧬 Unit Traits & Grades (Inventory)")
 
@@ -824,7 +756,6 @@ task.spawn(function()
         task.wait(1.2)
         pcall(updateSlotDisplay)
         pcall(updateTraitGradeDisplay)
-        pcall(updateRebirthLevelCard)
     end
 end)
 

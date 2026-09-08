@@ -45,8 +45,6 @@ ConfigManager.DefaultConfig = {
     -- Slot Unit Upgrades
     SlotUpgradeTargetSlot = 0, -- 0 = Semua Slot, 1..13 = Slot 1-13
     SlotUpgradeTargetTimes = 5,
-    AutoLevelUpByRebirth = false,
-    LevelUpRebirthMultiplier = 10,
     -- Traits & Grades Automation (Inventory Direct)
     AutoTrait = false,
     AutoGrade = false,
