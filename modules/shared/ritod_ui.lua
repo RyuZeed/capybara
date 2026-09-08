@@ -1146,6 +1146,17 @@ function RitodUI:CreateWindow(options)
 
 			rebuildItems(fullList)
 
+			local function itemMatchesQuery(itemText, query)
+				if not query or query == "" then return true end
+				local itemLower = string.lower(tostring(itemText))
+				for word in string.gmatch(string.lower(query), "%S+") do
+					if not string.find(itemLower, word, 1, true) then
+						return false
+					end
+				end
+				return true
+			end
+
 			if searchBox then
 				searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 					local q = string.lower(searchBox.Text or "")
@@ -1154,7 +1165,7 @@ function RitodUI:CreateWindow(options)
 					else
 						local filtered = {}
 						for _, item in ipairs(fullList) do
-							if string.find(string.lower(tostring(item)), q, 1, true) then
+							if itemMatchesQuery(item, q) then
 								table.insert(filtered, item)
 							end
 						end
@@ -1179,7 +1190,7 @@ function RitodUI:CreateWindow(options)
 						local q = string.lower(searchBox.Text)
 						local filtered = {}
 						for _, item in ipairs(fullList) do
-							if string.find(string.lower(tostring(item)), q, 1, true) then
+							if itemMatchesQuery(item, q) then
 								table.insert(filtered, item)
 							end
 						end

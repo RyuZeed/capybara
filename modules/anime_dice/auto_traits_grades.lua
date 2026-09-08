@@ -172,12 +172,15 @@ function AutoTraitsGrades.GetAllInventoryUnits()
         end
     end
 
-    -- Urutkan berdasarkan level tertinggi lalu nama
+    -- Urutkan berdasarkan level tertinggi lalu nama lalu mutasi
     table.sort(list, function(a, b)
         if a.level ~= b.level then
             return a.level > b.level
         end
-        return a.name < b.name
+        if a.name ~= b.name then
+            return a.name < b.name
+        end
+        return tostring(a.mutation or "") < tostring(b.mutation or "")
     end)
 
     return list

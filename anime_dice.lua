@@ -352,7 +352,8 @@ local function updateSlotDisplay()
         for _, s in ipairs(allSlots) do
             if s.hasUnit then
                 activeCount = activeCount + 1
-                table.insert(lines, string.format("S%d: %s (Lv.%d)", s.slot, s.unitName, s.level))
+                local mutTag = (s.mutation and s.mutation ~= "None" and s.mutation ~= "") and (" [" .. s.mutation .. "]") or ""
+                table.insert(lines, string.format("S%d: %s%s (Lv.%d)", s.slot, s.unitName, mutTag, s.level))
             end
         end
         local summaryStr = (#lines > 0) and table.concat(lines, " | ") or "Semua slot kosong."
@@ -367,10 +368,11 @@ local function updateSlotDisplay()
             local statusStr = s.canAfford and "✅ Koin Cukup" or "❌ Koin Kurang"
             local remQuota = (AutoPlot.GetRemainingQuota and AutoPlot.GetRemainingQuota(selectedSlotIdx)) or 0
             local statusNote = isUpgrading and string.format(" | ⏳ Sisa: %dx", remQuota) or ""
+            local mutTag = (s.mutation and s.mutation ~= "None" and s.mutation ~= "") and (" [" .. s.mutation .. "]") or ""
             slotInfoCard:Set(
-                string.format("⭐ [Slot %d] %s (%s)", s.slot, s.unitName, s.rarity),
+                string.format("⭐ [Slot %d] %s%s (%s)", s.slot, s.unitName, mutTag, s.rarity),
                 string.format("Level: %d | Grade: %s | Trait: %s | Mutasi: %s\nBiaya Upgrade: $%s (%s%s)",
-                    s.level, s.grade, s.trait, s.mutation, formatCash(s.price), statusStr, statusNote)
+                    s.level, s.grade, s.trait, s.mutation or "None", formatCash(s.price), statusStr, statusNote)
             )
         else
             local unlockNote = s.isUnlocked and "Slot Terbuka (Kosong)" or string.format("Terkunci (Butuh Rebirth %d)", s.requiredRebirth or 0)
@@ -388,7 +390,8 @@ local function getSlotDropdownOptions()
     for s = 1, maxPlotSlots do
         local slotInfo = all[s]
         if slotInfo and slotInfo.hasUnit then
-            table.insert(opts, string.format("Slot %d: %s (Lv.%d)", s, slotInfo.unitName, slotInfo.level))
+            local mutTag = (slotInfo.mutation and slotInfo.mutation ~= "None" and slotInfo.mutation ~= "") and (" [" .. slotInfo.mutation .. "]") or ""
+            table.insert(opts, string.format("Slot %d: %s%s (Lv.%d)", s, slotInfo.unitName, mutTag, slotInfo.level))
         else
             table.insert(opts, string.format("Slot %d (Kosong)", s))
         end
@@ -508,9 +511,10 @@ local function rebuildInventoryList()
     unitDisplayNames = {}
     displayNameToId = {}
     for _, u in ipairs(invUnits) do
-        local dName = string.format("%s (Lv.%d)", u.name, u.level)
+        local mutTag = (u.mutation and u.mutation ~= "None" and u.mutation ~= "") and (" [" .. u.mutation .. "]") or ""
+        local dName = string.format("%s%s (Lv.%d)", u.name, mutTag, u.level)
         if displayNameToId[dName] then
-            dName = string.format("%s (Lv.%d #%s)", u.name, u.level, u.id:sub(1, 4))
+            dName = string.format("%s%s (Lv.%d #%s)", u.name, mutTag, u.level, u.id:sub(1, 4))
         end
         table.insert(unitDisplayNames, dName)
         displayNameToId[dName] = u.id
@@ -567,12 +571,14 @@ local function updateTraitGradeDisplay()
         local traitStatus = AutoTraitsGrades.AutoTrait and " [⏳ Rolling Trait...]" or ""
         local gradeStatus = AutoTraitsGrades.AutoGrade and " [⏳ Rolling Grade...]" or ""
         local traitsDisplay = formatTraitsDisplay(selectedTargetTraits)
+        local mutTag = (u.mutation and u.mutation ~= "None" and u.mutation ~= "") and (" [" .. u.mutation .. "]") or ""
+        local mutDetail = (u.mutation and u.mutation ~= "None" and u.mutation ~= "") and u.mutation or "None"
         traitGradeCard:Set(
-            string.format("⭐ %s (Lv.%d) [%s]", u.name, u.level, u.rarity),
-            string.format("Trait: %s%s | Target (%d): [%s]\nGrade: %s%s | Target: %s\nBahan: %d Trait Rerolls | %d Gems",
+            string.format("⭐ %s%s (Lv.%d) [%s]", u.name, mutTag, u.level, u.rarity),
+            string.format("Trait: %s%s | Target (%d): [%s]\nGrade: %s%s | Target: %s\nMutasi: %s | Bahan: %d Trait Rerolls | %d Gems",
                 u.trait, traitStatus, #selectedTargetTraits, traitsDisplay,
                 u.grade, gradeStatus, selectedTargetGrade .. (gradeOrHigher and " (Atau Lebih)" or ""),
-                traitRerolls, gems)
+                mutDetail, traitRerolls, gems)
         )
     else
         traitGradeCard:Set(
@@ -603,11 +609,18 @@ unitDropdown = FarmTab:AddDropdown("Pilih Unit (Inventory)", unitDisplayNames, c
     end
 end, {
     Searchable = true,
-    Placeholder = "🔍 Cari nama unit inventory...",
+    Placeholder = "🔍 Cari nama / mutasi unit (cth: arin gold)...",
     OnRefresh = function()
         rebuildInventoryList()
+        local cur = unitDisplayNames[1]
+        for dName, id in pairs(displayNameToId) do
+            if id == selectedUnitId then
+                cur = dName
+                break
+            end
+        end
         if unitDropdown and unitDropdown.Refresh then
-            unitDropdown:Refresh(unitDisplayNames, unitDisplayNames[1], true)
+            unitDropdown:Refresh(unitDisplayNames, cur, false)
         end
         Window.Notify("Inventory Unit", string.format("%d unit berhasil di-refresh!", #invUnits), 2.0)
         updateTraitGradeDisplay()
